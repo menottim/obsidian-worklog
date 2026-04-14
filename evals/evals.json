@@ -1,0 +1,47 @@
+{
+  "skill_name": "worklog",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "it's wednesday and i just had a 1:1 with Sarah. she mentioned that the team offsite needs a different venue because the original one fell through. also Alex from platform wants to set up a security review for their new service mesh changes. can you add these to my worklog?",
+      "expected_output": "Should add two items to the EXISTING week file without creating a new week or archiving. Should create a People stub for Alex if she doesn't exist. Should NOT trigger a rollover.",
+      "issue_tested": "Issue #2 and #3 - mid-week updates should not create new week files"
+    },
+    {
+      "id": 2,
+      "prompt": "/worklog review",
+      "expected_output": "Should walk through items one by one and collect updates. Should NOT create a new week file or archive the current week unless it's actually Monday and a new week has started. The review command description currently conflates review with rollover.",
+      "issue_tested": "Issue #2 - review command creates new week every time"
+    },
+    {
+      "id": 3,
+      "prompt": "/worklog audit",
+      "expected_output": "Stuck items check should work correctly. But since archived weeks only have summary bullets (no priority markers or item titles), the audit can only detect stuck items by comparing the current active week against rollover notes in archives. Should not crash or produce false positives from archived files.",
+      "issue_tested": "Issue #4 - stuck item detection across archive format"
+    },
+    {
+      "id": 4,
+      "prompt": "/worklog add P1 quick sync with Marcus about the API rate limit proposal",
+      "expected_output": "Should add the item and wiki-link Marcus Williams. Should NOT do a full frontmatter regeneration just for adding one sub-item. Or if it does regen, it should be fast and not glob 60+ files for a minor edit.",
+      "issue_tested": "Issue #5 - frontmatter regen overhead on minor edits"
+    },
+    {
+      "id": 5,
+      "prompt": "/worklog viz quarter",
+      "expected_output": "Should produce a self-contained HTML file with 4 D3 charts. The HTML should be consistent in structure across invocations - same chart types, same color scheme, same layout. Without a template, each invocation may produce wildly different HTML.",
+      "issue_tested": "Issue #7 - viz consistency without template"
+    },
+    {
+      "id": 6,
+      "prompt": "here are notes from my 1:1 with Sarah Chen:\n- she's concerned about the migration timeline slipping\n- wants to bring in a contractor for the gap\n- mentioned that Marcus is doing well picking up Dev's work\n\nadd to worklog",
+      "expected_output": "Should process these as sub-items under the existing Sarah Chen / Dev leave item. Should NOT create a duplicate top-level item. Should add dated annotations with today's date.",
+      "issue_tested": "Issue #3 - transcript/notes processing flow"
+    },
+    {
+      "id": 7,
+      "prompt": "/worklog summary month",
+      "expected_output": "If run twice in the same month, the second run overwrites the first without warning. Should either warn or append a date suffix to avoid silent data loss.",
+      "issue_tested": "Issue #8 - summary overwrite without warning"
+    }
+  ]
+}

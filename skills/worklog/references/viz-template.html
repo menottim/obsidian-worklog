@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{TITLE}} Worklog Visualizations</title>
+<script src="https://d3js.org/d3.v7.min.js"
+  integrity="sha384-CjloA8y00+1SDAUkjs099PVfnY2KmDC2BZnws9kh8D/lX1s46w6EPhpXdqMfjK6i"
+  crossorigin="anonymous"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #1e1e2e; color: #cdd6f4; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 24px; }
+  h1 { text-align: center; margin-bottom: 8px; font-size: 1.6em; color: #cdd6f4; }
+  .subtitle { text-align: center; color: #6c7086; margin-bottom: 32px; font-size: 0.9em; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; max-width: 1200px; margin: 0 auto; }
+  .chart-card { background: #313244; border-radius: 12px; padding: 20px; }
+  .chart-card h2 { font-size: 1em; color: #a6adc8; margin-bottom: 4px; }
+  .chart-card .desc { font-size: 0.75em; color: #6c7086; margin-bottom: 16px; }
+  svg { width: 100%; }
+  .legend { font-size: 0.7em; fill: #a6adc8; }
+  .axis text { fill: #6c7086; font-size: 0.7em; }
+  .axis path, .axis line { stroke: #45475a; }
+  @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<h1>{{TITLE}} Worklog Visualizations</h1>
+<p class="subtitle">{{SUBTITLE}}</p>
+<div class="grid">
+  <div class="chart-card">
+    <h2>Time Allocation</h2>
+    <p class="desc">Percentage of items by category across the period</p>
+    <div id="pie"></div>
+  </div>
+  <div class="chart-card">
+    <h2>Program Activity</h2>
+    <p class="desc">Programs by number of items mentioning them</p>
+    <div id="heatmap"></div>
+  </div>
+  <div class="chart-card">
+    <h2>P0 Count by Week</h2>
+    <p class="desc">Number of P0 items per week with period average</p>
+    <div id="p0trend"></div>
+  </div>
+  <div class="chart-card">
+    <h2>Completion Rate</h2>
+    <p class="desc">Done vs. rolled-forward items per week</p>
+    <div id="completion"></div>
+  </div>
+</div>
+
+<script>
+// DATA_PLACEHOLDER - replace this entire line with: const data = { ... };
+// The data object must have these fields:
+//   categories: [{ name: string, count: number }]  - exclude "Done" category
+//   programs: [{ name: string, W15: number, W16: number, ... }]  - one entry per program, one field per week
+//   weeks: ["W15", "W16", ...]  - ordered list of week labels
+//   p0: [{ week: string, count: number }]  - P0 count per week
+//   completion: [{ week: string, done: number, rolled: number }]  - per week
+
+const colors = ["#f38ba8","#a6e3a1","#89b4fa","#f9e2af","#cba6f7","#94e2d5","#fab387","#74c7ec","#f5c2e7"];
+
+// Pie Chart - Time Allocation
+(function() {
+  const width = 300, height = 280, radius = Math.min(width, height) / 2 - 20;
+  const total = d3.sum(data.categories, d => d.count);
+  const svg = d3.select("#pie").append("svg")
+    .attr("viewBox", `0 0 ${width} ${height}`)
+    .append("g").attr("transform", `translate(${width/2 - 40},${height/2})`);
+  const pie = d3.pie().value(d => d.count).sort(null);
+  const arc = d3.arc().innerRadius(50).outerRadius(radius);
+  const color = d3.scaleOrdinal().domain(data.categories.map(d => d.name)).range(colors);
+  svg.selectAll("path").data(pie(data.categories)).join("path")
+    .attr("d", arc).attr("fill", d => color(d.data.name)).attr("stroke", "#313244").attr("stroke-width", 2);
+  const legend = svg.append("g").attr("transform", `translate(${radius + 16}, ${-data.categories.length * 10})`);
+  data.categories.forEach((d, i) => {
+    const g = legend.append("g").attr("transform", `translate(0,${i * 22})`);
+    g.append("rect").attr("width", 12).attr("height", 12).attr("rx", 2).attr("fill", color(d.name));
+    g.append("text").attr("x", 18).attr("y", 10).attr("class", "legend")
+      .text(`${d.name} (${Math.round(d.count/total*100)}%)`);
+  });
+})();
+
+// Heatmap - Program Activity
+(function() {
+  const margin = {top: 10, right: 10, bottom: 30, left: 120};
+  const width = 400, height = data.programs.length * 28 + margin.top + margin.bottom;
+  const svg = d3.select("#heatmap").append("svg")
+    .attr("viewBox", `0 0 ${width} ${height}`)
+    .append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+  const x = d3.scaleBand().domain(data.weeks).range([0, width - margin.left - margin.right]).padding(0.1);
+  const y = d3.scaleBand().domain(data.programs.map(d => d.name)).range([0, height - margin.top - margin.bottom]).padding(0.1);
+  const maxVal = d3.max(data.programs, d => Math.max(...data.weeks.map(w => d[w] || 0)));
+  const color = d3.scaleSequential(d3.interpolateBlues).domain([0, maxVal + 1]);
+  data.programs.forEach(prog => {
+    data.weeks.forEach(week => {
+      const val = prog[week] || 0;
+      svg.append("rect").attr("x", x(week)).attr("y", y(prog.name))
+        .attr("width", x.bandwidth()).attr("height", y.bandwidth())
+        .attr("rx", 3).attr("fill", val === 0 ? "#45475a" : color(val));
+      if (val > 0) svg.append("text").attr("x", x(week) + x.bandwidth()/2).attr("y", y(prog.name) + y.bandwidth()/2 + 4)
+        .attr("text-anchor", "middle").attr("fill", val > 2 ? "#1e1e2e" : "#cdd6f4").attr("font-size", "0.7em").text(val);
+    });
+  });
+  svg.append("g").attr("transform", `translate(0,${height - margin.top - margin.bottom})`).call(d3.axisBottom(x).tickSize(0)).selectAll("text").attr("fill", "#6c7086");
+  svg.append("g").call(d3.axisLeft(y).tickSize(0)).selectAll("text").attr("fill", "#a6adc8").attr("font-size", "0.7em");
+  svg.selectAll(".domain").attr("stroke", "none");
+})();
+
+// P0 Trend Line
+(function() {
+  const margin = {top: 20, right: 20, bottom: 40, left: 40};
+  const width = 400, height = 220;
+  const svg = d3.select("#p0trend").append("svg")
+    .attr("viewBox", `0 0 ${width} ${height}`)
+    .append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+  const w = width - margin.left - margin.right, h = height - margin.top - margin.bottom;
+  const x = d3.scalePoint().domain(data.p0.map(d => d.week)).range([0, w]).padding(0.5);
+  const y = d3.scaleLinear().domain([0, d3.max(data.p0, d => d.count) + 2]).range([h, 0]);
+  const avg = d3.mean(data.p0, d => d.count);
+  svg.append("line").attr("x1", 0).attr("x2", w).attr("y1", y(avg)).attr("y2", y(avg))
+    .attr("stroke", "#f9e2af").attr("stroke-dasharray", "4,4").attr("opacity", 0.6);
+  svg.append("text").attr("x", w).attr("y", y(avg) - 6).attr("text-anchor", "end")
+    .attr("fill", "#f9e2af").attr("font-size", "0.65em").text(`avg: ${avg.toFixed(1)}`);
+  const line = d3.line().x(d => x(d.week)).y(d => y(d.count)).curve(d3.curveMonotoneX);
+  svg.append("path").datum(data.p0).attr("d", line)
+    .attr("fill", "none").attr("stroke", "#89b4fa").attr("stroke-width", 2.5);
+  svg.selectAll("circle").data(data.p0).join("circle")
+    .attr("cx", d => x(d.week)).attr("cy", d => y(d.count)).attr("r", 5).attr("fill", "#89b4fa");
+  svg.selectAll(".label").data(data.p0).join("text")
+    .attr("x", d => x(d.week)).attr("y", d => y(d.count) - 12).attr("text-anchor", "middle")
+    .attr("fill", "#cdd6f4").attr("font-size", "0.8em").text(d => d.count);
+  svg.append("g").attr("class", "axis").attr("transform", `translate(0,${h})`).call(d3.axisBottom(x).tickSize(0));
+  svg.append("g").attr("class", "axis").call(d3.axisLeft(y).ticks(5).tickSize(-w)).selectAll("line").attr("stroke", "#45475a").attr("opacity", 0.5);
+  svg.selectAll(".domain").attr("stroke", "none");
+})();
+
+// Completion Rate Bar Chart
+(function() {
+  const margin = {top: 20, right: 20, bottom: 40, left: 40};
+  const width = 400, height = 220;
+  const svg = d3.select("#completion").append("svg")
+    .attr("viewBox", `0 0 ${width} ${height}`)
+    .append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+  const w = width - margin.left - margin.right, h = height - margin.top - margin.bottom;
+  const x = d3.scaleBand().domain(data.completion.map(d => d.week)).range([0, w]).padding(0.3);
+  const maxY = d3.max(data.completion, d => d.done + d.rolled);
+  const y = d3.scaleLinear().domain([0, maxY + 2]).range([h, 0]);
+  const stack = d3.stack().keys(["done", "rolled"]);
+  const stacked = stack(data.completion);
+  const colorMap = { done: "#a6e3a1", rolled: "#fab387" };
+  svg.selectAll("g.layer").data(stacked).join("g").attr("class", "layer")
+    .attr("fill", d => colorMap[d.key])
+    .selectAll("rect").data(d => d).join("rect")
+    .attr("x", d => x(d.data.week)).attr("y", d => y(d[1]))
+    .attr("height", d => y(d[0]) - y(d[1])).attr("width", x.bandwidth()).attr("rx", 3);
+  svg.append("g").attr("class", "axis").attr("transform", `translate(0,${h})`).call(d3.axisBottom(x).tickSize(0));
+  svg.append("g").attr("class", "axis").call(d3.axisLeft(y).ticks(5).tickSize(-w)).selectAll("line").attr("stroke", "#45475a").attr("opacity", 0.5);
+  svg.selectAll(".domain").attr("stroke", "none");
+  const legend = svg.append("g").attr("transform", `translate(${w - 130}, -10)`);
+  [["Done", "#a6e3a1"], ["Rolled forward", "#fab387"]].forEach(([label, col], i) => {
+    const g = legend.append("g").attr("transform", `translate(${i * 100}, 0)`);
+    g.append("rect").attr("width", 10).attr("height", 10).attr("rx", 2).attr("fill", col);
+    g.append("text").attr("x", 14).attr("y", 9).attr("class", "legend").text(label);
+  });
+})();
+</script>
+</body>
+</html>
