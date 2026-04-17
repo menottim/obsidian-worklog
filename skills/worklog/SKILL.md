@@ -410,6 +410,91 @@ Done: Team offsite travel booked
 
 Brief titles only, no sub-notes, no wiki-link syntax, grouped by priority.
 
+### `/worklog rollup`
+
+Generate an IC-appropriate weekly context dump for posting to a broad team
+channel (e.g. `#eng-all`, `#infrasec-all`). This is your voice speaking to the
+whole org: what happened this week that individual contributors would benefit
+from knowing, organized into two buckets. Copies a Slack-mrkdwn-formatted
+message to the clipboard via `pbcopy`.
+
+**Audience:**
+
+- Individual contributors across the org (not just leads or peers)
+- Posted to a broad channel, not DM or leadership-only
+
+**Content rules — what to INCLUDE:**
+
+- Program-level updates, structural decisions, publications
+- Framework changes, org-wide patterns (e.g., paved roads)
+- Ownership / tech lead assignments at the program level
+- Cross-team themes and trade-offs
+- Public artifacts (docs shipped, decisions landed)
+- Things ICs can act on, escalate, or route based on
+
+**Content rules — what to FILTER OUT:**
+
+- Performance commentary (growth conversations, assessments, team performance issues)
+- 1:1 specifics (what someone said privately, personal context)
+- Hiring candidate names, pipeline details, feedback notes
+- Career conversations, individual coaching, certainty scores
+- Inter-leader negotiation details (who said what to whom behind the scenes)
+- Anything marked as private or sensitive in the source item
+
+**Source:**
+
+Read the current week file. Scan both active and Done items. Each item should be
+evaluated against the include/filter rules. When in doubt, soften or drop - this
+is a broadcast channel, not the leadership thread.
+
+**Structure:**
+
+```
+:wave: Weekly context dump - W<NN> (Mon D-D)
+
+*Stuff you should probably know*
+
+• *Headline for item one.* One or two sentences of context. What's the action or implication for the reader?
+
+• *Headline for item two.* ...
+
+(6-8 bullets. The items most likely to affect the reader's own work or routing decisions.)
+
+*Context: everything else*
+
+• Item one, one sentence.
+
+• Item two, one sentence.
+
+(5-8 bullets. Lighter, one-liner style. FYI-grade items.)
+
+Next week: <one-liner, if relevant>
+```
+
+**Formatting:**
+
+- Use Slack mrkdwn: `*bold*` for bold, `_italic_` for italic, `•` for bullets
+- No wiki-link syntax (`[[...]]`) - this is for Slack, not Obsidian
+- Include names only when they denote program ownership or the right contact
+  for a question (e.g., "Nick is tech lead" is fine; "strong signal on
+  candidate X" is not)
+- Keep bullets to 1-3 sentences each; link to the source doc in Slack if the
+  item needs more depth (user can add link after pasting)
+- Emoji are welcome but sparing - a friendly opener and maybe a sign-off
+
+**Output:**
+
+After generating the message, copy it to the clipboard via `pbcopy` and tell
+the user the message is ready to paste. Do not save it as a vault file - this
+is a one-shot, ephemeral message.
+
+**Edge cases:**
+
+- If the current week has very few Done items and most work is In Progress,
+  frame items as "in flight" and still surface them if program-relevant.
+- If the user requests a different audience ("send this to leads" or "make it
+  shorter"), adapt the filter/structure on the fly but keep the same split.
+
 ### `/worklog summary [period]`
 
 Generate an impact-oriented summary for reporting up. Reads weekly files in the

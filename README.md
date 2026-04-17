@@ -207,6 +207,7 @@ These fields enable [Dataview queries](docs/dataview-queries.md) for live dashbo
 | `/worklog audit` | Vault health check with fix-it checklist |
 | `/worklog search <term>` | Search across all vault files |
 | `/worklog share` | Slack-ready summary copied to clipboard |
+| `/worklog rollup` | IC-facing weekly context dump for a broad team channel |
 | `/worklog summary [period]` | Impact summary for reporting up (week/month/quarter) |
 | `/worklog viz [period]` | D3.js charts as standalone HTML |
 | `/worklog sync` | Git backup: commit and push |
@@ -216,6 +217,8 @@ These fields enable [Dataview queries](docs/dataview-queries.md) for live dashbo
 **`/worklog review`** -- Walks through each active item for quick status updates ("done", "still on it", "pinged Sarah"). Collects new items. Updates the current week file in place. Does _not_ create a new week or archive anything -- use `/worklog rollover` for that.
 
 **`/worklog summary [period]`** -- Generates an impact-oriented summary for reporting up. Accepts: `week`, `month`, `quarter`, or specific references like `W20`, `March`, `Q1`. Monthly and quarterly summaries include **Priority Drift** (how P0s shift over time) and **Trends** (time allocation, completion rates). Writes a wiki-linked vault file and copies a plain-text version to clipboard.
+
+**`/worklog rollup`** -- Generates an IC-appropriate context dump of the current week for posting to a broad team channel (e.g. `#eng-all`). Organized into two buckets: _Stuff you should probably know_ (program-level updates, structural decisions, paved-road changes, things ICs can act on) and _Context: everything else_ (FYI-grade one-liners). Filters out performance commentary, 1:1 specifics, hiring candidate details, and other leader-only context. Slack-mrkdwn formatted; copied to clipboard.
 
 ![Monthly summary with enriched frontmatter, key outcomes, and priority drift](docs/images/monthly-summary.png)
 

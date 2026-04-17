@@ -1,7 +1,7 @@
 {
   "name": "obsidian-worklog",
-  "version": "5.0.0",
-  "description": "Obsidian worklog manager - weekly planning, knowledge graph, priority tracking, D3 visualizations, AI summaries",
+  "version": "5.1.0",
+  "description": "Obsidian worklog manager - weekly planning, knowledge graph, priority tracking, D3 visualizations, AI summaries, IC-facing weekly rollups",
   "author": {
     "name": "Menotti Minutillo",
     "email": "menottim@users.noreply.github.com"
