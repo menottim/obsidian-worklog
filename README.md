@@ -29,7 +29,7 @@ Built for anyone who tracks work across multiple projects and people. You paste 
 - **Periodic summaries** (week/month/quarter) with priority drift analysis and trend detection
 - **D3.js visualizations** of time allocation, program activity, and completion rates
 - **Vault health checks** that find stale notes, stuck items, and missing links
-- **Preferences as first-class citizens** -- the skill captures your voice and communication patterns (Slack DMs, status updates, meeting notes, etc.) as durable notes so you don't have to give the same feedback twice
+- **Preferences as first-class citizens** -- the skill maintains a `Preferences/` directory as its general-purpose memory layer: voice, style, workflow, tooling, decision rules, vault conventions, anything durable about how you work, captured once and applied automatically across sessions
 
 ![Obsidian graph view showing the knowledge graph of people, programs, and weekly files](docs/images/graph-view.png)
 
@@ -177,7 +177,7 @@ Your Vault/
   People/         One note per person, wiki-linked
   Programs/       One note per program/initiative, wiki-linked
   Teams/          One note per team, links members + parent org (optional)
-  Preferences/    One note per voice / communication / style preference
+  Preferences/    One note per durable preference (voice, style, workflow, etc.)
   Archive/        Completed weeks in compact summary format
   Summaries/      Weekly, monthly, quarterly summaries
   Reports/        D3 visualization HTML files
@@ -188,10 +188,13 @@ Your Vault/
 Set `team:` in a person's frontmatter to associate them, and `parent:` in a team's
 frontmatter to link sub-teams under a larger org.
 
-`Preferences/` captures voice and communication patterns the skill picks up on
-across sessions - how you write Slack DMs, status updates, meeting notes, etc. The
-skill checks this directory before drafting communication-shaped output, and offers
-to capture new preferences when you give feedback that sounds durable.
+`Preferences/` is the skill's general-purpose memory layer. Anything durable the
+skill discovers about how you work goes here - voice and communication patterns,
+markdown style, workflow rules, tool choices, decision heuristics, vault
+conventions, defaults you want confirmed before action. The skill checks this
+directory before any task with a preference-shaped surface (drafting messages,
+writing markdown, picking tools, structuring notes), and offers to capture new
+preferences when you give feedback that sounds durable.
 
 Each weekly file uses YAML frontmatter with enriched fields that are auto-generated from the body:
 
@@ -277,7 +280,7 @@ Every time Claude writes to the vault, it wiki-links all people, programs, and t
 
 **Team notes** (`Teams/Platform.md`) capture team membership and the work the team owns. The optional `parent:` frontmatter property links sub-teams to their parent org, so the graph can model nested team structures.
 
-**Preference notes** (`Preferences/Slack DM Voice.md`) capture your voice and communication patterns -- how you write status updates, what tone you use in DMs, formatting conventions, things to avoid. Claude reads these before drafting any communication-shaped output, so your voice stays consistent across weeks instead of drifting back to a generic LLM register.
+**Preference notes** (`Preferences/Markdown Formatting.md`, `Preferences/Slack DM Voice.md`, `Preferences/Commit Discipline.md`, ...) are the skill's general-purpose memory for how you work. One note per preference -- voice, style, workflow, tooling, decision rules, vault conventions, anything you want to remember and apply later. Claude reads these before any task with a preference-shaped surface, so your working style stays consistent across sessions instead of drifting back to a generic LLM default.
 
 Claude creates stub notes for new people, programs, and teams automatically. The graph grows organically as your worklog evolves.
 
