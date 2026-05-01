@@ -25,10 +25,11 @@ Built for anyone who tracks work across multiple projects and people. You paste 
 
 - **Weekly planning** with Monday rollover workflow and mid-week updates
 - **Priority tracking** (P0/P1/P2) with status markers and dated progress notes
-- **Knowledge graph** that auto-links people and programs across every note
+- **Knowledge graph** that auto-links people, programs, and teams across every note
 - **Periodic summaries** (week/month/quarter) with priority drift analysis and trend detection
 - **D3.js visualizations** of time allocation, program activity, and completion rates
 - **Vault health checks** that find stale notes, stuck items, and missing links
+- **Preferences as first-class citizens** -- the skill captures your voice and communication patterns (Slack DMs, status updates, meeting notes, etc.) as durable notes so you don't have to give the same feedback twice
 
 ![Obsidian graph view showing the knowledge graph of people, programs, and weekly files](docs/images/graph-view.png)
 
@@ -175,11 +176,22 @@ Your Vault/
   Worklogs/       One file per week (YYYY-[W]WW.md) + Backlog.md
   People/         One note per person, wiki-linked
   Programs/       One note per program/initiative, wiki-linked
+  Teams/          One note per team, links members + parent org (optional)
+  Preferences/    One note per voice / communication / style preference
   Archive/        Completed weeks in compact summary format
   Summaries/      Weekly, monthly, quarterly summaries
   Reports/        D3 visualization HTML files
   Templates/      Templater weekly template
 ```
+
+`Teams/` adds a third dimension to the knowledge graph beyond People and Programs.
+Set `team:` in a person's frontmatter to associate them, and `parent:` in a team's
+frontmatter to link sub-teams under a larger org.
+
+`Preferences/` captures voice and communication patterns the skill picks up on
+across sessions - how you write Slack DMs, status updates, meeting notes, etc. The
+skill checks this directory before drafting communication-shaped output, and offers
+to capture new preferences when you give feedback that sounds durable.
 
 Each weekly file uses YAML frontmatter with enriched fields that are auto-generated from the body:
 
@@ -252,17 +264,22 @@ Claude adds these as sub-items under the existing migration item, wiki-links Sar
 
 ## The Knowledge Graph
 
-Every time Claude writes to the vault, it wiki-links all people and programs. This builds a dense knowledge graph in Obsidian:
+Every time Claude writes to the vault, it wiki-links all people, programs, and teams. This builds a dense knowledge graph in Obsidian:
 
 - Click any person's note to see every week they appeared in (via backlinks)
 - Click any program to see its full history across weeks
-- The graph view shows how people and programs cluster together
+- Click any team to see its members and the work flowing through it
+- The graph view shows how people, programs, and teams cluster together
 
-**People notes** (`People/Sarah Chen.md`) accumulate context over time -- role, relationship, what you're working on together. New bullet points are added as substantive updates happen.
+**People notes** (`People/Sarah Chen.md`) accumulate context over time -- role, relationship, what you're working on together. New bullet points are added as substantive updates happen. The optional `team:` frontmatter property links a person to a team note.
 
 **Program notes** (`Programs/Platform Migration.md`) track status evolution, key decisions, and who's involved.
 
-Claude creates stub notes for new people and programs automatically. The graph grows organically as your worklog evolves.
+**Team notes** (`Teams/Platform.md`) capture team membership and the work the team owns. The optional `parent:` frontmatter property links sub-teams to their parent org, so the graph can model nested team structures.
+
+**Preference notes** (`Preferences/Slack DM Voice.md`) capture your voice and communication patterns -- how you write status updates, what tone you use in DMs, formatting conventions, things to avoid. Claude reads these before drafting any communication-shaped output, so your voice stays consistent across weeks instead of drifting back to a generic LLM register.
+
+Claude creates stub notes for new people, programs, and teams automatically. The graph grows organically as your worklog evolves.
 
 ![Person note showing context accumulation across multiple weeks](docs/images/person-note.png)
 

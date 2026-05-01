@@ -31,6 +31,15 @@ __VAULT_PATH__/
     Platform Migration.md  # One note per program/initiative
     Cloud Security.md
     ...
+  Teams/
+    Backend Engineering.md  # One note per team
+    Platform Security.md
+    ...
+  Preferences/
+    Slack DM Voice.md       # One note per recurring communication / style preference
+    Status Update Voice.md
+    Markdown Formatting.md
+    ...
   Archive/
     YYYY-WMM.md          # Completed weeks
     ...
@@ -60,6 +69,8 @@ Other key paths:
 - Reports: `__VAULT_PATH__/Reports/<period>-viz.html`
 - People: `__VAULT_PATH__/People/<Name>.md`
 - Programs: `__VAULT_PATH__/Programs/<Name>.md`
+- Teams: `__VAULT_PATH__/Teams/<Name>.md`
+- Preferences: `__VAULT_PATH__/Preferences/<Title>.md`
 
 ## Weekly File Structure
 
@@ -172,12 +183,17 @@ graph. When in doubt, link it. The graph's value comes from density of connectio
 ```markdown
 ---
 type: person
+team: Backend Engineering
 ---
 # Name
 ## Context
 - Role/relationship context
 - What you're working on together
 ```
+
+The optional `team` property links the person to a team note in `Teams/`. Set it
+when you're confident about the person's team. Use the team's short name (e.g.,
+`Backend Engineering`, `Platform Security`, `Frontend`).
 
 **Program note structure:**
 ```markdown
@@ -190,9 +206,142 @@ type: program
 - Key people involved (as wiki-links)
 ```
 
-People and program notes accumulate context over time. When updating worklog items,
-also append substantive new context to relevant people/program notes (new roles,
-decisions, status changes - not every minor mention).
+**Team note structure:**
+```markdown
+---
+type: team
+parent: "[[Engineering]]"
+---
+# Team Name
+## Members
+- [[Person]] - Title
+## Context
+- What the team does, current status
+- Sub-teams or partner groups (as wiki-links)
+```
+
+The optional `parent` property links sub-teams to their parent org (e.g., several
+sub-teams under a single Engineering organization). Teams are the third dimension
+of the knowledge graph - clicking a team shows everyone on it, every program it
+touches, and every week it's mentioned.
+
+People, program, and team notes accumulate context over time. When updating worklog
+items, also append substantive new context to relevant notes (new roles, decisions,
+status changes - not every minor mention).
+
+## Preferences & Communication Patterns
+
+The `Preferences/` directory captures the user's voice, communication patterns, and
+working preferences as durable, reusable notes. This is a __core feature__ of the
+worklog skill: as you collaborate with the user over many sessions, you will learn
+how they prefer to write status updates, frame DMs, structure meeting notes, format
+Slack messages, draft emails, and so on. Capturing those patterns here makes them
+available across sessions and prevents you from re-learning the same lessons twice.
+
+### Why this exists
+
+Communication is high-leverage and high-context. Users often have specific patterns
+that work for them - a particular opener for upward-facing messages, a particular
+close for messages to peers, a particular voice for difficult 1:1 follow-ups. These
+patterns aren't visible in the worklog itself; they live in how the user reacts to
+your drafts, what they edit before sending, and what they explicitly ask you to
+remember.
+
+When you save a preference durably, you're protecting the user from having to give
+the same feedback twice. That is the entire point.
+
+### When to capture a preference
+
+Watch for these signals during a session:
+
+1. __Explicit asks__: "always do X", "never do Y", "from now on when drafting X,
+   do Z", "save this as a preference", "remember this for next time"
+2. __Repeated corrections__: the user has corrected you on the same kind of
+   thing more than once across a session (or sessions). Examples: rewriting your
+   slack drafts to drop em-dashes, re-framing your closes to be more casual,
+   asking for a softer voice on care-related messages
+3. __Quiet endorsements__: the user accepts a draft without edits and sends it,
+   especially when you made a non-obvious choice (a specific opener, a particular
+   structural move, a tone calibration). These are easy to miss but signal the
+   pattern is right
+4. __Voice they explicitly name__: when the user says "in my X voice" or "for an
+   X-type message" - they're telling you they have a named pattern. Capture it
+
+### How to capture a preference
+
+Create a note in `Preferences/` with a Title Case filename describing the pattern.
+One pattern per note. Keep them tight.
+
+```markdown
+---
+type: preference
+applies-to: ["slack-dm", "upward-fysa", "peer-leader"]
+---
+
+# <Preference Name>
+
+## The Rule
+
+<One or two sentences stating the pattern crisply.>
+
+## When It Applies
+
+<Triggers - audiences, contexts, situations. Be specific so future-you can judge
+edge cases.>
+
+## Why
+
+<The reason - often a past incident, a stylistic choice, or a stated value.
+The "why" lets future-you adapt the rule when context changes.>
+
+## Examples
+
+<Optional. A good example, a counter-example, or a tiny verbatim phrase the
+user has confirmed.>
+```
+
+The `applies-to` frontmatter tag helps the skill find relevant preferences when
+drafting in a specific context. Use short slug-like values (e.g., `slack-dm`,
+`status-update`, `meeting-notes`, `email-formal`).
+
+### When to apply a preference
+
+Before drafting any message, status update, document, or other communication that
+matches a known context, glob `Preferences/*.md` and check whether any preferences
+apply. Cite them lightly when you draft so the user can correct you if a preference
+needs updating.
+
+A user who has built up 10-20 preferences in this directory will see their voice
+preserved across sessions. That is the durable benefit of this pattern.
+
+### Examples of preference notes worth capturing
+
+- __Slack DM Voice__ - how to address direct messages (formal/casual, opener style,
+  closing patterns)
+- __Status Update Voice__ - how to write upward-facing FYSAs / status notes
+  (permission-to-ignore framing, structural vs resilience framing, credit-the-boss
+  patterns)
+- __Peer-Leader Collaborative Voice__ - tone for cross-team partner messages
+  (exploratory framing, "noodling" openers, dropping artifact-shape)
+- __Care-First DM Voice__ - tone for 1:1s with reports under stress (low-priority
+  flag, time-anchored opener, acknowledge-the-cost moves)
+- __Markdown Formatting__ - bold/italic conventions, em-dash policy, list style
+- __Meeting Notes Style__ - voice and structure for capturing meeting notes
+- __No Comparisons__ - how to handle comparative analysis (e.g., never compare
+  candidates in interview notes)
+
+These are illustrative. The actual notes belong to the user; this skill simply
+helps create, maintain, and apply them.
+
+### Editing and removing preferences
+
+If a preference becomes outdated (the user changes how they want a class of
+messages drafted), update the note rather than creating a new one. Note the
+date of the change inline so you can see how the preference has evolved.
+
+If the user explicitly retracts a preference ("I don't want to do that anymore"),
+update the file to mark it deprecated rather than deleting - preserves the
+history of the user's evolving voice. Or delete entirely if they prefer.
 
 ## Frontmatter Auto-generation
 
@@ -770,3 +919,10 @@ forward counts (with brief titles in parentheses). Only completed items as bulle
   the current week file exceeds 20 top-level items, suggest running `/worklog tidy`
   to keep subgroups balanced, consolidate stale sub-items, and fix frontmatter.
   Don't force it - just mention it once at the end of the session.
+- **Preferences are first-class.** Before drafting any communication-shaped output
+  (status updates, Slack DMs, emails, meeting notes, peer messages), check
+  `Preferences/*.md` for relevant patterns. When the user gives feedback that
+  sounds like a durable preference - "always", "never", "from now on", repeated
+  corrections, or quiet endorsements of non-obvious choices - offer to capture
+  it as a `Preferences/` note. The user-approved capture is what makes this
+  pattern compound over time; do not save without their confirmation.
