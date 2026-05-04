@@ -374,6 +374,58 @@ If the user explicitly retracts a preference ("I don't want to do that anymore")
 update the file to mark it deprecated rather than deleting - preserves the
 history of the user's evolving working style. Or delete entirely if they prefer.
 
+## Sources
+
+The `Sources/` directory is the registry for Slack channels (and, in the future,
+other content sources) that the skill ingests on demand via `/worklog pull`. One
+file per registered channel, named after the channel without the leading `#`
+(e.g., `Sources/example-meeting-notes.md`).
+
+This is config + state. The frontmatter is machine-read; the body is human-readable
+notes about the source.
+
+__Source note structure:__
+
+```markdown
+---
+type: meeting-notes-via-email
+channel_name: "#example-meeting-notes"
+channel_id: C0XXXXXXX
+nudge_threshold_days: 5
+last_scan_ts: null
+first_scan_lookback_days: 14
+---
+
+# #example-meeting-notes
+
+Notes about this source - what it is, who posts to it, anything worth remembering
+about ingesting from this channel.
+```
+
+__Frontmatter fields:__
+
+- `type`: source-type identifier. v1 supports only `meeting-notes-via-email`. The
+  parser logic for `/worklog pull` is keyed off this value.
+- `channel_name`: the human-readable Slack channel name with the `#` prefix.
+- `channel_id`: the Slack channel ID (e.g., `C0XXXXXXX`). Resolved during
+  registration via `slack_search_channels`.
+- `nudge_threshold_days`: integer. If `last_scan_ts` is older than this, the
+  stale-channel nudge fires on rollover/tidy/audit. Default 5.
+- `last_scan_ts`: ISO 8601 timestamp of the last successful pull. `null` on first
+  run (until the first pull completes). Updated per-thread during a pull, so a
+  partial pull crash is resumable.
+- `first_scan_lookback_days`: how many days back to look on first run. Default
+  14. Ignored once `last_scan_ts` is non-null.
+
+__When the user creates a new source manually:__ they may write a `Sources/<channel>.md`
+by hand. Validate frontmatter on next `/worklog pull` and ask the user to fill in
+any missing fields.
+
+__Adding a new source inline:__ if the user says "register `#another-channel` as a
+source" (or similar phrasing), resolve the channel ID via `slack_search_channels`,
+write the new `Sources/<channel-name>.md` with template defaults, then run a first
+pull against just that source.
+
 ## Frontmatter Auto-generation
 
 Every time you write or update a weekly file (during review, rollover, add, tidy,
