@@ -626,6 +626,142 @@ asks to add it to the worklog, follow this pattern:
 7. Update relevant people/program notes with substantive new context
 8. Regenerate enriched frontmatter
 
+### `/worklog pull`
+
+Ingest unprocessed messages from registered Slack channels into the vault. Each
+thread becomes a `Meetings/YYYY-MM-DD-<slug>.md` artifact, and the existing
+__Processing raw input__ pipeline runs against the meeting body + replies to
+extract action items into the current week file.
+
+__Pull flow:__
+
+1. Glob `__VAULT_PATH__/Sources/*.md`. If empty, walk the user through registering
+   one channel (see __First-run registration__ below) and continue with that
+   channel only.
+2. For each source file, parse the frontmatter (`channel_id`, `last_scan_ts`,
+   `first_scan_lookback_days`). Compute the lookback window:
+   - If `last_scan_ts` is `null`: window starts `first_scan_lookback_days` ago.
+   - Otherwise: window starts at `last_scan_ts`.
+3. Use `slack_read_channel` to list top-level messages in `channel_id` posted
+   after the window start.
+4. For each top-level message (a thread):
+   1. Use `slack_read_thread` to fetch the full thread (top message + all replies).
+   2. Glob `__VAULT_PATH__/Meetings/*.md` and grep frontmatter for a match on
+      `slack_thread_ts`.
+   3. __New thread__ (no match):
+      - Compute the meeting note filename: `YYYY-MM-DD-<topic-slug>.md` per the
+        rules in the Meetings section. Date is the top-of-thread ts in user's
+        local timezone; slug is from the email subject.
+      - On filename collision, append `-2`, `-3`, etc. until unique.
+      - Build the Meetings note body per the schema in the Meetings section.
+        - `## Notes`: extract the email body from the top-of-thread post (see
+          __Email body extraction__ below). Lightly clean up: strip email-client
+          chrome (signatures, quoted reply blocks, unsubscribe footers); preserve
+          substantive content.
+        - `## Discussion`: each reply becomes a `### YYYY-MM-DD HH:MM — [[Author]]`
+          subheading (user's local TZ, chronological), followed by the reply text.
+          Resolve author names via `slack_search_users` if only a handle/ID is
+          available.
+        - `## Extracted Items`: leave as a single line pointing to the current
+          week file: `- See [[YYYY-WNN]] for items added to this week's worklog`.
+      - Build frontmatter per the schema in the Meetings section. Set
+        `slack_last_reply_ts` equal to `slack_thread_ts` if the thread has no
+        replies; otherwise to the timestamp of the latest reply.
+      - Resolve participants: union of (thread repliers, names @-mentioned in the
+        email body, names in the email body's "Attendees:" / "Participants:"
+        section if present). Wiki-link all; create stub People notes for any
+        unknown names per existing Cross-Linking rules.
+      - Resolve programs: glob `Programs/*.md` for known names; scan the meeting
+        body for matches; wiki-link.
+      - Write the new `Meetings/YYYY-MM-DD-<slug>.md`.
+      - Run the __Processing raw input__ pipeline (above) against the meeting
+        body + replies, treating the meeting date as the source date for action
+        items. Items go into the __current__ week file (the user's actual current
+        week, not the meeting's week, since the meeting's week may be in the
+        archive). Sub-item dated annotations use the actual Slack timestamps from
+        the thread, not today's date.
+   4. __Existing thread, new replies__ (match found, replies after
+      `slack_last_reply_ts`):
+      - Open the matched `Meetings/*.md` with the Edit tool.
+      - For each reply with `ts > slack_last_reply_ts`, append a
+        `### YYYY-MM-DD HH:MM — [[Author]]` subheading to the end of the
+        `## Discussion` section, followed by the reply text.
+      - Update the frontmatter: set `slack_last_reply_ts` to the timestamp of
+        the most recent reply just appended. Update `participants` if any new
+        people appeared (preserve existing entries).
+      - Run the __Processing raw input__ pipeline against __only the appended
+        replies__, not the full meeting again. This avoids duplicating items.
+   5. __Existing thread, no new replies__ (match found, no replies after
+      `slack_last_reply_ts`): skip. No file changes.
+   6. After processing each thread, advance `last_scan_ts` on the source file to
+      the timestamp of that thread (or that reply, for thread-evolution updates).
+      This makes a mid-pull crash resumable.
+5. After all threads are processed for a source, set `last_scan_ts` to the
+   current time (now).
+6. Repeat for the next source file.
+7. Print a summary:
+   - `<N> new threads ingested` (with the new Meetings note paths)
+   - `<M> threads updated` (with thread titles)
+   - `<K> items extracted to [[YYYY-WNN]]`
+   - For each source pulled, the new `last_scan_ts`.
+
+__First-run registration:__
+
+When `Sources/` is empty (or the user explicitly asks to register a new channel):
+
+1. Ask: "Which channel should I monitor? (give the channel name, with or without
+   the leading #)"
+2. Use `slack_search_channels` to resolve the name to a channel ID. If multiple
+   matches, present the top results and let the user pick.
+3. Confirm with the user: "Register `#<channel>` (id `C0XXXXXXX`) as a
+   `meeting-notes-via-email` source?"
+4. On confirmation, write `__VAULT_PATH__/Sources/<channel-name>.md` (channel name
+   without the `#`, kebab-case), populated from the template in the Sources
+   section: `type: meeting-notes-via-email`, `channel_name`, `channel_id`,
+   `nudge_threshold_days: 5`, `last_scan_ts: null`, `first_scan_lookback_days: 14`,
+   plus a brief body line about what the channel is.
+5. Proceed with the first pull (lookback = `first_scan_lookback_days` days).
+
+__Email body extraction:__
+
+The top-of-thread post in a `meeting-notes-via-email` channel is an automated
+post from Slack's email-to-channel integration (or a similar bot). Depending on
+how the integration renders the email, the body may be:
+
+(a) A file attachment (`.eml` or similar) on the message - in which case it may
+    not be directly readable through the available Slack MCP tools.
+(b) The email body inlined as the message text.
+(c) A styled card / Slack Block Kit message containing the email body.
+
+Try the message text first (simplest case). If the body looks empty or
+truncated, fall back to whatever message preview / file content is available
+through the Slack MCP tool response. If the email body is not accessible at
+all in this environment, warn once per pull:
+
+> Couldn't extract email file body for thread `<title>` - used Slack-rendered
+> text instead. Fidelity may be lower.
+
+Continue ingesting the thread with whatever text is available. The thread
+replies are always normal Slack messages and never have this problem.
+
+__Errors and edge cases:__
+
+- __Slack MCP not available:__ fail with: "This needs a Slack MCP plugin. Install
+  one and re-run." Do not silently skip.
+- __Channel not found / ambiguous__ during registration: show the top matches
+  from `slack_search_channels` and let the user pick.
+- __Rate limit hit mid-pull:__ `last_scan_ts` advances per thread, so the next
+  pull resumes from where we left off. Tell the user it was partial.
+- __Manually-deleted Meetings note:__ next pull recreates it (no match on
+  `slack_thread_ts`).
+- __Manually-edited Meetings note:__ on next pull, only `## Discussion` is
+  appended to and `slack_last_reply_ts` is updated. `## Notes` and any user
+  additions elsewhere are preserved.
+- __Thread with no replies:__ Meetings note is created with an empty
+  `## Discussion` section; `slack_last_reply_ts` equals `slack_thread_ts`.
+- __Tombstone (deleted in Slack after ingestion):__ leave the existing Meetings
+  note alone. Do not "un-ingest."
+
 ### `/worklog rollover`
 
 Quick rollover without item-by-item review:
