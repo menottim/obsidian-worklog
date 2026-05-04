@@ -41,6 +41,14 @@ __VAULT_PATH__/
     Commit Discipline.md
     Tool Preferences.md
     ...
+  Sources/
+    example-meeting-notes.md  # One note per registered Slack channel - config
+                              # + last_scan_ts state for /worklog pull
+    ...
+  Meetings/
+    YYYY-MM-DD-<topic-slug>.md  # One note per ingested Slack thread
+    ...                          # (top-of-thread = email body, replies in
+                                 # discussion section)
   Archive/
     YYYY-WMM.md          # Completed weeks
     ...
@@ -72,6 +80,8 @@ Other key paths:
 - Programs: `__VAULT_PATH__/Programs/<Name>.md`
 - Teams: `__VAULT_PATH__/Teams/<Name>.md`
 - Preferences: `__VAULT_PATH__/Preferences/<Title>.md`
+- Sources: `__VAULT_PATH__/Sources/<channel-name>.md`
+- Meetings: `__VAULT_PATH__/Meetings/YYYY-MM-DD-<topic-slug>.md`
 
 ## Weekly File Structure
 
