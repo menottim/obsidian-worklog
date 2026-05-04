@@ -426,6 +426,97 @@ source" (or similar phrasing), resolve the channel ID via `slack_search_channels
 write the new `Sources/<channel-name>.md` with template defaults, then run a first
 pull against just that source.
 
+## Meetings
+
+The `Meetings/` directory holds one markdown note per ingested Slack thread. These
+are durable artifacts: a permanent, searchable record of every meeting whose notes
+posted to a registered `Sources/*.md` channel. Linked into the knowledge graph
+through wiki-links to participants and programs.
+
+__Filename:__ `Meetings/YYYY-MM-DD-<topic-slug>.md`
+
+- `YYYY-MM-DD` is the email-send date or the top-of-thread Slack timestamp,
+  rendered in __the user's local timezone__ (matches how weekly files are dated).
+- `<topic-slug>` is kebab-case from the email subject. Lowercase. Strip
+  non-alphanumeric characters except hyphens. Cap at ~50 chars.
+- On collision (same date + same slug), append `-2`, `-3`, etc.
+
+__Meeting note structure:__
+
+```markdown
+---
+type: meeting
+date: 2026-05-04
+source_channel: "#example-meeting-notes"
+source_channel_id: C0XXXXXXX
+slack_thread_ts: "1714694400.123456"
+slack_last_reply_ts: "1714780800.654321"
+slack_thread_url: https://example.slack.com/archives/C0X.../p171...
+participants:
+  - "[[Sarah Chen]]"
+  - "[[Marcus Williams]]"
+programs:
+  - "[[Hiring]]"
+status: ingested
+---
+
+# <Email Subject>
+
+> [!info] Slack thread in [[Sources/example-meeting-notes|#example-meeting-notes]] · [open in Slack](https://...)
+> Original sender: <name> · Posted 2026-05-04 09:00 PT
+
+## Notes
+
+<email body - meeting notes verbatim, lightly cleaned up: strip email-client
+chrome (signatures, "On <date> X wrote:" quote blocks, unsubscribe footers),
+keep the substantive content>
+
+## Discussion
+
+### 2026-05-04 09:15 — [[Sarah Chen]]
+<reply>
+
+### 2026-05-04 11:42 — [[Marcus Williams]]
+<reply>
+
+## Extracted Items
+
+- See [[YYYY-WNN]] for items added to this week's worklog
+```
+
+__Frontmatter fields:__
+
+- `type`: always `meeting` for files in this directory.
+- `date`: YYYY-MM-DD of the email-send date or top-of-thread ts (user's local TZ).
+- `source_channel`, `source_channel_id`: which `Sources/*.md` produced this note.
+- `slack_thread_ts`: the top-level message's Slack timestamp - the unique thread
+  identifier. Used by `/worklog pull` to look up "have we ingested this thread."
+- `slack_last_reply_ts`: timestamp of the most recent reply ingested. Equals
+  `slack_thread_ts` if the thread has no replies yet. Updated on every pull that
+  appends new replies.
+- `slack_thread_url`: deep link to the thread in Slack.
+- `participants`: wiki-linked array of people who appear in the thread. Sourced
+  from thread repliers + names mentioned in the email body. Use
+  `slack_search_users` to resolve full names per the existing Cross-Linking rules.
+- `programs`: wiki-linked array of programs mentioned in the thread.
+- `status`: `ingested` once the meeting note + extraction are complete. Reserved
+  for future statuses.
+
+__Discussion section subheadings:__ `### YYYY-MM-DD HH:MM — [[Author]]` in the user's
+local timezone, chronological order (oldest first). New replies appended to the
+end of the section preserve chronological order naturally.
+
+__User edits are preserved:__ on subsequent pulls, only the `## Discussion` section
+is appended to and `slack_last_reply_ts` is updated. The `## Notes` section and
+any user-added content elsewhere in the file is never overwritten. If the user
+deletes a Meetings note, the next pull recreates it from scratch (because the
+`slack_thread_ts` no longer matches any frontmatter).
+
+__No frontmatter auto-generation:__ Meetings notes are not subject to the
+Frontmatter Auto-generation rules below (those apply to weekly, archive, and
+summary files). The participant/program wiki-link extraction for Meetings
+frontmatter happens once at write time and is not regenerated on every edit.
+
 ## Frontmatter Auto-generation
 
 Every time you write or update a weekly file (during review, rollover, add, tidy,
