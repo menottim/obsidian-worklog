@@ -1169,7 +1169,7 @@ cp __SKILL_INSTALL_PATH__/.claude-plugin/plugin.json \
 
 # Commit and push
 cd "__VAULT_PATH__"
-git add Worklogs/ People/ Programs/ Archive/ Summaries/ Reports/ Templates/ .skills/
+git add Worklogs/ People/ Programs/ Archive/ Summaries/ Reports/ Templates/ Sources/ Meetings/ .skills/
 git -c user.name="__GIT_USER_NAME__" -c user.email="__GIT_USER_EMAIL__" \
     commit -m "worklog sync $(date +%Y-%m-%d)"
 git push
