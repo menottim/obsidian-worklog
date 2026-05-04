@@ -8,6 +8,9 @@ description: >
   "visualize my work", "worklog charts", or anything about managing weekly work priorities.
   Also trigger when the user asks about P0/P1/P2 items, wants a status update for Slack,
   or asks about priority drift, trends, or time allocation.
+  Also trigger when the user asks to "pull from Slack", "ingest the channel",
+  "pull meeting notes", "register a channel", or any phrase about reading new
+  messages from a registered Slack source into the vault.
 ---
 
 # Worklog Manager
