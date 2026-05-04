@@ -764,6 +764,14 @@ __Errors and edge cases:__
 
 ### `/worklog rollover`
 
+__Nudge check (run first):__ Before doing anything else, glob
+`__VAULT_PATH__/Sources/*.md`. For each source whose `last_scan_ts` is `null` or
+older than `nudge_threshold_days` (default 5), prepend a one-line FYI:
+> FYI - last pulled `#<channel-name>` <N> days ago. Run `/worklog pull` to
+> ingest. Continuing with rollover...
+Do not block, hijack, or auto-pull. If the user said "skip pull" or "not now"
+earlier in the session, suppress the nudge for the rest of the session. Then:
+
 Quick rollover without item-by-item review:
 1. Read the current week file
 2. Calculate the next Monday's date and ISO week
@@ -783,6 +791,9 @@ notes for new entities.
 
 ### `/worklog tidy`
 
+__Nudge check (run first):__ Same as `/worklog rollover` above - check
+`Sources/*.md` and surface a stale-channel FYI before continuing.
+
 Read the current week file and suggest cleanup:
 1. Move Done items to a Done subgroup at the bottom
 2. Flag Backlog items `In Progress` for 2+ weeks without notes
@@ -793,6 +804,9 @@ Read the current week file and suggest cleanup:
 Present as a checklist. Apply approved changes directly.
 
 ### `/worklog audit`
+
+__Nudge check (run first):__ Same as `/worklog rollover` above - check
+`Sources/*.md` and surface a stale-channel FYI before continuing.
 
 Scan the vault for quality issues and present a fix-it checklist. No arguments.
 
@@ -1239,3 +1253,11 @@ forward counts (with brief titles in parentheses). Only completed items as bulle
   or quiet endorsements of non-obvious choices - offer to capture it as a
   `Preferences/` note. The user-approved capture is what makes this pattern
   compound over time; do not save without their confirmation.
+- __Stale-channel nudge.__ At the top of `/worklog rollover`, `/worklog tidy`,
+  and `/worklog audit`, glob `__VAULT_PATH__/Sources/*.md` and check
+  `last_scan_ts` against `nudge_threshold_days` on each. Surface a one-line FYI
+  for any stale source, then continue with the requested command. Other commands
+  (`/worklog add`, `/worklog summary`, `/worklog viz`, `/worklog rollup`,
+  `/worklog status`, `/worklog review`, `/worklog search`, `/worklog share`,
+  `/worklog sync`) do __not__ nudge. If the user says "skip pull" or "not now"
+  earlier in the session, suppress further nudges for that session.
