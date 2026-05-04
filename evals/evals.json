@@ -42,6 +42,36 @@
       "prompt": "/worklog summary month",
       "expected_output": "If run twice in the same month, the second run overwrites the first without warning. Should either warn or append a date suffix to avoid silent data loss.",
       "issue_tested": "Issue #8 - summary overwrite without warning"
+    },
+    {
+      "id": 8,
+      "prompt": "/worklog pull",
+      "expected_output": "On first run with empty Sources/ directory: should walk the user through registering one channel - ask for channel name, resolve via slack_search_channels, write Sources/<channel-name>.md with type=meeting-notes-via-email, channel_id, last_scan_ts=null, nudge_threshold_days=5, first_scan_lookback_days=14. Then proceed with the first pull.",
+      "issue_tested": "First-run registration flow when no Sources/ files exist"
+    },
+    {
+      "id": 9,
+      "prompt": "/worklog pull (run a second time within seconds, no new Slack content)",
+      "expected_output": "Should be idempotent: no new Meetings/ files created, no existing files modified, no items added to current week file. Should advance Sources/<channel>.md last_scan_ts to current time. Summary should report 0 new threads, 0 updated, 0 items extracted.",
+      "issue_tested": "Idempotency - re-running pull with no new Slack content must not duplicate or rewrite anything"
+    },
+    {
+      "id": 10,
+      "prompt": "/worklog pull (with 1 existing Meetings/ note that has new replies in Slack since last_scan_ts)",
+      "expected_output": "Should look up slack_thread_ts in existing Meetings/*.md frontmatter, find the match, fetch only replies after slack_last_reply_ts, append them to ## Discussion with chronological date/author subheadings in user's local timezone, update slack_last_reply_ts in frontmatter, and run extraction on the appended content only. Should NOT rewrite ## Notes or any other existing content. Should NOT create a new Meetings note for the same thread_ts.",
+      "issue_tested": "Thread evolution - existing threads with new replies append cleanly without overwriting"
+    },
+    {
+      "id": 11,
+      "prompt": "/worklog rollover (with Sources/<channel>.md last_scan_ts older than 5 days)",
+      "expected_output": "Should prepend a one-line FYI before continuing with rollover: 'FYI - last pulled #channel-name N days ago. Run /worklog pull to ingest. Continuing with rollover...' Then perform the normal rollover. Should NOT block, hijack the command, or auto-pull.",
+      "issue_tested": "Stale-channel nudge surfaces on rollover when threshold exceeded"
+    },
+    {
+      "id": 12,
+      "prompt": "/worklog add P1 sync with Sarah about hiring (with Sources/<channel>.md last_scan_ts older than 5 days)",
+      "expected_output": "Should add the item normally without surfacing the stale-channel nudge. /worklog add is not in the nudge-eligible command set; only rollover, tidy, and audit are.",
+      "issue_tested": "Stale-channel nudge does NOT surface on commands outside the nudge-eligible set"
     }
   ]
 }
