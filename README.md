@@ -30,6 +30,7 @@ Built for anyone who tracks work across multiple projects and people. You paste 
 - **D3.js visualizations** of time allocation, program activity, and completion rates
 - **Vault health checks** that find stale notes, stuck items, and missing links
 - **Preferences as first-class citizens** -- the skill maintains a `Preferences/` directory as its general-purpose memory layer: voice, style, workflow, tooling, decision rules, vault conventions, anything durable about how you work, captured once and applied automatically across sessions
+- **Slack channel inbox** -- register a Slack channel where meeting notes get forwarded (e.g., from a Google Group), and `/worklog pull` ingests unprocessed threads into `Meetings/` notes plus extracts action items into the current week. The skill nudges you on `/worklog rollover` / `tidy` / `audit` if a registered channel hasn't been pulled in over 5 days
 
 ![Obsidian graph view showing the knowledge graph of people, programs, and weekly files](docs/images/graph-view.png)
 
@@ -178,6 +179,8 @@ Your Vault/
   Programs/       One note per program/initiative, wiki-linked
   Teams/          One note per team, links members + parent org (optional)
   Preferences/    One note per durable preference (voice, style, workflow, etc.)
+  Sources/        Registered Slack channels for `/worklog pull`. One file per channel; frontmatter holds `channel_id`, `last_scan_ts`, and nudge threshold.
+  Meetings/       One file per ingested Slack thread (top-of-thread email + in-thread discussion). Linked into the knowledge graph via wiki-linked participants and programs.
   Archive/        Completed weeks in compact summary format
   Summaries/      Weekly, monthly, quarterly summaries
   Reports/        D3 visualization HTML files
@@ -218,6 +221,7 @@ These fields enable [Dataview queries](docs/dataview-queries.md) for live dashbo
 | `/worklog review` | Monday morning item-by-item review (updates current week in place) |
 | `/worklog rollover` | Create new week, archive previous, carry forward unfinished items |
 | `/worklog add P1 <title>` | Quick-add an item, checks for overlaps |
+| `/worklog pull` | Ingest unprocessed threads from registered Slack channels into `Meetings/` notes plus extract action items into the current week file. On first run with no `Sources/`, walks you through registering a channel. |
 | `/worklog tidy` | Cleanup suggestions: move done items, flag stuck items, dedup |
 | `/worklog audit` | Vault health check with fix-it checklist |
 | `/worklog search <term>` | Search across all vault files |
@@ -334,6 +338,8 @@ All files are standard Obsidian-compatible markdown with YAML frontmatter. See t
 - [Person note](examples/person-note.md) -- accumulated context about a person
 - [Program note](examples/program-note.md) -- program status over time
 - [Summary file](examples/summary-file.md) -- period summary with drift and trends
+- [Source note](examples/source-note.md) -- registered Slack channel config with frontmatter fields
+- [Meeting note](examples/meeting-note.md) -- ingested Slack thread with discussion and extracted action items
 
 ![Archived week with enriched frontmatter and compact summary](docs/images/archive-file.png)
 
@@ -356,6 +362,15 @@ Nothing breaks. Run `/worklog rollover` whenever you're ready. The old week stay
 
 **How much does the vault grow?**
 Each week adds ~2-5 KB. After a year: 52 weekly files + 50-100 people + 20-30 programs = a few hundred KB total.
+
+**How do I add a new Slack channel to monitor?**
+Run `/worklog pull`. If `Sources/` is empty, the skill walks you through registering the channel: it asks for the channel name, resolves the channel ID via Slack search, writes a `Sources/<channel>.md` config file, and runs the first pull. To add another channel later, just say "register `#another-channel` as a source."
+
+**What if I delete a meeting note by accident?**
+The next `/worklog pull` will recreate it from the Slack thread, since the vault is the source of truth for what's been ingested and a missing file means "not yet processed."
+
+**What if I edit a meeting note?**
+Your edits are preserved. Subsequent pulls only append new replies under `## Discussion` and update `slack_last_reply_ts` in the frontmatter. The `## Notes` section and anything else you add is never overwritten.
 
 ## License
 
