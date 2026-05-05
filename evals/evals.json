@@ -72,6 +72,18 @@
       "prompt": "/worklog add P1 sync with Sarah about hiring (with Sources/<channel>.md last_scan_ts older than 5 days)",
       "expected_output": "Should add the item normally without surfacing the stale-channel nudge. /worklog add is not in the nudge-eligible command set; only rollover, tidy, and audit are.",
       "issue_tested": "Stale-channel nudge does NOT surface on commands outside the nudge-eligible set"
+    },
+    {
+      "id": 13,
+      "prompt": "/worklog pull (with 1 new thread; auto-fetch helper at ~/.config/obsidian-worklog/bin/slack-fetch-file is configured and a valid files:read token is at ~/.config/obsidian-worklog/slack-token)",
+      "expected_output": "Should attempt auto-fetch FIRST: shell out to ~/.config/obsidian-worklog/bin/slack-fetch-file <file_id> with the top-of-thread file attachment ID. On success (helper exits 0, prints body to stdout): use that body as the source content, do NOT prompt the user. Convert HTML to plain markdown, strip email-client chrome, build the Meetings/YYYY-MM-DD-<slug>.md note with frontmatter, run the existing Processing raw input pipeline to extract action items into the current week file, advance last_scan_ts past the thread. The full ingest is automatic with no user paste step.",
+      "issue_tested": "v5.4.0 auto-fetch happy path - helper script returns body, skill ingests without prompting"
+    },
+    {
+      "id": 14,
+      "prompt": "/worklog pull (with 1 new thread; helper script not installed OR token file missing OR token expired/revoked)",
+      "expected_output": "Should attempt auto-fetch first; helper exits non-zero (or doesn't exist). Should fall back to manual-paste prompt: present thread summary including a one-line note about the auto-fetch error, ask user to paste body or say 'skip' / 'skip all remaining'. On paste: same downstream pipeline as auto-fetch path. Should NOT silently fail; should NOT skip the thread without user confirmation; should NOT block the entire pull (other threads are processed normally).",
+      "issue_tested": "v5.4.0 auto-fetch fallback - manual paste path remains fully functional when helper is missing or fails"
     }
   ]
 }

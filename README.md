@@ -30,7 +30,7 @@ Built for anyone who tracks work across multiple projects and people. You paste 
 - **D3.js visualizations** of time allocation, program activity, and completion rates
 - **Vault health checks** that find stale notes, stuck items, and missing links
 - **Preferences as first-class citizens** -- the skill maintains a `Preferences/` directory as its general-purpose memory layer: voice, style, workflow, tooling, decision rules, vault conventions, anything durable about how you work, captured once and applied automatically across sessions
-- **Slack channel inbox** -- register a Slack channel where meeting notes get forwarded (e.g., from a Google Group), and `/worklog pull` ingests unprocessed threads into `Meetings/` notes plus extracts action items into the current week. The skill nudges you on `/worklog rollover` / `tidy` / `audit` if a registered channel hasn't been pulled in over 5 days
+- **Slack channel inbox** -- register a Slack channel where meeting notes get forwarded (e.g., from a Google Group). `/worklog pull` discovers new threads, fetches each email body, creates `Meetings/` notes, and extracts action items into the current week. Auto-fetch happens via a one-time `files:read`-scoped Slack OAuth token + a small Bash helper (see [`docs/SETUP-SLACK.md`](docs/SETUP-SLACK.md)); without that setup, the skill falls back to prompting you to paste each body inline. The skill nudges you on `/worklog rollover` / `tidy` / `audit` if a registered channel hasn't been pulled in over 5 days
 
 ![Obsidian graph view showing the knowledge graph of people, programs, and weekly files](docs/images/graph-view.png)
 
@@ -366,11 +366,17 @@ Each week adds ~2-5 KB. After a year: 52 weekly files + 50-100 people + 20-30 pr
 **How do I add a new Slack channel to monitor?**
 Run `/worklog pull`. If `Sources/` is empty, the skill walks you through registering the channel: it asks for the channel name, resolves the channel ID via Slack search, writes a `Sources/<channel>.md` config file, and runs the first pull. To add another channel later, just say "register `#another-channel` as a source."
 
+**How do I set up auto-fetch for email bodies?**
+See [`docs/SETUP-SLACK.md`](docs/SETUP-SLACK.md) for a 5-minute walkthrough: register a personal Slack app at `api.slack.com/apps` with `files:read` scope, install it to your workspace, store the `xoxp-` user token at `~/.config/obsidian-worklog/slack-token` (chmod 600), and drop in a small `slack-fetch-file` helper script. After that, `/worklog pull` ingests email bodies automatically. If your workspace requires admin approval for new apps, the manual-paste fallback keeps the feature working while you wait.
+
+**What if auto-fetch isn't set up?**
+The skill falls back to prompting you to paste each email body inline. Same outcome (`Meetings/` note + action items extracted), just one extra step per thread. You can also say `skip` to advance past a thread without ingesting it, or `skip all remaining` to bail out of the entire pull while preserving un-shown threads for the next run. No skeleton notes get created -- the vault stays clean.
+
 **What if I delete a meeting note by accident?**
-The next `/worklog pull` will recreate it from the Slack thread, since the vault is the source of truth for what's been ingested and a missing file means "not yet processed."
+The next `/worklog pull` will re-ingest it (auto-fetch path) or re-prompt you to paste (manual path), since the `slack_thread_ts` no longer matches anything in `Meetings/*.md` and the thread is treated as new. To permanently skip a thread, use `skip` in the manual-paste prompt -- that advances `last_scan_ts` past it.
 
 **What if I edit a meeting note?**
-Your edits are preserved. Subsequent pulls only append new replies under `## Discussion` and update `slack_last_reply_ts` in the frontmatter. The `## Notes` section and anything else you add is never overwritten.
+Your edits are preserved. Subsequent pulls only append new thread replies under `## Discussion` and update `slack_last_reply_ts` in the frontmatter. The `## Notes` section and anything else you add is never overwritten.
 
 ## License
 

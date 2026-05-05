@@ -651,38 +651,74 @@ __Pull flow:__
    1. Use `slack_read_thread` to fetch the full thread (top message + all replies).
    2. Glob `__VAULT_PATH__/Meetings/*.md` and grep frontmatter for a match on
       `slack_thread_ts`.
-   3. __New thread__ (no match):
-      - Compute the meeting note filename: `YYYY-MM-DD-<topic-slug>.md` per the
-        rules in the Meetings section. Date is the top-of-thread ts in user's
-        local timezone; slug is from the email subject.
-      - On filename collision, append `-2`, `-3`, etc. until unique.
-      - Build the Meetings note body per the schema in the Meetings section.
-        - `## Notes`: extract the email body from the top-of-thread post (see
-          __Email body extraction__ below). Lightly clean up: strip email-client
-          chrome (signatures, quoted reply blocks, unsubscribe footers); preserve
-          substantive content.
-        - `## Discussion`: each reply becomes a `### YYYY-MM-DD HH:MM — [[Author]]`
-          subheading (user's local TZ, chronological), followed by the reply text.
-          Resolve author names via `slack_search_users` if only a handle/ID is
-          available.
-        - `## Extracted Items`: leave as a single line pointing to the current
-          week file: `- See [[YYYY-WNN]] for items added to this week's worklog`.
-      - Build frontmatter per the schema in the Meetings section. Set
-        `slack_last_reply_ts` equal to `slack_thread_ts` if the thread has no
-        replies; otherwise to the timestamp of the latest reply.
-      - Resolve participants: union of (thread repliers, names @-mentioned in the
-        email body, names in the email body's "Attendees:" / "Participants:"
-        section if present). Wiki-link all; create stub People notes for any
-        unknown names per existing Cross-Linking rules.
-      - Resolve programs: glob `Programs/*.md` for known names; scan the meeting
-        body for matches; wiki-link.
-      - Write the new `Meetings/YYYY-MM-DD-<slug>.md`.
-      - Run the __Processing raw input__ pipeline (above) against the meeting
-        body + replies, treating the meeting date as the source date for action
-        items. Items go into the __current__ week file (the user's actual current
-        week, not the meeting's week, since the meeting's week may be in the
-        archive). Sub-item dated annotations use the actual Slack timestamps from
-        the thread, not today's date.
+   3. __New thread__ (no match): get the email body, then ingest.
+      - __Try auto-fetch first__ (see __Body extraction__ below for the full
+        explanation). If the helper script is available and configured, run:
+        ```bash
+        ~/.config/obsidian-worklog/bin/slack-fetch-file <file_id>
+        ```
+        where `<file_id>` is the ID of the top-of-thread file attachment from
+        `slack_read_thread`. The helper prints the file body to stdout (HTML
+        for `text/html` files, raw bytes for others). On success, use that
+        output as the source body and skip the prompt step below.
+      - __If auto-fetch fails or is not configured__ (helper missing,
+        `not_visible`, `access_denied`, network error, no file attachment on
+        the top-of-thread post, etc.), fall back to prompting:
+        - Show the user a one-block summary of this thread:
+          - Date: top-of-thread ts in user's local timezone (e.g., `2026-05-01`).
+          - Subject: from the file attachment name (or the message text if any).
+          - Posted by: bot/integration name (typically `Slackbot`).
+          - Slack permalink (constructed from `channel_id` + `slack_thread_ts`).
+          - Attached file: `<filename>` (`<MIME type>`, `<size>`).
+          - Auto-fetch error if any (one line, e.g., `auto-fetch failed: not_visible`).
+        - Ask: _"Paste the email body to ingest, or say 'skip' (advances
+          `last_scan_ts` past this thread; won't be prompted again). For
+          multiple new threads, you can also say 'skip all remaining' to bail
+          out of the pull and resume later."_
+      - __With the body (from auto-fetch OR user paste)__:
+        - Compute the meeting note filename: `YYYY-MM-DD-<topic-slug>.md` per
+          the rules in the Meetings section. Date is the top-of-thread ts in
+          user's local timezone; slug is kebab-case from the email subject.
+        - On filename collision, append `-2`, `-3`, etc. until unique.
+        - Build the Meetings note body per the schema in the Meetings section:
+          - `## Notes`: the body, lightly cleaned. If HTML, convert to plain
+            markdown (strip tags, preserve paragraph breaks, headings, lists,
+            and links). Strip email-client chrome (signatures, "On <date> X
+            wrote:" quote blocks, unsubscribe footers, tracking pixels,
+            `Forwarded message` headers). Preserve substantive content.
+          - `## Discussion`: each reply from `slack_read_thread` becomes a
+            `### YYYY-MM-DD HH:MM — [[Author]]` subheading (user's local TZ,
+            chronological), followed by the reply text. Resolve author names
+            via `slack_search_users` if only a handle/ID is available. If the
+            thread has no replies, leave `## Discussion` empty.
+          - `## Extracted Items`: a single line linking to the current week
+            file: `- See [[YYYY-WNN]] for items added to this week's worklog`.
+        - Build frontmatter per the schema in the Meetings section. Set
+          `slack_last_reply_ts` equal to `slack_thread_ts` if the thread has
+          no replies; otherwise to the timestamp of the latest reply.
+        - Resolve participants: union of (thread repliers from
+          `slack_read_thread`, names @-mentioned in the body, names in the
+          body's "Attendees:" / "Participants:" section if present).
+          Wiki-link all; create stub People notes for unknown names per the
+          existing Cross-Linking rules.
+        - Resolve programs: glob `Programs/*.md` for known names; scan the
+          body for matches; wiki-link.
+        - Write the new `Meetings/YYYY-MM-DD-<slug>.md`.
+        - Run the __Processing raw input__ pipeline (above) against the body
+          + replies, treating the meeting date as the source date for action
+          items. Items go into the __current__ week file (the user's actual
+          current week, not the meeting's week, since the meeting's week may
+          be in the archive). Sub-item dated annotations use the actual
+          Slack timestamps from the thread, not today's date.
+      - __On 'skip'__ (manual-paste fallback only):
+        - Do __not__ create a Meetings note (skeletons rot).
+        - Advance `last_scan_ts` on the source file past this thread's ts so
+          the next pull won't re-prompt.
+        - Note in session output: `Skipped: <date> <subject>`.
+      - __On 'skip all remaining'__ (manual-paste fallback only):
+        - Do not advance `last_scan_ts` for the threads that haven't been
+          shown yet; leave them for the next pull.
+        - Stop the pull and print whatever summary is available so far.
    4. __Existing thread, new replies__ (match found, replies after
       `slack_last_reply_ts`):
       - Open the matched `Meetings/*.md` with the Edit tool.
@@ -725,27 +761,44 @@ When `Sources/` is empty (or the user explicitly asks to register a new channel)
    plus a brief body line about what the channel is.
 5. Proceed with the first pull (lookback = `first_scan_lookback_days` days).
 
-__Email body extraction:__
+__Body extraction:__
 
-The top-of-thread post in a `meeting-notes-via-email` channel is an automated
-post from Slack's email-to-channel integration (or a similar bot). Depending on
-how the integration renders the email, the body may be:
+For larger HTML emails (generally >5-10KB or with rich formatting), Slack's
+email-to-channel integration posts forwarded emails as `.html` (or `.eml`)
+file attachments on bot messages. The email body lives __inside__ the file,
+not in the message text. Most Slack MCP tools return file metadata only (ID,
+name, MIME type, size) and don't expose file body content directly.
 
-(a) A file attachment (`.eml` or similar) on the message - in which case it may
-    not be directly readable through the available Slack MCP tools.
-(b) The email body inlined as the message text.
-(c) A styled card / Slack Block Kit message containing the email body.
+The skill supports two extraction modes, in order of preference:
 
-Try the message text first (simplest case). If the body looks empty or
-truncated, fall back to whatever message preview / file content is available
-through the Slack MCP tool response. If the email body is not accessible at
-all in this environment, warn once per pull:
+__1. Auto-fetch (preferred).__ If the user has set up the helper script at
+`~/.config/obsidian-worklog/bin/slack-fetch-file` and a Slack OAuth token at
+`~/.config/obsidian-worklog/slack-token` (with `files:read` scope), the skill
+shells out to:
+```bash
+~/.config/obsidian-worklog/bin/slack-fetch-file <file_id>
+```
+This calls Slack's `files.info` API to get `url_private_download`, then
+fetches the body with `Authorization: Bearer <token>`. Returns body to stdout,
+non-zero exit on auth/network/not-found errors. See `docs/SETUP-SLACK.md` in
+the repo for the full setup walkthrough (one-time: register a Slack app at
+`api.slack.com/apps` with `files:read` scope, store the resulting `xoxp-`
+or `xoxb-` token).
 
-> Couldn't extract email file body for thread `<title>` - used Slack-rendered
-> text instead. Fidelity may be lower.
+__2. Manual paste (fallback).__ If the helper script isn't installed or
+auto-fetch fails (token missing/expired, file not visible, network error,
+non-bot-attached top-of-thread, etc.), the skill prompts the user to paste
+the email body inline. The user opens the file attachment in Slack (preview
+pane works) or in their email inbox if they're a member of the source list,
+copies the rendered text, and pastes into the conversation.
 
-Continue ingesting the thread with whatever text is available. The thread
-replies are always normal Slack messages and never have this problem.
+Either way, once the body is in hand, the existing __Processing raw input__
+pipeline handles the rest (Meetings note creation, item extraction,
+People/Programs updates).
+
+Thread __replies__ are never affected by this - replies are normal Slack
+messages and `slack_read_thread` returns their full text. The body-extraction
+question only applies to the top-of-thread email content.
 
 __Errors and edge cases:__
 
@@ -753,10 +806,17 @@ __Errors and edge cases:__
   one and re-run." Do not silently skip.
 - __Channel not found / ambiguous__ during registration: show the top matches
   from `slack_search_channels` and let the user pick.
-- __Rate limit hit mid-pull:__ `last_scan_ts` advances per thread, so the next
-  pull resumes from where we left off. Tell the user it was partial.
-- __Manually-deleted Meetings note:__ next pull recreates it (no match on
-  `slack_thread_ts`).
+- __User pastes empty / clearly-non-meeting content:__ ask once for confirmation
+  (e.g., "That looks short - are you sure that's the full body?"). On second
+  confirm, proceed; the resulting Meetings note may be sparse but that's the
+  user's call.
+- __Rate limit hit mid-pull (Slack API):__ `last_scan_ts` advances per thread,
+  so the next pull resumes from where we left off. Tell the user it was partial.
+- __Manually-deleted Meetings note:__ next pull will re-prompt the user to
+  paste the body again (the `slack_thread_ts` no longer matches anything in
+  `Meetings/*.md`, so the thread is treated as new). If the user wants to
+  permanently skip a thread without ingesting, use 'skip' in step 4.3 - that
+  advances `last_scan_ts` past the thread's ts so it's never re-prompted.
 - __Manually-edited Meetings note:__ on next pull, only `## Discussion` is
   appended to and `slack_last_reply_ts` is updated. `## Notes` and any user
   additions elsewhere are preserved.
@@ -889,7 +949,7 @@ Brief titles only, no sub-notes, no wiki-link syntax, grouped by priority.
 ### `/worklog rollup`
 
 Generate an IC-appropriate weekly context dump for posting to a broad team
-channel (e.g. `#eng-all`, `#infrasec-all`). This is your voice speaking to the
+channel (e.g. `#eng-all`, `#team-broadcasts`). This is your voice speaking to the
 whole org: what happened this week that individual contributors would benefit
 from knowing, organized into two buckets. Copies a Slack-mrkdwn-formatted
 message to the clipboard via `pbcopy`.

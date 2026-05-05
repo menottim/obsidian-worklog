@@ -202,3 +202,60 @@ These are not design decisions — they're things to validate during implementat
 1. Which Slack MCP tool actually returns file-attachment content for forwarded-email posts in this user's environment? `slack_read_channel`, `slack_read_thread`, or do we need a separate fetch? The fallback path covers either way, but the happy-path test should pin this down.
 2. How does the channel's automated bot identify itself in `user`/`bot_id` fields? We may want to filter so only bot-posted top-of-thread messages are treated as "meeting starts" — anything else might be a side conversation.
 3. What's the right `participants` extraction policy for the meeting note? Top-of-thread is the bot, so participants come from thread repliers + names mentioned in the email body. The existing People-resolution logic via `slack_search_users` handles the @mention case; the email body case may need a lightweight pass.
+
+---
+
+## v5.3.1 amendment (2026-05-05) — manual-paste fallback
+
+__Resolution of open question #1:__ smoke-testing v5.3.0 against a real meeting-notes channel (3 candidate threads, all `.html` file attachments at 25-39 KB, all with zero replies) confirmed that __most Slack MCP tools available in Claude Code today don't expose file-attachment body content__. Confirmed by:
+
+- Direct schema search across the loaded Slack MCP tools — no `get_file_content`, no `files_info`, no `download` tool surface.
+- Direct probe of `slack_read_channel` with `response_format=detailed` — returns file metadata only (ID, name, MIME, size).
+- Direct probe of `slack_search_public_and_private` with `content_types=files` — returns a Slack-authenticated permalink and a "Content" field that's just the title; no body.
+- The Anthropic-official Claude Code Slack MCP file-download feature request was closed as "not planned" ([anthropics/claude-code#33965](https://github.com/anthropics/claude-code/issues/33965)).
+- Web research confirmed the standard Slack mechanism for downloading file content (`Authorization: Bearer <token>` against `url_private`) requires a `files:read`-scoped OAuth token, which is not exposed by the in-process Slack MCP and therefore requires either a separate MCP server or an out-of-process helper.
+
+__Design pivot for v5.3.1:__ `/worklog pull` shifts from "automatic body extraction" to a __discover-and-prompt__ workflow as the lowest-friction starting point that works in any Slack MCP environment:
+
+- The skill still discovers new threads (via `slack_read_channel`), still tracks state (via `Sources/<channel>.md` and `Meetings/*.md` frontmatter), still runs the existing __Processing raw input__ pipeline, still nudges on rollover/tidy/audit. None of those design choices change.
+- The one change is in step 4.3 of the pull flow: instead of "auto-extract email body from the file attachment," the skill presents the thread (date, subject, permalink, file metadata) and asks the user to paste the body inline. On paste, the existing pipeline takes over. On `skip`, `last_scan_ts` advances past the thread (no Meetings note created — skeletons rot). On `skip all remaining`, the pull bails without advancing `last_scan_ts` past un-shown threads, so the next pull picks up where it left off.
+- Thread __replies__ are still fetched automatically via `slack_read_thread` (replies are normal Slack messages, no file-content limitation applies). Only the top-of-thread email body needed manual paste.
+
+__Why this was the right v5.3.1 fix:__ shipped immediately with zero new infrastructure, preserved the entire design substrate (Sources/, Meetings/, state tracking, nudge), and left a clean upgrade path to auto-fetch when a file-content path became available — a small targeted edit to step 4.3, no other design changes.
+
+__Files changed in v5.3.1:__
+- `skills/worklog/SKILL.md` — `/worklog pull` step 4.3 rewritten as discover-and-prompt; "Email body extraction" section rewritten; new edge cases in the errors list.
+- `evals/evals.json` — added evals 13 (manual paste flow with paste vs skip) and 14 (skip-all-remaining bail behavior).
+- `.claude-plugin/plugin.json` — bumped to 5.3.1; description simplified.
+- `README.md` — What You Get bullet rewritten; FAQ gains entries on paste flow.
+
+## v5.4.0 amendment (2026-05-05) — auto-fetch with paste fallback
+
+__Auto-fetch is now the default__ when the user has set up a personal Slack OAuth token with `files:read` scope and the helper script (see `docs/SETUP-SLACK.md` for the user-facing walkthrough). The manual-paste flow from v5.3.1 remains as a fallback when auto-fetch isn't configured or fails.
+
+__How auto-fetch works:__
+
+1. `/worklog pull` step 4.3 attempts auto-fetch first by shelling out to `~/.config/obsidian-worklog/bin/slack-fetch-file <file_id>` for the top-of-thread file attachment.
+2. The helper reads a token from `~/.config/obsidian-worklog/slack-token` (chmod 600), calls Slack's `files.info` API to get `url_private_download`, then fetches the file body with `Authorization: Bearer <token>`.
+3. Helper exits 0 with body on stdout → skill proceeds with the existing __Processing raw input__ pipeline against that body. No user prompt.
+4. Helper exits non-zero → skill falls back to the v5.3.1 manual-paste prompt with a one-line note explaining the auto-fetch error.
+
+__Setup requirements (one-time, per user):__
+
+- Register a Slack app at `api.slack.com/apps` with `files:read` scope (user token recommended; user tokens inherit channel access without per-channel `/invite`).
+- Install to your workspace. If the workspace requires admin approval for new apps, follow your org's process — the manual-paste fallback keeps the feature working while you wait.
+- Store the `xoxp-` user token at `~/.config/obsidian-worklog/slack-token` (chmod 600), and drop in the `slack-fetch-file` helper (~30 lines of Bash) at `~/.config/obsidian-worklog/bin/slack-fetch-file`.
+- Full instructions: `docs/SETUP-SLACK.md`.
+
+__Token-acquisition validation (smoke test):__ during v5.4.0 development, the full path was end-to-end validated against a real meeting-notes channel: token stored, `auth.test` returned correct scopes, `files.info` returned `url_private_download`, and a `curl` with bearer auth fetched the actual 15 KB HTML email body. The helper script wraps that exact sequence with error handling and a single-arg interface.
+
+__Why a user token (`xoxp`), not a bot token (`xoxb`)?__ User tokens inherit the authenticating user's channel access — if you can see a channel in Slack, the token can read files in it. Bot tokens require explicit `/invite @your-bot` to each channel before they can call `files.info` on its files. For a personal one-user worklog skill, user tokens are simpler with no security tradeoff.
+
+__Why a side-channel helper instead of a new MCP server?__ The helper is ~30 lines of Bash, no dependencies beyond `curl` and `jq`, and uses the standard Slack Web API directly. Adding a new MCP server (e.g., a local Slack file-content MCP) would require packaging, distribution, and a registry entry, with no functional benefit over the shell-out approach. If a Slack MCP that exposes file content becomes available later (either upstream or from another vendor), step 4.3 can swap to it with a one-line change.
+
+__Files changed in v5.4.0:__
+- `skills/worklog/SKILL.md` — step 4.3 now attempts auto-fetch first, falls back to paste prompt on failure; "Why bodies are pasted manually" section rewritten as "Body extraction" describing both modes.
+- `docs/SETUP-SLACK.md` — new user-facing setup guide.
+- `evals/evals.json` — eval 13 updated to test auto-fetch happy path; eval 14 updated to test auto-fetch failure → manual paste fallback.
+- `.claude-plugin/plugin.json` — bumped to 5.4.0; description updated.
+- `README.md` — What You Get bullet rewritten to mention auto-fetch with manual fallback; FAQ updated to point at `SETUP-SLACK.md`.
