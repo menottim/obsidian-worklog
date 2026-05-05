@@ -652,18 +652,25 @@ __Pull flow:__
    2. Glob `__VAULT_PATH__/Meetings/*.md` and grep frontmatter for a match on
       `slack_thread_ts`.
    3. __New thread__ (no match): get the email body, then ingest.
-      - __Try auto-fetch first__ (see __Body extraction__ below for the full
-        explanation). If the helper script is available and configured, run:
+      - __ALWAYS try auto-fetch first__ by running this exact command:
         ```bash
         ~/.config/obsidian-worklog/bin/slack-fetch-file <file_id>
         ```
         where `<file_id>` is the ID of the top-of-thread file attachment from
-        `slack_read_thread`. The helper prints the file body to stdout (HTML
-        for `text/html` files, raw bytes for others). On success, use that
-        output as the source body and skip the prompt step below.
-      - __If auto-fetch fails or is not configured__ (helper missing,
-        `not_visible`, `access_denied`, network error, no file attachment on
-        the top-of-thread post, etc.), fall back to prompting:
+        `slack_read_thread`. Do __NOT__ skip this step. Do __NOT__ check
+        whether the helper is "configured" or "set up" first - just run it.
+        The helper handles all configuration checks internally (token file
+        readable, network reachable, file visible) and reports failure via
+        non-zero exit codes with a clear stderr message. The helper prints
+        the body (HTML for `text/html` files, raw bytes for others) to
+        stdout on success.
+      - __On exit code 0__ (helper succeeded, body on stdout): use that
+        output as the source body. __Skip the prompt step below entirely__
+        and proceed straight to "With the body" below.
+      - __On any non-zero exit__ (helper missing, token missing/expired,
+        `not_visible`, `access_denied`, network error, no file attachment
+        on the top-of-thread post, etc.): only __then__ fall back to
+        prompting:
         - Show the user a one-block summary of this thread:
           - Date: top-of-thread ts in user's local timezone (e.g., `2026-05-01`).
           - Subject: from the file attachment name (or the message text if any).
@@ -769,36 +776,41 @@ file attachments on bot messages. The email body lives __inside__ the file,
 not in the message text. Most Slack MCP tools return file metadata only (ID,
 name, MIME type, size) and don't expose file body content directly.
 
-The skill supports two extraction modes, in order of preference:
+__Default behavior: auto-fetch via the helper script.__ The skill's pull flow
+(step 4.3 above) __always__ shells out to:
 
-__1. Auto-fetch (preferred).__ If the user has set up the helper script at
-`~/.config/obsidian-worklog/bin/slack-fetch-file` and a Slack OAuth token at
-`~/.config/obsidian-worklog/slack-token` (with `files:read` scope), the skill
-shells out to:
 ```bash
 ~/.config/obsidian-worklog/bin/slack-fetch-file <file_id>
 ```
-This calls Slack's `files.info` API to get `url_private_download`, then
-fetches the body with `Authorization: Bearer <token>`. Returns body to stdout,
-non-zero exit on auth/network/not-found errors. See `docs/SETUP-SLACK.md` in
-the repo for the full setup walkthrough (one-time: register a Slack app at
-`api.slack.com/apps` with `files:read` scope, store the resulting `xoxp-`
-or `xoxb-` token).
 
-__2. Manual paste (fallback).__ If the helper script isn't installed or
-auto-fetch fails (token missing/expired, file not visible, network error,
-non-bot-attached top-of-thread, etc.), the skill prompts the user to paste
-the email body inline. The user opens the file attachment in Slack (preview
-pane works) or in their email inbox if they're a member of the source list,
-copies the rendered text, and pastes into the conversation.
+This calls Slack's `files.info` API to get `url_private_download`, fetches
+the body with `Authorization: Bearer <token>`, and prints it to stdout on
+exit code 0. The helper handles all configuration checks internally and
+returns non-zero on any failure (token missing/expired, file not visible,
+network error). The skill checks the exit code and proceeds:
 
-Either way, once the body is in hand, the existing __Processing raw input__
-pipeline handles the rest (Meetings note creation, item extraction,
-People/Programs updates).
+- __Exit 0__: use the body, run the existing __Processing raw input__
+  pipeline against it. No user prompt.
+- __Non-zero exit__: fall back to prompting the user to paste the body
+  inline. Surface the helper's stderr message (one line) so the user knows
+  what went wrong.
 
-Thread __replies__ are never affected by this - replies are normal Slack
-messages and `slack_read_thread` returns their full text. The body-extraction
-question only applies to the top-of-thread email content.
+This is unconditional. The skill does __not__ check "is the helper
+configured" or "does the token exist" before trying — it just runs the
+command and branches on the result. If the helper isn't installed at all,
+the run will exit non-zero with "command not found" and the manual-paste
+fallback engages.
+
+__Setup for new users:__ see `docs/SETUP-SLACK.md` in the repo for the
+~5-minute walkthrough — register a Slack app at `api.slack.com/apps` with
+`files:read` scope, store the resulting `xoxp-` user token at
+`~/.config/obsidian-worklog/slack-token` (chmod 600), and drop in the
+~30-line helper script. After that, every `/worklog pull` ingests bodies
+automatically.
+
+__Thread replies__ are never affected by this — replies are normal Slack
+messages and `slack_read_thread` returns their full text. Body extraction
+only applies to the top-of-thread email content.
 
 __Errors and edge cases:__
 

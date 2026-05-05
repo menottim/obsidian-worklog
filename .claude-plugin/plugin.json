@@ -1,6 +1,6 @@
 {
   "name": "obsidian-worklog",
-  "version": "5.4.0",
+  "version": "5.4.1",
   "description": "Obsidian worklog manager - weekly planning, knowledge graph (people, programs, teams), priority tracking, D3 visualizations, AI summaries, IC-facing weekly rollups, durable preferences, and Slack channel inbox (auto-fetch email bodies via files:read OAuth helper with manual-paste fallback, then extract action items into the current week)",
   "author": {
     "name": "Menotti Minutillo",
