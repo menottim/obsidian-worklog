@@ -133,8 +133,7 @@ thread summary the skill prints. Then:
 ~/.config/obsidian-worklog/bin/slack-fetch-file F0XXXXXXX | head -c 500
 ```
 
-If it prints HTML or text, you're done. The next `/worklog pull` will use
-auto-fetch automatically.
+If it prints HTML or text, the helper itself is working.
 
 If it prints an error like `not_visible` or `access_denied`, the token is
 valid but the file isn't visible to you (maybe it's in a private channel
@@ -142,6 +141,31 @@ you're not a member of). Check that you're a member of the source channel.
 
 If it prints `not_authed` or `invalid_auth`, the token is wrong or expired.
 Re-copy from the OAuth & Permissions page and rewrite step 5.
+
+## 8. Allow Claude Code to invoke the helper
+
+Even with the helper installed, Claude Code prompts for permission each time
+it tries to run a bash command from a path it hasn't seen before. If you
+operate in `/focus` mode or with `skipAutoPermissionPrompt`, those prompts
+get silently denied — the skill will fall back to manual paste even though
+auto-fetch is fully set up.
+
+Add the helper path to your Bash allowlist in `~/.claude/settings.json`:
+
+```json
+"permissions": {
+  "allow": [
+    "Bash(~/.config/obsidian-worklog/bin/slack-fetch-file:*)"
+  ]
+}
+```
+
+Or, easier: type `/permissions` in Claude Code and add
+`Bash(~/.config/obsidian-worklog/bin/slack-fetch-file:*)` via the UI.
+
+Restart Claude Code after editing settings.json — settings load on session
+start, not mid-session. The next `/worklog pull` will use auto-fetch
+automatically.
 
 ## App Approval Process
 
