@@ -16,7 +16,8 @@ __Routing (pinned tool IDs, no fallbacks):__
 | URL pattern | Exact MCP tool ID |
 |-------------|---------------------|
 | `*.slack.com/archives/.../p*` | `mcp__core-tools__fetch-slack-thread` |
-| `coda.io`, `coda.netflix.net` | `mcp__core-tools__netflix_search_data` |
+| `coda.io` | `mcp__core-tools__netflix_search_data` |
+| `coda.netflix.net` | `mcp__core-tools__netflix_search_data` |
 | `confluence.netflix.com` | `mcp__core-tools__netflix_search_data` |
 | `netflix.atlassian.net/wiki/` | `mcp__plugin_atlassian_atlassian__getConfluencePage` |
 | `docs.google.com/document/` | `mcp__core-tools__netflix_search_data` |
@@ -61,9 +62,9 @@ __Behavior:__
    title: Senior Software Engineer
    team: Platform Infrastructure
    manager: "[[Manager Name]]"
-   manager_chain: ["[[L1 Manager]]", "[[L2 Manager]]"]
    pandora_id: jsmith
    ```
+   (Note: `manager_chain` is intentionally not populated. SKILL.md instructs "do not recurse on the manager chain" - you can `/worklog whois <manager-name>` to walk up one level at a time.)
 4. If a People note already exists, merge: update frontmatter, preserve all body content (your accumulated context bullets)
 5. Wiki-link the manager - creates a stub `People/<Manager Name>.md` if missing
 6. Append a context bullet: `- _[YYYY-MM-DD]_ Org metadata refreshed from Pandora`

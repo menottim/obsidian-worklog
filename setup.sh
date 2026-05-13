@@ -224,6 +224,23 @@ fi
 DEFAULT_INSTALL_PATH="$HOME/.claude/plugins/marketplaces/personal/plugins/obsidian-worklog"
 SKILL_INSTALL_PATH=$(prompt_with_default "Skill install path (plugin location after install)" "$DEFAULT_INSTALL_PATH")
 
+# Safety guardrail: refuse to operate on paths outside $HOME/.claude/.
+# This protects against typo-driven destructive rm -rf in Step 11.
+# If a user typed their home dir, or '/', the script would otherwise wipe data on
+# a single Enter at the overwrite prompt. Restricting to .claude/ contains the blast radius.
+case "$SKILL_INSTALL_PATH" in
+  "$HOME/.claude/"*) ;;
+  *)
+    fail "Skill install path must be under \$HOME/.claude/ to prevent accidental destructive overwrites. Got: $SKILL_INSTALL_PATH"
+    ;;
+esac
+# Also reject path components that escape via .. (defense in depth)
+case "$SKILL_INSTALL_PATH" in
+  *..*)
+    fail "Skill install path must not contain '..' (got: $SKILL_INSTALL_PATH)"
+    ;;
+esac
+
 # ===========================================================================
 # Step 8: Preview and confirm
 # ===========================================================================
@@ -296,6 +313,28 @@ if [[ -n "$REMAINING" ]]; then
 fi
 echo "  OK all placeholders replaced"
 
+# Verify each substituted VALUE actually landed in the file. This catches the
+# class of bugs where sed mishandled the replacement string (backslash sequences,
+# regex specials in user input) and produced corrupted output - the placeholder
+# would be gone but the value wouldn't be there either.
+declare -A SUBSTITUTIONS=(
+  [VAULT_PATH]="$VAULT_PATH"
+  [DISPLAY_NAME]="$DISPLAY_NAME"
+  [GIT_USER_NAME]="$GIT_USER_NAME"
+  [GIT_USER_EMAIL]="$GIT_USER_EMAIL"
+  [SKILL_INSTALL_PATH]="$SKILL_INSTALL_PATH"
+)
+for key in "${!SUBSTITUTIONS[@]}"; do
+  val="${SUBSTITUTIONS[$key]}"
+  if ! grep -qF -- "$val" "$SKILL_FILE"; then
+    fail "Substitution for $key did not land - value '$val' not in $SKILL_FILE (sed escape likely corrupted it)"
+  fi
+done
+if [[ "$BACKUP_REPO_URL" != "NONE" ]] && ! grep -qF -- "$BACKUP_REPO_URL" "$SKILL_FILE"; then
+  fail "Substitution for BACKUP_REPO_URL did not land - value '$BACKUP_REPO_URL' not in $SKILL_FILE"
+fi
+echo "  OK all substituted values present in file"
+
 # ===========================================================================
 # Step 10: Copy Weekly.md template into vault
 # ===========================================================================
@@ -322,11 +361,25 @@ if [[ -d "$SKILL_INSTALL_PATH" ]]; then
   esac
 fi
 
-mkdir -p "$(dirname "$SKILL_INSTALL_PATH")" || fail "Could not create plugin parent directory"
-cp -R "$REPO_ROOT" "$SKILL_INSTALL_PATH" || fail "Plugin copy to $SKILL_INSTALL_PATH failed"
-# Remove the copied .git to avoid the plugin install path becoming a nested repo
-rm -rf "$SKILL_INSTALL_PATH/.git" 2>/dev/null || true
-echo "  OK plugin installed at $SKILL_INSTALL_PATH"
+mkdir -p "$SKILL_INSTALL_PATH" || fail "Could not create plugin install directory"
+
+# Copy only git-tracked files (with their current working-tree contents, including
+# the sed substitutions just applied to SKILL.md). This excludes:
+#  - .git/ (no nested repo at install path)
+#  - untracked working-tree files (e.g., experimental notes, screenshots)
+#  - anything matched by .gitignore
+# 'git ls-files' lists tracked paths; tar pipes them between source and dest.
+TRACKED_LIST=$(mktemp)
+if ! git -C "$REPO_ROOT" ls-files > "$TRACKED_LIST"; then
+  rm -f "$TRACKED_LIST"
+  fail "Could not enumerate tracked files via git ls-files"
+fi
+if ! (cd "$REPO_ROOT" && tar -cf - -T "$TRACKED_LIST") | (cd "$SKILL_INSTALL_PATH" && tar -xf -); then
+  rm -f "$TRACKED_LIST"
+  fail "Plugin install via git ls-files | tar pipeline failed"
+fi
+rm -f "$TRACKED_LIST"
+echo "  OK plugin installed at $SKILL_INSTALL_PATH (tracked files only)"
 
 # ===========================================================================
 # Step 12: Final verification block
@@ -335,10 +388,64 @@ echo ""
 echo "=== Final verification ==="
 
 VERIFY_FAILED=0
-verify() {
-  local label="$1"
-  local check_cmd="$2"
-  if eval "$check_cmd" >/dev/null 2>&1; then
+
+# Type-specific check helpers. No eval; arguments are passed by value so
+# user-controlled paths can't escape into shell parsing.
+check_dir() {
+  local path="$1" label="$2"
+  if [[ -d "$path" ]]; then
+    echo "  OK $label"
+  else
+    echo "  FAIL $label"
+    VERIFY_FAILED=1
+  fi
+}
+
+check_file() {
+  local path="$1" label="$2"
+  if [[ -f "$path" ]]; then
+    echo "  OK $label"
+  else
+    echo "  FAIL $label"
+    VERIFY_FAILED=1
+  fi
+}
+
+check_absence() {
+  # File must NOT contain pattern (literal match).
+  local file="$1" pattern="$2" label="$3"
+  if grep -qF -- "$pattern" "$file"; then
+    echo "  FAIL $label"
+    VERIFY_FAILED=1
+  else
+    echo "  OK $label"
+  fi
+}
+
+check_presence() {
+  # File MUST contain pattern (literal match).
+  local file="$1" pattern="$2" label="$3"
+  if grep -qF -- "$pattern" "$file"; then
+    echo "  OK $label"
+  else
+    echo "  FAIL $label"
+    VERIFY_FAILED=1
+  fi
+}
+
+check_profile_joined() {
+  local profile="$1" label="$2"
+  if newt --app-type=dev-profiles resolve 2>/dev/null | grep -q "$profile"; then
+    echo "  OK $label"
+  else
+    echo "  FAIL $label"
+    VERIFY_FAILED=1
+  fi
+}
+
+check_ghe_repo() {
+  local repo_path="$1" label="$2"
+  if GH_HOST=github.netflix.net gh repo view "$repo_path" >/dev/null 2>&1; then
     echo "  OK $label"
   else
     echo "  FAIL $label"
@@ -348,24 +455,26 @@ verify() {
 
 # All vault subdirectories present
 for sub in "${VAULT_SUBDIRS[@]}"; do
-  verify "vault has $sub/" "[[ -d \"$VAULT_PATH/$sub\" ]]"
+  check_dir "$VAULT_PATH/$sub" "vault has $sub/"
 done
 
-# SKILL.md is fully configured (literal-match each known placeholder)
+# SKILL.md is fully configured: each known placeholder absent, each value present
 for ph in "${PLACEHOLDERS[@]}"; do
-  verify "SKILL.md no longer contains $ph" "! grep -qF \"$ph\" \"$SKILL_FILE\""
+  check_absence "$SKILL_FILE" "$ph" "SKILL.md no longer contains $ph"
 done
+check_presence "$SKILL_FILE" "$VAULT_PATH" "SKILL.md contains VAULT_PATH value"
+check_presence "$SKILL_FILE" "$SKILL_INSTALL_PATH" "SKILL.md contains install-path value"
 
-# Plugin manifest present at install path
-verify "plugin manifest at install path" "[[ -f \"$SKILL_INSTALL_PATH/.claude-plugin/plugin.json\" ]]"
-verify "plugin SKILL.md at install path" "[[ -f \"$SKILL_INSTALL_PATH/skills/worklog/SKILL.md\" ]]"
+# Plugin files present at install path
+check_file "$SKILL_INSTALL_PATH/.claude-plugin/plugin.json" "plugin manifest at install path"
+check_file "$SKILL_INSTALL_PATH/skills/worklog/SKILL.md" "plugin SKILL.md at install path"
 
 # Netflix-only verifications
 if [[ "$IS_NETFLIX" == "yes" ]]; then
-  verify "genai-core-tools profile joined" "newt --app-type=dev-profiles resolve 2>/dev/null | grep -q genai-core-tools"
+  check_profile_joined "genai-core-tools" "genai-core-tools profile joined"
   if [[ "$BACKUP_REPO_URL" != "NONE" && ( "$BACKUP_REPO_URL" == https://github.netflix.net/* || "$BACKUP_REPO_URL" == https://git.netflix.net/* ) ]]; then
     REPO_PATH=$(echo "$BACKUP_REPO_URL" | sed -E 's|https://[^/]+/||; s|\.git$||')
-    verify "GHE backup repo accessible: $REPO_PATH" "GH_HOST=github.netflix.net gh repo view \"$REPO_PATH\""
+    check_ghe_repo "$REPO_PATH" "GHE backup repo accessible: $REPO_PATH"
   fi
 fi
 
