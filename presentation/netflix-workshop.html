@@ -237,27 +237,26 @@
     <p class="small" style="margin-top: 28px;">Have your laptop out. There's a clone-and-run-setup section partway through.</p>
   </div>
 
-  <!-- 2: Why I built it -->
+  <!-- 2: How it started -->
   <div class="slide" data-slide="2" data-section="Intro">
-    <h2>Why I built it</h2>
+    <h2>How it started, how it's going</h2>
     <div class="two-col" style="margin-top: 18px;">
       <div class="step">
-        <h3 style="color: var(--text); font-size: 1em; margin-bottom: 10px;">Things I kept doing that didn't scale</h3>
+        <h3 style="color: var(--text); font-size: 1em; margin-bottom: 10px;">The experiment</h3>
         <ul>
-          <li>Friday: couldn't remember Monday</li>
-          <li>Next quarter: couldn't remember last quarter</li>
-          <li>1:1 decisions resurfacing as surprises weeks later</li>
-          <li>"Who's working on X?" → reconstruct from Slack search</li>
-          <li>Priority drift I only noticed when called out</li>
+          <li>I wanted a better TODO list. Mine kept drifting.</li>
+          <li>Claude Code had just landed. I wrote a tiny skill: paste raw stuff, get a clean weekly list.</li>
+          <li>Started linking people I mentioned (<code>[[Sarah]]</code>) so I could find what I'd discussed with whom.</li>
+          <li>Then programs got their own notes. Then summaries. Then the graph started being useful on its own.</li>
         </ul>
       </div>
       <div class="step">
-        <h3 style="color: var(--text); font-size: 1em; margin-bottom: 10px;">What I built</h3>
+        <h3 style="color: var(--text); font-size: 1em; margin-bottom: 10px;">What it became</h3>
         <ul>
-          <li>A Claude Code skill - markdown instructions Claude reads on <code>/worklog</code></li>
-          <li>No server, no runtime - just a file</li>
-          <li>Plain markdown in an Obsidian vault, indexed by week</li>
-          <li>Netflix fork wires in Pandora, Jira, Confluence, Coda, Slack threads via existing MCPs</li>
+          <li>A personal context vault, not just a todo list</li>
+          <li>The week is a thin slice; the vault is the long-arc memory</li>
+          <li>Prep for 1:1s, promo cases, status updates - all come out of the same files I write into every week</li>
+          <li>The Netflix fork plugs in Pandora, Jira, Confluence, Coda, Slack threads via existing MCPs</li>
         </ul>
       </div>
     </div>
@@ -316,22 +315,13 @@ description: >
 Create the new week file from Templates/Weekly.md. Carry forward any
 items marked ⏳ from the previous week. Move ✅ items to Archive/...
 </pre>
-    <div class="two-col" style="margin-top: 16px;">
-      <div class="card step">
-        <h3>What this means in practice</h3>
-        <ul style="font-size: 0.88em; line-height: 1.55;">
-          <li>You're reading the actual program. No bytecode, no opcodes.</li>
-          <li>Editing the skill = editing your own behavior</li>
-          <li>Diffs are reviewable like any prose</li>
-          <li>You can read it on your phone</li>
-        </ul>
-      </div>
+    <div class="step" style="margin-top: 16px; max-width: 900px;">
       <div class="card">
         <h3>Skills vs MCPs vs plugins</h3>
-        <ul style="font-size: 0.88em; line-height: 1.55;">
-          <li><strong>Skill</strong>: markdown instructions Claude follows</li>
-          <li><strong>MCP</strong>: an external tool Claude can call (Atlassian, Slack, core-tools)</li>
-          <li><strong>Plugin</strong>: a distribution unit that bundles skills + commands</li>
+        <ul style="font-size: 0.95em; line-height: 1.55;">
+          <li><strong>Skill</strong>: markdown instructions Claude follows when triggered</li>
+          <li><strong>MCP server</strong>: an external tool Claude can call (Atlassian, Slack, core-tools)</li>
+          <li><strong>Plugin</strong>: a distribution unit that bundles skills + commands + MCP config</li>
         </ul>
       </div>
     </div>
@@ -339,10 +329,11 @@ items marked ⏳ from the previous week. Move ✅ items to Archive/...
 
   <!-- 4: Vault structure -->
   <div class="slide" data-slide="4" data-section="What it does">
-    <h2>The vault</h2>
-    <div class="two-col">
+    <h2>The vault (the skill builds and maintains this for you)</h2>
+    <p style="color: var(--subtext1); margin-top: 4px;">You don't set up directories or write boilerplate. <code>setup.sh</code> creates the structure once; the skill places new files in the right folders as you go.</p>
+    <div class="two-col" style="margin-top: 14px;">
       <div>
-        <pre><span class="comment"># Your vault layout</span>
+        <pre><span class="comment"># Created at setup time, maintained by the skill</span>
 Your Vault/
   Worklogs/       <span class="comment"># YYYY-Www.md, one per week + Backlog</span>
   People/         <span class="comment"># One note per person, wiki-linked</span>
@@ -356,13 +347,12 @@ Your Vault/
   Reports/        <span class="comment"># D3 visualizations (HTML)</span></pre>
       </div>
       <div>
-        <h3>Why directories, not databases</h3>
+        <h3>Markdown, not a database</h3>
         <ul style="font-size: 0.95em;">
-          <li>Plain markdown, no migrations, no schema lock-in</li>
-          <li>You can edit anything directly in Obsidian</li>
-          <li>Backups are <code>git push</code></li>
-          <li>Search is <code>grep</code></li>
-          <li>The vault is yours - the skill is just literate over it</li>
+          <li>Every file is plain markdown you can edit directly in Obsidian</li>
+          <li>Backups are <code>git push</code>; search is <code>grep</code></li>
+          <li>The skill writes into your vault, never around it - your edits are preserved</li>
+          <li>No migrations, no schema, no lock-in if you want to leave</li>
         </ul>
       </div>
     </div>
@@ -726,8 +716,45 @@ status: active
     </div>
   </div>
 
-  <!-- 21: Wrap -->
-  <div class="slide" data-slide="21" data-section="Wrap">
+  <!-- 21 (new): Compared to STRIDE -->
+  <div class="slide" data-slide="21" data-section="Less obvious uses">
+    <h2>Where this sits next to <a href="https://github.netflix.net/corp/stride" style="color: var(--blue); text-decoration: none;">STRIDE</a></h2>
+    <p style="color: var(--subtext1); margin-top: 4px;">STRIDE is Netflix's broader personal-assistant agent. The two are complementary, not competing.</p>
+    <table style="margin-top: 12px;">
+      <tr><th style="width: 22%;"></th><th>STRIDE</th><th>obsidian-worklog</th></tr>
+      <tr>
+        <td><strong>One-liner</strong></td>
+        <td>Personal assistant for the day-to-day - email triage, calendar, channel summaries, scheduled debriefs</td>
+        <td>Weekly worklog as a long-arc context vault - people, programs, decisions, summaries</td>
+      </tr>
+      <tr>
+        <td><strong>Runs as</strong></td>
+        <td>Daemon + Slack bot on Dev Workspace; also via Claude Code</td>
+        <td>A Claude Code skill, on-demand when you type <code>/worklog</code></td>
+      </tr>
+      <tr>
+        <td><strong>Time horizon</strong></td>
+        <td>"What needs my attention <em>right now</em>?"</td>
+        <td>"What have I been doing over the last quarter?" / "Prep me for this 1:1"</td>
+      </tr>
+      <tr>
+        <td><strong>Storage</strong></td>
+        <td>Reads your existing email, calendar, Slack, etc.</td>
+        <td>Writes a single Obsidian vault on disk</td>
+      </tr>
+      <tr>
+        <td><strong>Scheduled?</strong></td>
+        <td>Yes - daily / weekly debriefs on cron</td>
+        <td>No - runs when you invoke it</td>
+      </tr>
+    </table>
+    <p style="font-size: 0.92em; color: var(--subtext0); margin-top: 14px; max-width: 1000px;">
+      Common workflow: STRIDE summarizes your inbox and channels in the morning. You skim, decide what's worth keeping, and feed those bits into <code>/worklog</code> as raw input. The vault accumulates the context-worth-keeping; STRIDE handles the always-arriving stuff.
+    </p>
+  </div>
+
+  <!-- 22: Wrap -->
+  <div class="slide" data-slide="22" data-section="Wrap">
     <h2>Where we are</h2>
     <div class="two-col" style="margin-top: 16px;">
       <div>
