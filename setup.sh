@@ -83,8 +83,8 @@ if [[ ! -d "$VAULT_PATH" ]]; then
   echo ""
   echo "Directory does not exist: $VAULT_PATH"
   read -r -p "Create vault directory structure now? [Y/n]: " create_vault
-  case "${create_vault,,}" in
-    n|no)
+  case "$create_vault" in
+    n|N|no|No|NO)
       fail "Vault directory required. Re-run setup after creating $VAULT_PATH."
       ;;
     *)
@@ -144,6 +144,11 @@ if [[ "$GIT_USER_EMAIL" == *"@netflix.com" ]]; then
   echo "  OK newt installed at $(command -v newt)"
 
   # 4b. Check / install genai-core-tools profile
+  # JUST_JOINED_NEWT tracks whether we joined during this run. If yes, we skip
+  # the final-block re-verify because 'newt resolve' has a propagation delay
+  # after 'newt join' (newt itself prints "You may need to restart your IDE...
+  # to pick up the latest configuration"). The join exit code is authoritative.
+  JUST_JOINED_NEWT="no"
   if newt --app-type=dev-profiles resolve 2>/dev/null | grep -q "genai-core-tools"; then
     echo "  OK genai-core-tools profile already joined"
   else
@@ -151,11 +156,8 @@ if [[ "$GIT_USER_EMAIL" == *"@netflix.com" ]]; then
     if ! newt --app-type=dev-profiles join --profile=genai-core-tools; then
       fail "'newt join --profile=genai-core-tools' failed. Resolve the error above and re-run setup.sh."
     fi
-    # 4c. Verify join landed
-    if ! newt --app-type=dev-profiles resolve 2>/dev/null | grep -q "genai-core-tools"; then
-      fail "'newt join' returned 0 but 'newt resolve' does not show genai-core-tools. Inspect manually and re-run."
-    fi
-    echo "  OK genai-core-tools profile joined"
+    JUST_JOINED_NEWT="yes"
+    echo "  OK newt join succeeded (visibility in 'newt resolve' may lag until Claude Code restart)"
   fi
 
   # 4d. Verify gh is on PATH and authed against github.netflix.net
@@ -203,8 +205,8 @@ if [[ "$BACKUP_REPO_URL" != "NONE" && "$IS_NETFLIX" == "yes" ]]; then
     else
       echo "  Backup repo $REPO_PATH does not exist."
       read -r -p "  Create it now (private)? [Y/n]: " create_repo
-      case "${create_repo,,}" in
-        n|no)
+      case "$create_repo" in
+        n|N|no|No|NO)
           fail "Backup repo must exist before setup completes. Either create it manually or re-run with Y."
           ;;
         *)
@@ -258,8 +260,8 @@ if [[ "$IS_NETFLIX" == "yes" ]]; then
 fi
 echo ""
 read -r -p "Apply these settings? [Y/n]: " confirm
-case "${confirm,,}" in
-  n|no)
+case "$confirm" in
+  n|N|no|No|NO)
     fail "Aborted by user."
     ;;
 esac
@@ -351,8 +353,8 @@ fi
 echo ""
 if [[ -d "$SKILL_INSTALL_PATH" ]]; then
   read -r -p "Install path already exists at $SKILL_INSTALL_PATH. Overwrite? [Y/n]: " overwrite
-  case "${overwrite,,}" in
-    n|no)
+  case "$overwrite" in
+    n|N|no|No|NO)
       fail "Install path conflict. Move or remove $SKILL_INSTALL_PATH and re-run."
       ;;
     *)
@@ -471,7 +473,14 @@ check_file "$SKILL_INSTALL_PATH/skills/worklog/SKILL.md" "plugin SKILL.md at ins
 
 # Netflix-only verifications
 if [[ "$IS_NETFLIX" == "yes" ]]; then
-  check_profile_joined "genai-core-tools" "genai-core-tools profile joined"
+  # Skip the profile-joined re-check if we just joined this run - newt has a
+  # cache propagation delay, so the re-check would falsely report "not joined"
+  # even though 'newt join' succeeded.
+  if [[ "${JUST_JOINED_NEWT:-no}" == "yes" ]]; then
+    echo "  SKIP genai-core-tools profile re-verify (just joined; will appear after Claude Code restart)"
+  else
+    check_profile_joined "genai-core-tools" "genai-core-tools profile joined"
+  fi
   if [[ "$BACKUP_REPO_URL" != "NONE" && ( "$BACKUP_REPO_URL" == https://github.netflix.net/* || "$BACKUP_REPO_URL" == https://git.netflix.net/* ) ]]; then
     REPO_PATH=$(echo "$BACKUP_REPO_URL" | sed -E 's|https://[^/]+/||; s|\.git$||')
     check_ghe_repo "$REPO_PATH" "GHE backup repo accessible: $REPO_PATH"
