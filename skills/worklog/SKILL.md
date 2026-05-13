@@ -1339,7 +1339,7 @@ forward counts (with brief titles in parentheses). Only completed items as bulle
 
 ## Netflix-specific commands (this fork only)
 
-These commands require specific Netflix-internal MCP servers. Each command pins to an __exact tool ID__ so behavior is deterministic - no inference, no fallback chains, no "look for a tool that does X".
+These commands require specific Netflix-internal MCP servers. Each command names an __exact tool ID__ for the action it takes. Claude still has to read the instructions and decide to follow them - the goal is to narrow the choice space to one named tool per action, not to claim Claude does no interpretation. Don't substitute a different tool, don't fall back to alternatives, don't ask the user which to pick.
 
 __Required MCP servers__ (verified by `setup.sh` at install time, not at runtime - if setup completed, these are present):
 - `core-tools` (from `genai-core-tools` newt profile)
@@ -1441,7 +1441,7 @@ __Execution sequence:__
 4. Invoke `mcp__plugin_atlassian_atlassian__getJiraIssue` with __only__ the issue key parameter. The MCP server resolves cloudId from its own context - do not pass cloudId explicitly. If the tool errors with "cloudId required", surface the error verbatim and instruct the user to reconfigure their Atlassian MCP context. Do not attempt to infer or guess the cloudId.
 5. Read fields: `summary` (title), `status.name`, `priority.name`, `assignee.displayName`, `assignee.emailAddress`, `labels`, parent/epic if linked.
 
-__Priority mapping (deterministic, no inference):__
+__Priority mapping (table lookup, no judgment calls):__
 - Command-line override `-p0` / `-p1` / `-p2` always wins
 - Otherwise:
   - `priority.name == "Highest"` -> __P0__

@@ -99,7 +99,7 @@ The skill routes by URL pattern (deterministic - no fallback chains):
 - Slack permalinks -> `mcp__core-tools__fetch-slack-thread` -> treat as Meeting note
 - Coda / Confluence (confluence.netflix.com) / Google Docs -> `mcp__core-tools__netflix_search_data`
 - `netflix.atlassian.net/wiki/` Confluence pages -> `mcp__plugin_atlassian_atlassian__getConfluencePage`
-- Anything else -> error with a hint to paste body inline; no inference attempted
+- Anything else -> error with a hint to paste body inline; no implicit fallback to a different MCP
 
 The fetched body flows through the same "raw input" extraction logic the skill already uses for pasted content: extract items, link people/programs, add to current week, create a `Meetings/` note if it's meeting-shaped.
 
