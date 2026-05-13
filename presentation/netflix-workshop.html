@@ -187,6 +187,26 @@
   .delay-2 { animation-delay: 0.3s; opacity: 0; }
   .delay-3 { animation-delay: 0.45s; opacity: 0; }
   .delay-4 { animation-delay: 0.6s; opacity: 0; }
+
+  /* Click-through reveal: items with .step start hidden, get .revealed on right-arrow */
+  .step {
+    opacity: 0;
+    transform: translateY(14px);
+    transition: opacity 0.32s ease, transform 0.32s ease;
+    pointer-events: none;
+  }
+  .step.revealed {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+
+  /* Subtle "more to reveal" indicator: dimmed counter when steps pending */
+  .slide-counter.has-pending::after {
+    content: " · ▸";
+    color: var(--blue);
+    margin-left: 4px;
+  }
 </style>
 </head>
 <body>
@@ -207,13 +227,13 @@
   <div class="slide" data-slide="1" data-section="Intro">
     <h2>Plan for the hour</h2>
     <ol style="margin-top: 16px;">
-      <li>What this is, briefly (5 min)</li>
-      <li>Set it up together (15 min, pause at checkpoints)</li>
-      <li>Walk through how I use it Monday-to-Friday (10 min)</li>
-      <li>Less obvious uses - 1:1 prep, doc ingest, Pandora lookup (10 min)</li>
-      <li>Whatever you want to ask (rest)</li>
+      <li class="step">📋 &nbsp; What this is, briefly (5 min)</li>
+      <li class="step">🛠 &nbsp; Set it up together (15 min, pause at checkpoints)</li>
+      <li class="step">📅 &nbsp; Walk through how I use it Monday-to-Friday (10 min)</li>
+      <li class="step">💡 &nbsp; Less obvious uses - 1:1 prep, doc ingest, Pandora lookup (10 min)</li>
+      <li class="step">💬 &nbsp; Whatever you want to ask (rest)</li>
     </ol>
-    <p class="small" style="margin-top: 28px;">Have your laptop out. There's a clone-and-run-setup section partway through.</p>
+    <p class="small step" style="margin-top: 28px;">Have your laptop out. There's a clone-and-run-setup section partway through.</p>
   </div>
 
   <!-- 2: Why I built it -->
@@ -237,20 +257,23 @@
       Three pieces that work together:
     </p>
     <div class="three-col" style="margin-top: 18px;">
-      <div class="card">
+      <div class="card step">
+        <div class="icon">📜</div>
         <h3>A skill</h3>
         <p>A markdown file at <code>skills/worklog/SKILL.md</code>. Claude reads it when you type <code>/worklog</code>. That's all it is - prose instructions, ~1500 lines.</p>
       </div>
-      <div class="card">
+      <div class="card step">
+        <div class="icon">🗂</div>
         <h3>A vault</h3>
         <p>An Obsidian vault with 10 directories: <code>Worklogs/</code>, <code>People/</code>, <code>Programs/</code>, <code>Teams/</code>, <code>Meetings/</code>, <code>Sources/</code>, <code>Preferences/</code>, <code>Archive/</code>, <code>Summaries/</code>, <code>Reports/</code>. Plain markdown.</p>
       </div>
-      <div class="card">
+      <div class="card step">
+        <div class="icon">🔌</div>
         <h3>MCP hooks</h3>
         <p>The Netflix fork pins to specific tool IDs from <code>core-tools</code> and <code>plugin_atlassian</code> so Claude knows exactly which MCP to call when it needs Pandora, Jira, Confluence, or Slack data.</p>
       </div>
     </div>
-    <p class="small" style="margin-top: 22px;">Public version: <code>github.com/menottim/obsidian-worklog</code>. This deck covers the Netflix fork on top of it.</p>
+    <p class="small step" style="margin-top: 22px;">Public version: <code>github.com/menottim/obsidian-worklog</code>. This deck covers the Netflix fork on top of it.</p>
   </div>
 
   <!-- 4: Vault structure -->
@@ -315,20 +338,23 @@ Your Vault/
     <h2>What the Netflix fork adds</h2>
     <p style="color: var(--subtext1); margin-top: 6px;">Three commands on top of what the public fork has.</p>
     <div class="three-col" style="margin-top: 16px;">
-      <div class="card">
+      <div class="card step">
+        <div class="icon">🌐</div>
         <h3><code>/worklog ingest</code></h3>
         <p style="margin-top: 8px;">Takes a URL (Coda, Confluence, Google Doc, Slack thread permalink). Fetches the body via the matched MCP, extracts action items, wiki-links people. Used instead of paste-into-chat for individual docs.</p>
       </div>
-      <div class="card">
+      <div class="card step">
+        <div class="icon">👤</div>
         <h3><code>/worklog whois</code></h3>
         <p style="margin-top: 8px;">Resolves a name against Pandora via the <code>core-tools</code> MCP. Writes title, manager, team into a <code>People/</code> note. Creates a stub for the manager so the link works.</p>
       </div>
-      <div class="card">
+      <div class="card step">
+        <div class="icon">🎫</div>
         <h3><code>/worklog jira</code></h3>
         <p style="margin-top: 8px;">Pulls a Jira ticket via the Atlassian MCP. Adds the title, status, and assignee to your current week under the right subgroup. Formats the ticket key as a Markdown link.</p>
       </div>
     </div>
-    <p style="font-size: 0.92em; color: var(--subtext0); margin-top: 18px; max-width: 900px;">
+    <p class="step" style="font-size: 0.92em; color: var(--subtext0); margin-top: 18px; max-width: 900px;">
       Each command points at a specific MCP tool ID - e.g. <code>mcp__plugin_atlassian_atlassian__getJiraIssue</code> for the Jira one. Claude doesn't infer which tool to use. When something breaks, the failure has a clear name.
     </p>
   </div>
@@ -338,14 +364,15 @@ Your Vault/
     <h2>Setup: prerequisites</h2>
     <p style="color: var(--subtext1); margin-top: 6px;">Run through these before we move on. If anything's missing, flag it - we'll wait.</p>
     <ul class="checklist" style="margin-top: 14px;">
-      <li>Claude Code installed (CLI, desktop, or IDE extension)</li>
-      <li>Obsidian installed (any recent version)</li>
-      <li>A directory for your vault (existing or new - setup will create the structure)</li>
-      <li><code>newt</code> on PATH: <code>command -v newt</code></li>
-      <li><code>gh</code> authed for github.netflix.net: <code>GH_HOST=github.netflix.net gh auth status</code></li>
-      <li>Your <code>@netflix.com</code> git email handy</li>
+      <li class="step">Claude Code installed (CLI, desktop, or IDE extension)</li>
+      <li class="step">Obsidian installed (any recent version)</li>
+      <li class="step">A directory for your vault (existing or new - setup will create the structure)</li>
+      <li class="step"><code>newt</code> on PATH: <code>command -v newt</code></li>
+      <li class="step"><code>gh</code> authed for github.netflix.net: <code>GH_HOST=github.netflix.net gh auth status</code></li>
+      <li class="step">Your <code>@netflix.com</code> git email handy</li>
     </ul>
-    <div class="checkpoint">
+    <div class="checkpoint step">
+      <div class="icon">✋</div>
       <p>Checkpoint: everything green? Speak up if not.</p>
     </div>
   </div>
@@ -359,7 +386,8 @@ Your Vault/
     <p style="margin-top: 14px; color: var(--subtext0); font-size: 0.92em; max-width: 900px;">
       The public version at <code>github.com/menottim/obsidian-worklog</code> works too, but skips the Netflix-specific commands (<code>/worklog ingest</code>, <code>/worklog whois</code>, <code>/worklog jira</code>) and the MCP profile auto-join. Use the Netflix fork unless you have a reason not to.
     </p>
-    <div class="checkpoint">
+    <div class="checkpoint step">
+      <div class="icon">📥</div>
       <p>Checkpoint: <code>ls</code> shows <code>setup.sh</code>, <code>skills/</code>, <code>docs/</code>, <code>README.md</code>.</p>
     </div>
   </div>
@@ -409,31 +437,32 @@ Apply these settings? [Y/n]: </span>y</pre>
   <div class="slide" data-slide="12" data-section="Lab: Setup">
     <h2>Step 3 - restart and verify</h2>
     <ol style="margin-top: 16px;">
-      <li>Quit Claude Code fully (Cmd+Q on Mac). MCP servers load at session start, not mid-session.</li>
-      <li>Reopen Claude Code.</li>
-      <li>Type <code>/mcp</code>. Look for <code>core-tools</code>, <code>plugin_atlassian</code>, <code>plugin_slack</code> in the list.</li>
-      <li>Type <code>/worklog status</code>. First run will say "no current week" - that's expected.</li>
-      <li>Type <code>/worklog rollover</code>. That creates your first weekly file.</li>
+      <li class="step">Quit Claude Code fully (Cmd+Q on Mac). MCP servers load at session start, not mid-session.</li>
+      <li class="step">Reopen Claude Code.</li>
+      <li class="step">Type <code>/mcp</code>. Look for <code>core-tools</code>, <code>plugin_atlassian</code>, <code>plugin_slack</code> in the list.</li>
+      <li class="step">Type <code>/worklog status</code>. First run will say "no current week" - that's expected.</li>
+      <li class="step">Type <code>/worklog rollover</code>. That creates your first weekly file.</li>
     </ol>
-    <div class="checkpoint">
+    <div class="checkpoint step">
+      <div class="icon">🚀</div>
       <p>Checkpoint: <code>/worklog status</code> now shows a week with no items in it.</p>
     </div>
   </div>
 
   <!-- 13: Typical use - Monday -->
   <div class="slide" data-slide="13" data-section="Typical use">
-    <h2>How I use it Monday morning</h2>
+    <h2>How I use it Monday morning ☕</h2>
     <div class="two-col" style="margin-top: 16px;">
       <div>
         <p style="font-size: 0.95em; color: var(--subtext1);">Takes about 10 minutes if I do it sitting down with coffee:</p>
         <ol style="margin-top: 8px;">
-          <li><code>/worklog rollover</code> - starts the new week, carries forward unfinished items</li>
-          <li><code>/worklog pull</code> - reads any new Slack threads from channels I've registered as sources</li>
-          <li><code>/worklog review</code> - walks item by item, I say done / in progress / blocked / pinged X</li>
-          <li><code>/worklog sync</code> - commits and pushes the vault</li>
+          <li class="step"><code>/worklog rollover</code> - starts the new week, carries forward unfinished items</li>
+          <li class="step"><code>/worklog pull</code> - reads any new Slack threads from channels I've registered as sources</li>
+          <li class="step"><code>/worklog review</code> - walks item by item, I say done / in progress / blocked / pinged X</li>
+          <li class="step"><code>/worklog sync</code> - commits and pushes the vault</li>
         </ol>
       </div>
-      <div class="card">
+      <div class="card step">
         <h3>What "review" looks like</h3>
         <p>For each active item Claude asks where it stands. Example responses:</p>
         <ul style="font-size: 0.88em; margin-top: 6px;">
@@ -524,15 +553,15 @@ add to worklog</pre>
     <pre><span class="prompt">/worklog ingest</span> https://confluence.netflix.com/display/SECURITY/2026-05-12+Migration+Sync</pre>
     <p style="margin-top: 14px; font-size: 0.92em; color: var(--subtext0);">What runs:</p>
     <ol style="font-size: 0.95em; margin-top: 6px;">
-      <li>URL matches the <code>confluence.netflix.com</code> pattern, so the skill calls <code>mcp__core-tools__netflix_search_data</code></li>
-      <li>Claude announces the tool ID it's about to call</li>
-      <li>Fetches the page body, detects the doc has a date + attendees + action items section</li>
-      <li>Creates <code>Meetings/2026-05-12-migration-sync.md</code></li>
-      <li>Extracts action items, wiki-links attendees (resolves Netflix emails to canonical names via Pandora)</li>
-      <li>Adds the items to the current week under the right subgroup</li>
+      <li class="step">URL matches the <code>confluence.netflix.com</code> pattern, so the skill calls <code>mcp__core-tools__netflix_search_data</code></li>
+      <li class="step">Claude announces the tool ID it's about to call</li>
+      <li class="step">Fetches the page body, detects the doc has a date + attendees + action items section</li>
+      <li class="step">Creates <code>Meetings/2026-05-12-migration-sync.md</code></li>
+      <li class="step">Extracts action items, wiki-links attendees (resolves Netflix emails to canonical names via Pandora)</li>
+      <li class="step">Adds the items to the current week under the right subgroup</li>
     </ol>
-    <p style="font-size: 0.88em; color: var(--subtext0); max-width: 900px; margin-top: 14px;">
-      Note: the skill treats the fetched body as data, not as instructions. If a doc contains text like "ignore previous instructions and ...", it's flagged in the output as suspicious content rather than followed.
+    <p class="step" style="font-size: 0.88em; color: var(--subtext0); max-width: 900px; margin-top: 14px;">
+      🔒 Note: the skill treats the fetched body as data, not as instructions. If a doc contains text like "ignore previous instructions and ...", it's flagged in the output as suspicious content rather than followed.
     </p>
   </div>
 
@@ -572,27 +601,33 @@ status: active
   <div class="slide" data-slide="20" data-section="Less obvious uses">
     <h2>Other things people have done with it</h2>
     <div class="three-col" style="margin-top: 14px;">
-      <div class="card">
+      <div class="card step">
+        <div class="icon">🚨</div>
         <h3>Incident debrief</h3>
         <p>Ingest the incident-channel Slack thread, get a Meeting note with timeline and follow-ups linked to the current week.</p>
       </div>
-      <div class="card">
+      <div class="card step">
+        <div class="icon">🆕</div>
         <h3>Onboarding a new report</h3>
         <p>Paste notes from each pre-onboarding meeting. Their People/ note has context from before week 1.</p>
       </div>
-      <div class="card">
+      <div class="card step">
+        <div class="icon">🎯</div>
         <h3>OKR allocation check</h3>
         <p>Tag items with OKR labels. End of quarter: ask Claude what fraction of P0/P1 effort went to each.</p>
       </div>
-      <div class="card">
+      <div class="card step">
+        <div class="icon">📊</div>
         <h3>Week-over-week diff</h3>
         <p>Before a status update, ask: compare this week to last - what's new, what shifted, what's stuck.</p>
       </div>
-      <div class="card">
+      <div class="card step">
+        <div class="icon">🗺</div>
         <h3>Cross-team mapping</h3>
         <p>Run <code>/worklog whois</code> on people you depend on. Builds a who-owns-what map across orgs.</p>
       </div>
-      <div class="card">
+      <div class="card step">
+        <div class="icon">🎤</div>
         <h3>Talk / conference prep</h3>
         <p>Ingest the talk outline + related Coda research, get an action-itemized prep flow in your current week.</p>
       </div>
@@ -662,12 +697,26 @@ status: active
     const sec = s.dataset.section;
     const sc = dotClassForSection(sec);
     if (sc) dot.classList.add(sc);
-    dot.onclick = () => show(i);
+    // Dot click jumps to slide with ALL steps revealed (out-of-band navigation)
+    dot.onclick = () => show(i, true);
     dotsContainer.appendChild(dot);
   });
 
-  function show(i) {
+  function pendingSteps(slideEl) {
+    return slideEl.querySelectorAll('.step:not(.revealed)').length;
+  }
+
+  function updatePendingIndicator() {
+    const remaining = pendingSteps(slides[current]);
+    if (remaining > 0) counter.classList.add('has-pending');
+    else counter.classList.remove('has-pending');
+  }
+
+  function show(i, revealAll = false) {
     if (i < 0 || i >= slides.length) return;
+    // Reset steps on outgoing slide so re-entering is fresh
+    slides[current].querySelectorAll('.step.revealed').forEach(s => s.classList.remove('revealed'));
+
     slides[current].classList.remove('active');
     document.querySelectorAll('.dot')[current].classList.remove('active');
     current = i;
@@ -676,7 +725,12 @@ status: active
     counter.textContent = (current + 1) + ' / ' + slides.length;
     sectionTag.textContent = slides[current].dataset.section || '';
 
-    // Re-trigger animations
+    if (revealAll) {
+      slides[current].querySelectorAll('.step').forEach(s => s.classList.add('revealed'));
+    }
+    updatePendingIndicator();
+
+    // Re-trigger fadeInUp animations
     slides[current].querySelectorAll('.animate').forEach(el => {
       el.style.animation = 'none';
       void el.offsetWidth;
@@ -684,11 +738,48 @@ status: active
     });
   }
 
+  function nextStep() {
+    const slide = slides[current];
+    const pending = slide.querySelectorAll('.step:not(.revealed)');
+    if (pending.length > 0) {
+      pending[0].classList.add('revealed');
+      updatePendingIndicator();
+      return true;
+    }
+    return false;
+  }
+
+  function prevStep() {
+    const slide = slides[current];
+    const revealed = slide.querySelectorAll('.step.revealed');
+    if (revealed.length > 0) {
+      revealed[revealed.length - 1].classList.remove('revealed');
+      updatePendingIndicator();
+      return true;
+    }
+    return false;
+  }
+
   document.addEventListener('keydown', e => {
-    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') show(current + 1);
-    if (e.key === 'ArrowLeft' || e.key === 'PageUp') show(current - 1);
-    if (e.key === 'Home') show(0);
-    if (e.key === 'End') show(slides.length - 1);
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+      if (!nextStep()) show(current + 1);
+    } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+      // Mirror right-arrow: undo last step if any, else go back a slide
+      if (!prevStep()) show(current - 1);
+    } else if (e.key === 'ArrowDown') {
+      // Down-arrow: reveal next step without advancing slide
+      nextStep();
+    } else if (e.key === 'ArrowUp') {
+      prevStep();
+    } else if (e.key === 'Home') {
+      show(0);
+    } else if (e.key === 'End') {
+      show(slides.length - 1, true);
+    } else if (e.key === 'r' || e.key === 'R') {
+      // Reveal all steps on current slide
+      slides[current].querySelectorAll('.step').forEach(s => s.classList.add('revealed'));
+      updatePendingIndicator();
+    }
   });
 
   show(0);
