@@ -24,6 +24,7 @@
     background: var(--base); color: var(--text);
     font-family: 'Inter', -apple-system, sans-serif;
     overflow: hidden; height: 100vh; width: 100vw;
+    font-size: 18px;
   }
 
   .deck { position: relative; height: 100vh; width: 100vw; }
@@ -70,10 +71,10 @@
 
   h1 { font-size: 3.2em; font-weight: 700; line-height: 1.1; margin-bottom: 14px; }
   h2 { font-size: 2.2em; font-weight: 600; line-height: 1.2; margin-bottom: 18px; }
-  h3 { font-size: 1.3em; font-weight: 500; color: var(--subtext1); margin-bottom: 10px; }
+  h3 { font-size: 1.35em; font-weight: 500; color: var(--subtext1); margin-bottom: 10px; }
 
-  .subtitle { font-size: 1.2em; color: var(--subtext0); margin-bottom: 22px; font-weight: 300; }
-  .small { font-size: 0.85em; color: var(--overlay0); }
+  .subtitle { font-size: 1.25em; color: var(--subtext0); margin-bottom: 22px; font-weight: 300; }
+  .small { font-size: 0.9em; color: var(--overlay0); }
 
   .accent-red { color: var(--red); }
   .accent-blue { color: var(--blue); }
@@ -99,14 +100,14 @@
   code {
     font-family: 'JetBrains Mono', monospace;
     background: var(--surface0); padding: 2px 7px; border-radius: 4px;
-    font-size: 0.82em; color: var(--peach);
+    font-size: 0.88em; color: var(--peach);
   }
 
   pre {
     background: var(--surface0); padding: 18px 22px; border-radius: 10px;
-    font-family: 'JetBrains Mono', monospace; font-size: 0.78em;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.86em;
     line-height: 1.5; overflow-x: auto; text-align: left;
-    max-width: 950px; width: 100%;
+    max-width: 1000px; width: 100%;
   }
   pre.shell { color: var(--green); }
   pre.shell .comment { color: var(--overlay0); }
@@ -117,22 +118,22 @@
   .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; width: 100%; max-width: 1100px; }
 
   .card {
-    background: var(--surface0); border-radius: 10px; padding: 20px;
+    background: var(--surface0); border-radius: 10px; padding: 22px;
     text-align: left;
   }
   .card.lab { border-left: 3px solid var(--green); }
   .card.creative { border-left: 3px solid var(--mauve); }
   .card.warn { border-left: 3px solid var(--yellow); }
-  .card h3 { color: var(--text); font-size: 1.05em; margin-bottom: 6px; }
-  .card p { color: var(--subtext0); font-size: 0.88em; line-height: 1.5; }
-  .card code { font-size: 0.85em; }
+  .card h3 { color: var(--text); font-size: 1.15em; margin-bottom: 8px; }
+  .card p { color: var(--subtext0); font-size: 0.98em; line-height: 1.5; }
+  .card code { font-size: 0.92em; }
 
-  .icon { font-size: 1.8em; margin-bottom: 8px; }
+  .icon { font-size: 2em; margin-bottom: 10px; }
 
-  ul, ol { text-align: left; max-width: 850px; line-height: 1.7; font-size: 1.02em; }
-  li { margin-bottom: 6px; }
+  ul, ol { text-align: left; max-width: 900px; line-height: 1.7; font-size: 1.1em; }
+  li { margin-bottom: 8px; }
   li strong { color: var(--blue); }
-  li code { font-size: 0.88em; }
+  li code { font-size: 0.92em; }
 
   ul.checklist { list-style: none; padding-left: 0; }
   ul.checklist li::before { content: "☐ "; color: var(--overlay0); margin-right: 8px; }
@@ -145,35 +146,35 @@
   .img-container img { width: 100%; border-radius: 6px; display: block; }
 
   table {
-    border-collapse: collapse; width: 100%; max-width: 950px;
-    font-size: 0.87em; text-align: left;
+    border-collapse: collapse; width: 100%; max-width: 1000px;
+    font-size: 0.95em; text-align: left;
   }
-  th { background: var(--surface0); color: var(--blue); padding: 10px 14px; font-weight: 600; }
-  td { padding: 9px 14px; border-bottom: 1px solid var(--surface1); vertical-align: top; }
+  th { background: var(--surface0); color: var(--blue); padding: 11px 16px; font-weight: 600; }
+  td { padding: 10px 16px; border-bottom: 1px solid var(--surface1); vertical-align: top; }
   tr:hover td { background: rgba(137,180,250,0.04); }
 
   .callout {
     background: var(--surface0); border-left: 4px solid var(--blue);
-    border-radius: 8px; padding: 16px 22px; max-width: 900px; text-align: left;
-    margin: 12px 0;
+    border-radius: 8px; padding: 18px 24px; max-width: 1000px; text-align: left;
+    margin: 14px 0;
   }
   .callout.lab { border-left-color: var(--green); }
   .callout.warn { border-left-color: var(--yellow); }
   .callout.creative { border-left-color: var(--mauve); }
-  .callout h4 { font-size: 0.85em; color: var(--blue); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
+  .callout h4 { font-size: 0.9em; color: var(--blue); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
   .callout.lab h4 { color: var(--green); }
   .callout.warn h4 { color: var(--yellow); }
   .callout.creative h4 { color: var(--mauve); }
-  .callout p { color: var(--subtext0); font-size: 0.92em; line-height: 1.5; }
+  .callout p { color: var(--subtext0); font-size: 1em; line-height: 1.55; }
 
   .checkpoint {
     background: rgba(166,227,161,0.08);
     border: 1px dashed var(--green);
-    border-radius: 10px; padding: 18px 28px; max-width: 700px;
-    text-align: center; margin: 20px auto 0;
+    border-radius: 10px; padding: 20px 32px; max-width: 800px;
+    text-align: center; margin: 22px auto 0;
   }
-  .checkpoint .icon { font-size: 1.6em; margin-bottom: 4px; }
-  .checkpoint p { color: var(--green); font-size: 0.95em; font-weight: 500; }
+  .checkpoint .icon { font-size: 1.8em; margin-bottom: 4px; }
+  .checkpoint p { color: var(--green); font-size: 1.05em; font-weight: 500; }
 
   .big-number { font-size: 3.5em; font-weight: 700; line-height: 1; }
 
