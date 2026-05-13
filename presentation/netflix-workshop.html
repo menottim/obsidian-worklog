@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>obsidian-worklog - Netflix Lab/Workshop</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --base: #1e1e2e; --mantle: #181825; --crust: #11111b;
+    --surface0: #313244; --surface1: #45475a; --surface2: #585b70;
+    --text: #cdd6f4; --subtext0: #a6adc8; --subtext1: #bac2de;
+    --overlay0: #6c7086;
+    --red: #f38ba8; --green: #a6e3a1; --blue: #89b4fa;
+    --yellow: #f9e2af; --mauve: #cba6f7; --teal: #94e2d5;
+    --peach: #fab387; --sky: #89dceb; --pink: #f5c2e7;
+    --netflix-red: #e50914;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--base); color: var(--text);
+    font-family: 'Inter', -apple-system, sans-serif;
+    overflow: hidden; height: 100vh; width: 100vw;
+  }
+
+  .deck { position: relative; height: 100vh; width: 100vw; }
+
+  .slide {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+    padding: 50px 70px;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.35s ease;
+  }
+  .slide.active { opacity: 1; pointer-events: auto; }
+
+  .slide-counter {
+    position: fixed; bottom: 18px; right: 28px;
+    font-size: 13px; color: var(--overlay0);
+    font-family: 'JetBrains Mono', monospace;
+    z-index: 100;
+  }
+
+  .section-tag {
+    position: fixed; top: 18px; left: 28px;
+    font-size: 11px; color: var(--overlay0); letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-family: 'JetBrains Mono', monospace;
+    z-index: 100;
+  }
+
+  .dots {
+    position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 6px; z-index: 100; max-width: 800px; flex-wrap: wrap; justify-content: center;
+  }
+  .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--surface1); cursor: pointer;
+    transition: background 0.3s, transform 0.3s;
+  }
+  .dot.active { background: var(--blue); transform: scale(1.3); }
+  .dot.section-lab { background: var(--green); }
+  .dot.section-lab.active { background: var(--green); }
+  .dot.section-creative { background: var(--mauve); }
+  .dot.section-creative.active { background: var(--mauve); }
+  .dot:hover { background: var(--subtext0); }
+
+  h1 { font-size: 3.2em; font-weight: 700; line-height: 1.1; margin-bottom: 14px; }
+  h2 { font-size: 2.2em; font-weight: 600; line-height: 1.2; margin-bottom: 18px; }
+  h3 { font-size: 1.3em; font-weight: 500; color: var(--subtext1); margin-bottom: 10px; }
+
+  .subtitle { font-size: 1.2em; color: var(--subtext0); margin-bottom: 22px; font-weight: 300; }
+  .small { font-size: 0.85em; color: var(--overlay0); }
+
+  .accent-red { color: var(--red); }
+  .accent-blue { color: var(--blue); }
+  .accent-green { color: var(--green); }
+  .accent-yellow { color: var(--yellow); }
+  .accent-mauve { color: var(--mauve); }
+  .accent-teal { color: var(--teal); }
+  .accent-peach { color: var(--peach); }
+  .accent-netflix { color: var(--netflix-red); }
+
+  .tag {
+    display: inline-block; padding: 3px 10px; border-radius: 18px;
+    font-size: 0.75em; font-weight: 500; margin: 3px;
+  }
+  .tag-red { background: rgba(243,139,168,0.15); color: var(--red); }
+  .tag-blue { background: rgba(137,180,250,0.15); color: var(--blue); }
+  .tag-green { background: rgba(166,227,161,0.15); color: var(--green); }
+  .tag-mauve { background: rgba(203,166,247,0.15); color: var(--mauve); }
+  .tag-yellow { background: rgba(249,226,175,0.15); color: var(--yellow); }
+  .tag-peach { background: rgba(250,179,135,0.15); color: var(--peach); }
+  .tag-netflix { background: rgba(229,9,20,0.15); color: var(--netflix-red); }
+
+  code {
+    font-family: 'JetBrains Mono', monospace;
+    background: var(--surface0); padding: 2px 7px; border-radius: 4px;
+    font-size: 0.82em; color: var(--peach);
+  }
+
+  pre {
+    background: var(--surface0); padding: 18px 22px; border-radius: 10px;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.78em;
+    line-height: 1.5; overflow-x: auto; text-align: left;
+    max-width: 950px; width: 100%;
+  }
+  pre.shell { color: var(--green); }
+  pre.shell .comment { color: var(--overlay0); }
+  pre.shell .prompt { color: var(--blue); }
+  pre.shell .output { color: var(--subtext0); }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; width: 100%; max-width: 1100px; text-align: left; }
+  .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; width: 100%; max-width: 1100px; }
+
+  .card {
+    background: var(--surface0); border-radius: 10px; padding: 20px;
+    text-align: left;
+  }
+  .card.lab { border-left: 3px solid var(--green); }
+  .card.creative { border-left: 3px solid var(--mauve); }
+  .card.warn { border-left: 3px solid var(--yellow); }
+  .card h3 { color: var(--text); font-size: 1.05em; margin-bottom: 6px; }
+  .card p { color: var(--subtext0); font-size: 0.88em; line-height: 1.5; }
+  .card code { font-size: 0.85em; }
+
+  .icon { font-size: 1.8em; margin-bottom: 8px; }
+
+  ul, ol { text-align: left; max-width: 850px; line-height: 1.7; font-size: 1.02em; }
+  li { margin-bottom: 6px; }
+  li strong { color: var(--blue); }
+  li code { font-size: 0.88em; }
+
+  ul.checklist { list-style: none; padding-left: 0; }
+  ul.checklist li::before { content: "☐ "; color: var(--overlay0); margin-right: 8px; }
+  ul.checklist li.done::before { content: "☑ "; color: var(--green); }
+
+  .img-container {
+    background: var(--surface0); border-radius: 10px; padding: 6px;
+    max-width: 780px; margin: 12px auto;
+  }
+  .img-container img { width: 100%; border-radius: 6px; display: block; }
+
+  table {
+    border-collapse: collapse; width: 100%; max-width: 950px;
+    font-size: 0.87em; text-align: left;
+  }
+  th { background: var(--surface0); color: var(--blue); padding: 10px 14px; font-weight: 600; }
+  td { padding: 9px 14px; border-bottom: 1px solid var(--surface1); vertical-align: top; }
+  tr:hover td { background: rgba(137,180,250,0.04); }
+
+  .callout {
+    background: var(--surface0); border-left: 4px solid var(--blue);
+    border-radius: 8px; padding: 16px 22px; max-width: 900px; text-align: left;
+    margin: 12px 0;
+  }
+  .callout.lab { border-left-color: var(--green); }
+  .callout.warn { border-left-color: var(--yellow); }
+  .callout.creative { border-left-color: var(--mauve); }
+  .callout h4 { font-size: 0.85em; color: var(--blue); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
+  .callout.lab h4 { color: var(--green); }
+  .callout.warn h4 { color: var(--yellow); }
+  .callout.creative h4 { color: var(--mauve); }
+  .callout p { color: var(--subtext0); font-size: 0.92em; line-height: 1.5; }
+
+  .checkpoint {
+    background: rgba(166,227,161,0.08);
+    border: 1px dashed var(--green);
+    border-radius: 10px; padding: 18px 28px; max-width: 700px;
+    text-align: center; margin: 20px auto 0;
+  }
+  .checkpoint .icon { font-size: 1.6em; margin-bottom: 4px; }
+  .checkpoint p { color: var(--green); font-size: 0.95em; font-weight: 500; }
+
+  .big-number { font-size: 3.5em; font-weight: 700; line-height: 1; }
+
+  .key { display: inline-block; background: var(--surface1); color: var(--text);
+    padding: 2px 8px; border-radius: 4px; font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8em; border-bottom: 2px solid var(--surface2); }
+
+  @keyframes fadeInUp { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
+  .animate { animation: fadeInUp 0.5s ease forwards; }
+  .delay-1 { animation-delay: 0.15s; opacity: 0; }
+  .delay-2 { animation-delay: 0.3s; opacity: 0; }
+  .delay-3 { animation-delay: 0.45s; opacity: 0; }
+  .delay-4 { animation-delay: 0.6s; opacity: 0; }
+</style>
+</head>
+<body>
+
+<div class="deck" id="deck">
+
+  <!-- 0: Title -->
+  <div class="slide" data-slide="0" data-section="Intro">
+    <div style="display:flex; align-items:center; gap:18px; justify-content:center; margin-bottom: 12px;">
+      <img src="media/obsidian-logo-gradient.svg" alt="Obsidian" style="width:64px; height:64px;">
+      <h1><span class="accent-blue">obsidian</span>-worklog</h1>
+    </div>
+    <p class="subtitle">A Netflix lab + workshop</p>
+    <div style="margin-top: 28px;">
+      <span class="tag tag-netflix">Internal fork</span>
+      <span class="tag tag-blue">Claude Code</span>
+      <span class="tag tag-mauve">Obsidian</span>
+      <span class="tag tag-peach">~45 minutes</span>
+    </div>
+    <p class="small" style="margin-top: 32px;">github.netflix.net/mminutillo/obsidian-worklog</p>
+  </div>
+
+  <!-- 1: Why are we here -->
+  <div class="slide" data-slide="1" data-section="Intro">
+    <h2>Why we're here</h2>
+    <p class="subtitle">Three things you'll leave with</p>
+    <div class="three-col" style="margin-top: 22px;">
+      <div class="card animate delay-1">
+        <div class="icon">🛠</div>
+        <h3>A working install</h3>
+        <p>Your own Netflix-flavored worklog skill, configured against your vault, MCPs wired in, plugin loaded</p>
+      </div>
+      <div class="card animate delay-2">
+        <div class="icon">🧠</div>
+        <h3>A mental model</h3>
+        <p>How the vault, the skill, and the MCPs fit together. What gets pinned, what stays flexible, why</p>
+      </div>
+      <div class="card animate delay-3">
+        <div class="icon">💡</div>
+        <h3>A few "huh, neat" uses</h3>
+        <p>The obvious workflow (Monday rollover) plus some non-obvious ones: 1:1 prep, promo case, doc ingestion</p>
+      </div>
+    </div>
+    <p class="small" style="margin-top: 28px;">Workshop format - expect to pause for hands-on at checkpoints. Bring your laptop.</p>
+  </div>
+
+  <!-- 2: The problem -->
+  <div class="slide" data-slide="2" data-section="Intro">
+    <h2>The problem this solves</h2>
+    <div class="two-col" style="margin-top: 18px;">
+      <div>
+        <h3>The week passes. You can't reconstruct it.</h3>
+        <ul>
+          <li>What did I actually <em>do</em> last week?</li>
+          <li>Wait, when did I last sync with that person?</li>
+          <li>How long has this priority been "in progress"?</li>
+          <li>Did that decision in the Slack thread ever land?</li>
+          <li>Who owns the migration thing again?</li>
+        </ul>
+      </div>
+      <div class="card" style="display:flex; flex-direction:column; justify-content:center;">
+        <p style="color:var(--subtext0); font-size: 0.95em; line-height: 1.6;">
+          The problem isn't productivity. It's <span class="accent-yellow" style="font-weight:500;">continuity</span>.
+        </p>
+        <p style="color:var(--subtext0); font-size: 0.95em; line-height: 1.6; margin-top: 12px;">
+          You produce a lot of context every week. Slack threads, meeting notes, side conversations, decisions.
+        </p>
+        <p style="color:var(--subtext0); font-size: 0.95em; line-height: 1.6; margin-top: 12px;">
+          Without a place for it to land, it dissolves. The vault is that place.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3: What it is -->
+  <div class="slide" data-slide="3" data-section="What it is">
+    <h2>What this tool is</h2>
+    <p class="subtitle">A Claude Code skill + an Obsidian vault + Netflix MCPs</p>
+    <div class="three-col" style="margin-top: 16px;">
+      <div class="card animate delay-1">
+        <div class="icon">📜</div>
+        <h3>A skill</h3>
+        <p>Plain markdown instructions Claude reads at <code>/worklog</code> time. No server, no runtime, no daemon. The skill <em>is</em> the file.</p>
+      </div>
+      <div class="card animate delay-2">
+        <div class="icon">🗂</div>
+        <h3>An Obsidian vault</h3>
+        <p>10 directories: <code>Worklogs/</code>, <code>People/</code>, <code>Programs/</code>, <code>Teams/</code>, <code>Meetings/</code>, <code>Sources/</code>, <code>Preferences/</code>, <code>Archive/</code>, <code>Summaries/</code>, <code>Reports/</code>. All plain markdown.</p>
+      </div>
+      <div class="card animate delay-3">
+        <div class="icon">🔌</div>
+        <h3>Netflix MCPs</h3>
+        <p>The fork adds <code>core-tools</code>, <code>plugin_atlassian</code>, <code>plugin_slack</code> hooks so Claude can fetch Confluence pages, Jira tickets, Slack threads, and Pandora identities for you.</p>
+      </div>
+    </div>
+    <p class="small" style="margin-top: 26px;">The public version: <code>github.com/menottim/obsidian-worklog</code>. This is its Netflix-internal fork.</p>
+  </div>
+
+  <!-- 4: Vault structure -->
+  <div class="slide" data-slide="4" data-section="What it does">
+    <h2>The vault</h2>
+    <div class="two-col">
+      <div>
+        <pre><span class="comment"># Your vault layout</span>
+Your Vault/
+  Worklogs/       <span class="comment"># YYYY-Www.md, one per week + Backlog</span>
+  People/         <span class="comment"># One note per person, wiki-linked</span>
+  Programs/       <span class="comment"># One note per program/initiative</span>
+  Teams/          <span class="comment"># Org structure (Pandora-aware)</span>
+  Meetings/       <span class="comment"># Ingested Slack threads + docs</span>
+  Sources/        <span class="comment"># Registered Slack channels</span>
+  Preferences/    <span class="comment"># Voice, style, workflow rules</span>
+  Archive/        <span class="comment"># Completed weeks (compact)</span>
+  Summaries/      <span class="comment"># Weekly/monthly/quarterly</span>
+  Reports/        <span class="comment"># D3 visualizations (HTML)</span></pre>
+      </div>
+      <div>
+        <h3>Why directories, not databases</h3>
+        <ul style="font-size: 0.95em;">
+          <li>Plain markdown, no migrations, no schema lock-in</li>
+          <li>You can edit anything directly in Obsidian</li>
+          <li>Backups are <code>git push</code></li>
+          <li>Search is <code>grep</code></li>
+          <li>The vault is yours - the skill is just literate over it</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5: Knowledge graph -->
+  <div class="slide" data-slide="5" data-section="What it does">
+    <h2>It becomes a knowledge graph</h2>
+    <p class="subtitle">Wiki-links between weeks, people, and programs</p>
+    <div class="img-container">
+      <img src="media/graph-view.png" alt="Obsidian graph view showing connections">
+    </div>
+    <p class="small" style="margin-top: 12px;">Every <code>[[Jane Smith]]</code> in your worklog creates a backlink to her People note. Open her note, see every week she appeared in.</p>
+  </div>
+
+  <!-- 6: Commands -->
+  <div class="slide" data-slide="6" data-section="What it does">
+    <h2>The command surface</h2>
+    <table>
+      <tr><th>Command</th><th>What it does</th><th>When</th></tr>
+      <tr><td><code>/worklog</code></td><td>Show active items by priority</td><td>Any time</td></tr>
+      <tr><td><code>/worklog rollover</code></td><td>Start a new week, archive previous, carry forward</td><td>Monday</td></tr>
+      <tr><td><code>/worklog review</code></td><td>Walk through each item for status updates</td><td>Monday morning</td></tr>
+      <tr><td><code>/worklog add P1 &lt;title&gt;</code></td><td>Quick-add an item, checks for duplicates</td><td>Mid-week</td></tr>
+      <tr><td><code>/worklog pull</code></td><td>Ingest unprocessed threads from Slack sources</td><td>Mid-week or before review</td></tr>
+      <tr><td><code>/worklog summary [week|month|quarter]</code></td><td>Impact summary for reporting up</td><td>End of period</td></tr>
+      <tr><td><code>/worklog audit</code></td><td>Vault health check + stale-note flagging</td><td>Friday or monthly</td></tr>
+      <tr><td><code>/worklog viz [period]</code></td><td>D3 charts as standalone HTML</td><td>End of month/quarter</td></tr>
+      <tr><td><code>/worklog sync</code></td><td>Git commit + push of the vault</td><td>After any update</td></tr>
+    </table>
+  </div>
+
+  <!-- 7: Netflix layer -->
+  <div class="slide" data-slide="7" data-section="What it does">
+    <h2>The Netflix layer</h2>
+    <p class="subtitle">Three commands the public fork doesn't have</p>
+    <div class="three-col" style="margin-top: 16px;">
+      <div class="card animate delay-1">
+        <h3><span class="tag tag-netflix">/worklog ingest</span></h3>
+        <p style="margin-top: 8px;">Fetch a Coda, Confluence, Google Doc, or Slack thread URL. Body extracted, action items pulled, people wiki-linked. Routes by URL prefix to a pinned MCP tool.</p>
+      </div>
+      <div class="card animate delay-2">
+        <h3><span class="tag tag-netflix">/worklog whois</span></h3>
+        <p style="margin-top: 8px;">Resolve a name via Pandora. Pull title, manager, team. Updates the People/ note. Auto-creates a manager stub. Uses the <code>core-tools</code> MCP.</p>
+      </div>
+      <div class="card animate delay-3">
+        <h3><span class="tag tag-netflix">/worklog jira</span></h3>
+        <p style="margin-top: 8px;">Pull a Jira ticket's title, status, assignee, parent epic. Adds as a worklog item under the right subgroup with the standard link format.</p>
+      </div>
+    </div>
+    <div class="callout" style="margin-top: 18px;">
+      <h4>Determinism guarantee</h4>
+      <p>Each command pins to an <em>exact</em> MCP tool ID (e.g. <code>mcp__plugin_atlassian_atlassian__getJiraIssue</code>). No inference, no fallback chains. The first invocation works the same way the hundredth one does.</p>
+    </div>
+  </div>
+
+  <!-- 8: Lab start - prereqs -->
+  <div class="slide" data-slide="8" data-section="Lab: Setup">
+    <h2><span class="accent-green">Lab</span>: prerequisites</h2>
+    <p class="subtitle">Confirm each of these before we start</p>
+    <ul class="checklist" style="margin-top: 14px;">
+      <li>Claude Code installed (CLI, desktop, or IDE extension)</li>
+      <li>Obsidian installed (any recent version)</li>
+      <li>A directory you want as your vault (existing or new - setup will create the structure)</li>
+      <li><code>newt</code> on PATH (Netflix dev tooling) - <code>command -v newt</code></li>
+      <li><code>gh</code> CLI authed for github.netflix.net - <code>GH_HOST=github.netflix.net gh auth status</code></li>
+      <li>Your <code>@netflix.com</code> email handy (for git identity)</li>
+    </ul>
+    <div class="checkpoint">
+      <div class="icon">✋</div>
+      <p>Checkpoint: every box checked? Raise a hand if not.</p>
+    </div>
+  </div>
+
+  <!-- 9: Step 1 - Clone -->
+  <div class="slide" data-slide="9" data-section="Lab: Setup">
+    <h2><span class="accent-green">Lab</span>: step 1 - clone</h2>
+    <pre><span class="prompt">$</span> cd ~/workspace  <span class="comment"># or wherever you keep your repos</span>
+<span class="prompt">$</span> git clone https://github.netflix.net/mminutillo/obsidian-worklog
+<span class="prompt">$</span> cd obsidian-worklog</pre>
+    <div class="callout warn" style="margin-top: 18px;">
+      <h4>Why this fork specifically</h4>
+      <p>The public fork at <code>github.com/menottim/obsidian-worklog</code> works too, but skips the Netflix layer (no <code>/worklog ingest</code>, no Pandora resolution, no Jira pull, no MCP profile auto-join). Use the Netflix fork unless you have a reason not to.</p>
+    </div>
+    <div class="checkpoint">
+      <div class="icon">📥</div>
+      <p>Checkpoint: <code>ls</code> shows <code>setup.sh</code>, <code>skills/</code>, <code>docs/</code>, <code>README.md</code></p>
+    </div>
+  </div>
+
+  <!-- 10: Step 2 - setup.sh -->
+  <div class="slide" data-slide="10" data-section="Lab: Setup">
+    <h2><span class="accent-green">Lab</span>: step 2 - run setup</h2>
+    <pre><span class="prompt">$</span> ./setup.sh
+
+<span class="output">=== obsidian-worklog setup (strict mode) ===
+Obsidian vault path [~/Documents/Obsidian Vault]: </span><span class="comment"># type or accept default</span><span class="output">
+Your display name [yourname]: </span><span class="comment"># your name</span><span class="output">
+Git user.name [yourname]: </span><span class="comment"># for vault commits</span><span class="output">
+Git user.email []: </span>you@netflix.com<span class="output">
+
+=== Netflix identity detected ===
+  OK newt installed at /usr/local/bin/newt
+  OK genai-core-tools profile already joined  </span><span class="comment"># or joins now</span><span class="output">
+  OK gh authenticated for github.netflix.net
+  OK GHE login: yourname
+
+Backup repo URL [https://github.netflix.net/yourname/obsidian-vault.git]:
+Skill install path [~/.claude/plugins/.../obsidian-worklog]:
+Apply these settings? [Y/n]: </span>y</pre>
+    <p class="small" style="margin-top: 14px;">Strict mode: any failed step aborts. If you see "Setup complete!" - everything is verified.</p>
+  </div>
+
+  <!-- 11: What setup actually verifies -->
+  <div class="slide" data-slide="11" data-section="Lab: Setup">
+    <h2>What setup.sh actually verifies</h2>
+    <p class="subtitle">Each check is bash-callable - no model inference for setup</p>
+    <table>
+      <tr><th>Check</th><th>Mechanism</th></tr>
+      <tr><td><code>newt</code> on PATH</td><td><code>command -v newt</code></td></tr>
+      <tr><td>genai-core-tools profile</td><td><code>newt resolve | grep -q ...</code> (auto-joins if missing)</td></tr>
+      <tr><td><code>gh</code> authed for GHE</td><td><code>GH_HOST=github.netflix.net gh auth status</code></td></tr>
+      <tr><td>Authoritative GHE login</td><td><code>gh api user --jq .login</code> (no <code>whoami</code> guessing)</td></tr>
+      <tr><td>GHE backup repo exists</td><td><code>gh repo view</code> + offer to <code>gh repo create</code></td></tr>
+      <tr><td>Install path safety</td><td>Must start with <code>$HOME/.claude/</code></td></tr>
+      <tr><td>All placeholders replaced</td><td>Literal <code>grep -F</code> against known list</td></tr>
+      <tr><td>All values landed in SKILL.md</td><td>Post-substitution presence check</td></tr>
+      <tr><td>Plugin manifest installed</td><td>File exists at install path</td></tr>
+    </table>
+  </div>
+
+  <!-- 12: Step 3 - restart + verify -->
+  <div class="slide" data-slide="12" data-section="Lab: Setup">
+    <h2><span class="accent-green">Lab</span>: step 3 - restart Claude Code</h2>
+    <ol style="margin-top: 16px;">
+      <li><strong>Quit Claude Code fully</strong> (Cmd+Q on Mac). MCP servers load at session start.</li>
+      <li>Reopen Claude Code.</li>
+      <li>Type <code>/mcp</code> - confirm you see <code>core-tools</code>, <code>plugin_atlassian</code>, <code>plugin_slack</code> in the list.</li>
+      <li>Type <code>/worklog status</code>. You should see "no current week" (expected on first run).</li>
+      <li>Type <code>/worklog rollover</code>. This creates your first weekly file.</li>
+    </ol>
+    <div class="checkpoint">
+      <div class="icon">🚀</div>
+      <p>Checkpoint: <code>/worklog status</code> now shows an empty week. We're live.</p>
+    </div>
+  </div>
+
+  <!-- 13: Typical use - Monday -->
+  <div class="slide" data-slide="13" data-section="Typical use">
+    <h2>Monday morning</h2>
+    <div class="two-col" style="margin-top: 16px;">
+      <div>
+        <h3>The 10-minute rollover</h3>
+        <ol>
+          <li><code>/worklog rollover</code> - new week, carry forward unfinished</li>
+          <li><code>/worklog pull</code> - ingest weekend Slack threads from registered sources</li>
+          <li><code>/worklog review</code> - walk item by item, mark done/in-progress/blocked</li>
+          <li><code>/worklog sync</code> - commit + push to GHE backup</li>
+        </ol>
+        <p class="small" style="margin-top: 12px;">Three weeks in, this becomes muscle memory. Six weeks in, the vault is dense with linked context.</p>
+      </div>
+      <div class="card">
+        <h3>What "review" does</h3>
+        <p>For each active item:</p>
+        <ul style="font-size: 0.88em; margin-top: 6px;">
+          <li>"done" - move to ✅, will get archived next rollover</li>
+          <li>"still on it" - keeps it active, you can add a dated bullet</li>
+          <li>"pinged Sarah" - adds an annotation and wiki-links her</li>
+          <li>"blocked on X" - flags it; <code>/worklog audit</code> will surface stuck items</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- 14: Typical use - mid week -->
+  <div class="slide" data-slide="14" data-section="Typical use">
+    <h2>Mid-week: just paste it in</h2>
+    <p class="subtitle">The main interaction model isn't commands. It's pasting raw context.</p>
+    <pre>here are notes from my 1:1 with Sarah:
+- she's concerned about the migration timeline slipping
+- wants to bring in a contractor for the gap
+- Marcus is doing well picking up Dev's work
+
+add to worklog</pre>
+    <div class="callout">
+      <h4>What happens</h4>
+      <p>Claude extracts action items, wiki-links Sarah Chen and Marcus Williams (creating People stubs if they don't exist), adds dated annotations to the migration item under the right subgroup, and reports what changed. No formatting required from you.</p>
+    </div>
+    <p class="small" style="margin-top: 12px;">Pasting transcripts, Slack threads, brief notes - all work the same way.</p>
+  </div>
+
+  <!-- 15: Typical use - end of period -->
+  <div class="slide" data-slide="15" data-section="Typical use">
+    <h2>End of week/month/quarter</h2>
+    <div class="two-col">
+      <div>
+        <h3><code>/worklog summary [period]</code></h3>
+        <ul>
+          <li><code>week</code> - this week's items in impact form</li>
+          <li><code>month</code> - adds priority drift analysis</li>
+          <li><code>quarter</code> - adds trend lines + time allocation</li>
+          <li><code>2026-Q1</code> - specific period reference</li>
+        </ul>
+        <p style="margin-top: 12px; font-size: 0.92em;">Writes a wiki-linked file to <code>Summaries/</code>, copies a plain-text version to clipboard for Slack/email.</p>
+      </div>
+      <div>
+        <h3><code>/worklog viz quarter</code></h3>
+        <p style="margin-top: 6px;">Generates a standalone HTML file with four D3 charts:</p>
+        <ul style="font-size: 0.92em;">
+          <li>Time-allocation pie (by subgroup)</li>
+          <li>Program activity heatmap</li>
+          <li>P0 trend line over weeks</li>
+          <li>Completion rate bars</li>
+        </ul>
+        <p style="margin-top: 10px; font-size: 0.88em; color: var(--overlay0);">Open the HTML in any browser. Useful for quarterly reviews, share-out decks.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 16: Creative - 1:1 prep -->
+  <div class="slide" data-slide="16" data-section="Creative uses">
+    <h2><span class="accent-mauve">Creative</span>: pre-1:1 prep</h2>
+    <div class="two-col" style="margin-top: 14px;">
+      <div>
+        <p style="font-size: 1em;">Before a 1:1 with one of your reports, ask:</p>
+        <pre style="font-size: 0.78em; margin-top: 12px;">prep me for the 1:1 with [[Jane Smith]] tomorrow
+
+- pull the last 6 weeks where Jane appeared
+- flag anything that was in_progress 3+ weeks ago and is still open
+- surface anything from our last 1:1 that hasn't been addressed
+- highlight people in Jane's note I should ask about</pre>
+      </div>
+      <div class="card creative">
+        <h3>What you get back</h3>
+        <p style="font-size: 0.95em;">A focused brief: items where Jane is mentioned, stuck items, open commitments, people in her org you might want to ask about. Sourced from your own vault. No re-searching, no scrolling through Slack.</p>
+        <p style="margin-top: 12px; font-size: 0.88em; color: var(--overlay0);">Works for peer 1:1s, skip-levels, and prep for upward syncs.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 17: Creative - promo case -->
+  <div class="slide" data-slide="17" data-section="Creative uses">
+    <h2><span class="accent-mauve">Creative</span>: promo case building</h2>
+    <pre>build the impact case for promotion conversation 2026 H1
+
+- aggregate items where I drove a decision (not just "attended" or "tracked")
+- pull cross-org partnerships (programs touching CIS, CATS, AppSec)
+- surface times I unblocked someone else's work
+- counter-list: things that slipped or got descoped and what I learned</pre>
+    <div class="callout creative" style="margin-top: 16px;">
+      <h4>Why this works</h4>
+      <p>You wrote weekly worklogs all year for a different reason - to manage your own work. Now they're a structured impact corpus. Claude can navigate the graph (which programs you owned, which decisions surfaced in your weeks, which people you collaborated with) and build the narrative.</p>
+    </div>
+    <p class="small" style="margin-top: 14px;">Output is a draft, not a finished case - you edit and ground it with specifics. But the structure is there.</p>
+  </div>
+
+  <!-- 18: Creative - ingest doc -->
+  <div class="slide" data-slide="18" data-section="Creative uses">
+    <h2><span class="accent-mauve">Creative</span>: ingest a Confluence/Coda doc</h2>
+    <pre><span class="prompt">/worklog ingest</span> https://confluence.netflix.com/display/SECURITY/2026-05-12+Migration+Sync</pre>
+    <p style="margin-top: 14px; font-size: 0.92em; color: var(--subtext0);">What runs:</p>
+    <ol style="font-size: 0.95em; margin-top: 6px;">
+      <li>URL matches the <code>confluence.netflix.com</code> pattern → routes to <code>mcp__core-tools__netflix_search_data</code></li>
+      <li>Announces: <code>Using mcp__core-tools__netflix_search_data to fetch ...</code></li>
+      <li>Fetches the page body, detects "meeting-shaped" (has date + attendees + action items)</li>
+      <li>Creates <code>Meetings/2026-05-12-migration-sync.md</code></li>
+      <li>Extracts action items, wiki-links attendees (resolves Netflix emails via Pandora)</li>
+      <li>Adds items to your current week under the right subgroup</li>
+    </ol>
+    <div class="callout warn" style="margin-top: 14px;">
+      <h4>Security note</h4>
+      <p>The skill treats fetched content as <em>data, not instructions</em>. If a doc contains an embedded prompt-injection payload, it's flagged as suspicious content in the extracted output - not followed.</p>
+    </div>
+  </div>
+
+  <!-- 19: Creative - whois -->
+  <div class="slide" data-slide="19" data-section="Creative uses">
+    <h2><span class="accent-mauve">Creative</span>: Pandora-aware people notes</h2>
+    <pre><span class="prompt">/worklog whois</span> Sarah Chen
+
+<span class="output">Using mcp__core-tools__netflix_search_api to resolve Sarah Chen against Pandora
+
+Pulled Sarah Chen (Senior Software Engineer, Platform Infrastructure).
+Manager: Alex Park (stub created).
+People note: ~/vault/People/Sarah Chen.md</span></pre>
+    <div class="two-col" style="margin-top: 14px;">
+      <div>
+        <h3>The People note becomes:</h3>
+        <pre style="font-size: 0.72em;">---
+email: sarah.chen@netflix.com
+title: Senior Software Engineer
+team: Platform Infrastructure
+manager: "[[Alex Park]]"
+pandora_id: schen
+status: active
+---
+- [2026-05-13] Created from Pandora
+- [2026-05-13] First appeared in week W19</pre>
+      </div>
+      <div class="card creative">
+        <h3>Why this matters</h3>
+        <p style="font-size: 0.92em;">Every meeting note you ingest, every Slack thread, every Jira ticket pull will now wiki-link to <code>[[Sarah Chen]]</code> consistently. The graph builds itself. After a few months, opening Sarah's note is opening her whole context in your work.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 20: Creative misc -->
+  <div class="slide" data-slide="20" data-section="Creative uses">
+    <h2>More ideas to steal</h2>
+    <div class="three-col" style="margin-top: 14px;">
+      <div class="card creative animate delay-1">
+        <h3>Incident debrief</h3>
+        <p>Ingest the incident-channel Slack thread → instant Meeting note with timeline, decisions, and follow-ups linked to your current week.</p>
+      </div>
+      <div class="card creative animate delay-1">
+        <h3>Onboarding a new report</h3>
+        <p>For each pre-onboarding meeting, paste notes. By week 1 their People/ note has context from before they started.</p>
+      </div>
+      <div class="card creative animate delay-2">
+        <h3>OKR allocation check</h3>
+        <p>Tag items with OKR labels. End of quarter: <code>show me what % of P0/P1 effort went to each OKR</code> via the vault search.</p>
+      </div>
+      <div class="card creative animate delay-2">
+        <h3>"What changed?" diffs</h3>
+        <p>Before a status update: <code>compare this week to last week - what's new, what shifted priority, what's stuck</code></p>
+      </div>
+      <div class="card creative animate delay-3">
+        <h3>Cross-team mapping</h3>
+        <p>Use <code>/worklog whois</code> on the people your team interacts with. Build a map of who-owns-what across orgs you depend on.</p>
+      </div>
+      <div class="card creative animate delay-3">
+        <h3>Conference / talk prep</h3>
+        <p><code>/worklog ingest</code> the talk outline doc + related Coda research → action-itemized prep flow in your week.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 21: Wrap -->
+  <div class="slide" data-slide="21" data-section="Wrap">
+    <h2>Wrap-up</h2>
+    <div class="two-col" style="margin-top: 16px;">
+      <div>
+        <h3>What you have now</h3>
+        <ul>
+          <li>Working install verified by <code>tests/e2e-setup.sh</code></li>
+          <li>Three Netflix commands wired to real MCPs</li>
+          <li>A vault to write into</li>
+          <li>A backup repo at <code>github.netflix.net/yourname/obsidian-vault</code></li>
+        </ul>
+      </div>
+      <div>
+        <h3>What to do this week</h3>
+        <ul>
+          <li>Run <code>/worklog rollover</code> Monday</li>
+          <li>Paste one meeting's worth of notes into a conversation</li>
+          <li>Try <code>/worklog whois</code> on one person you work with</li>
+          <li>Run <code>/worklog summary week</code> Friday</li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout" style="margin-top: 22px;">
+      <h4>Repo + docs</h4>
+      <p>
+        <code>github.netflix.net/mminutillo/obsidian-worklog</code> &nbsp;·&nbsp;
+        <code>docs/SETUP-NETFLIX.md</code> &nbsp;·&nbsp;
+        <code>docs/NETFLIX-COMMANDS.md</code> &nbsp;·&nbsp;
+        <code>tests/e2e-setup.sh</code>
+      </p>
+    </div>
+  </div>
+
+  <!-- 22: Q&A -->
+  <div class="slide" data-slide="22" data-section="Wrap">
+    <h1>Questions<span class="accent-blue">?</span></h1>
+    <p class="subtitle" style="margin-top: 18px;">Or grab me after - happy to walk through your specific setup</p>
+    <p class="small" style="margin-top: 32px;">github.netflix.net/mminutillo/obsidian-worklog</p>
+  </div>
+
+</div>
+
+<div class="section-tag" id="section-tag"></div>
+<div class="slide-counter" id="counter"></div>
+<div class="dots" id="dots"></div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const dotsContainer = document.getElementById('dots');
+  const counter = document.getElementById('counter');
+  const sectionTag = document.getElementById('section-tag');
+  let current = 0;
+
+  // Map sections to dot classes for color coding
+  function dotClassForSection(section) {
+    if (section && section.startsWith('Lab')) return 'section-lab';
+    if (section && section.startsWith('Creative')) return 'section-creative';
+    return '';
+  }
+
+  slides.forEach((s, i) => {
+    const dot = document.createElement('div');
+    dot.classList.add('dot');
+    const sec = s.dataset.section;
+    const sc = dotClassForSection(sec);
+    if (sc) dot.classList.add(sc);
+    dot.onclick = () => show(i);
+    dotsContainer.appendChild(dot);
+  });
+
+  function show(i) {
+    if (i < 0 || i >= slides.length) return;
+    slides[current].classList.remove('active');
+    document.querySelectorAll('.dot')[current].classList.remove('active');
+    current = i;
+    slides[current].classList.add('active');
+    document.querySelectorAll('.dot')[current].classList.add('active');
+    counter.textContent = (current + 1) + ' / ' + slides.length;
+    sectionTag.textContent = slides[current].dataset.section || '';
+
+    // Re-trigger animations
+    slides[current].querySelectorAll('.animate').forEach(el => {
+      el.style.animation = 'none';
+      void el.offsetWidth;
+      el.style.animation = null;
+    });
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') show(current + 1);
+    if (e.key === 'ArrowLeft' || e.key === 'PageUp') show(current - 1);
+    if (e.key === 'Home') show(0);
+    if (e.key === 'End') show(slides.length - 1);
+  });
+
+  show(0);
+</script>
+
+</body>
+</html>
