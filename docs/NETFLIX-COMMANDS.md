@@ -12,13 +12,16 @@ __Accepts:__
 - Google Docs: `https://docs.google.com/document/d/...`
 - Slack thread permalink: `https://*.slack.com/archives/.../p...`
 
-__Routing:__
-| URL pattern | MCP used |
-|-------------|----------|
-| `*.slack.com/archives/.../p*` | Core Tools `Fetch Slack Thread` |
-| `coda.io`, `coda.netflix.net` | Netflix Search Data |
-| `confluence.netflix.com`, `netflix.atlassian.net/wiki/` | Netflix Search Data (or Atlassian MCP as fallback) |
-| `docs.google.com/document/` | Netflix Search Data |
+__Routing (pinned tool IDs, no fallbacks):__
+| URL pattern | Exact MCP tool ID |
+|-------------|---------------------|
+| `*.slack.com/archives/.../p*` | `mcp__core-tools__fetch-slack-thread` |
+| `coda.io`, `coda.netflix.net` | `mcp__core-tools__netflix_search_data` |
+| `confluence.netflix.com` | `mcp__core-tools__netflix_search_data` |
+| `netflix.atlassian.net/wiki/` | `mcp__plugin_atlassian_atlassian__getConfluencePage` |
+| `docs.google.com/document/` | `mcp__core-tools__netflix_search_data` |
+
+Before each call, the skill announces `Using <tool-id> to fetch <url>` so you can see which path was taken.
 
 __Behavior:__
 1. Routes by URL pattern, fetches the body
@@ -49,9 +52,10 @@ __Accepts:__
 - Pandora username: `jsmith`
 
 __Behavior:__
-1. Resolves via `netflix_search_api` against Pandora
-2. If multiple matches, surface a numbered list with title and team for each, prompt you to pick
-3. Creates or updates `People/<Full Name>.md` with frontmatter:
+1. Announces: `Using mcp__core-tools__netflix_search_api to resolve <input> against Pandora`
+2. Invokes that exact tool with query=`<input>`; filters results for Pandora source entries
+3. If multiple matches, surfaces a numbered list with title and team for each, prompts you to pick
+4. Creates or updates `People/<Full Name>.md` with frontmatter:
    ```yaml
    email: firstname.lastname@netflix.com
    title: Senior Software Engineer
@@ -83,12 +87,12 @@ __Accepts:__
 - Full URL: `https://netflix.atlassian.net/browse/WISSE-123`
 
 __Behavior:__
-1. Pulls via Atlassian MCP (`getJiraIssue`) - title, status, assignee, priority, labels, epic link
-2. Determines worklog priority from Jira priority or status:
-   - Jira priority `Highest` or status `In Progress` with deadline this week -> __P0__
-   - Jira priority `High` or status `In Progress` -> __P1__
-   - Everything else -> __P2__
-   (You can override by adding `-p0` / `-p1` / `-p2` after the key.)
+1. Announces: `Using mcp__plugin_atlassian_atlassian__getJiraIssue to pull <KEY>`
+2. Invokes that exact tool - reads title, status, assignee, priority, labels, parent/epic link
+3. Determines worklog priority deterministically:
+   - Command flag `-p0` / `-p1` / `-p2` always wins if present
+   - Otherwise: Jira priority `Highest` -> __P0__, `High` -> __P1__, anything else -> __P2__
+   (The earlier "In Progress with deadline this week -> P0" rule was removed for determinism. Use `-p0` explicitly if you want that override.)
 3. Picks subgroup by epic label, or by Jira project if no epic
 4. Adds to current week with the standard worklog item format:
    ```markdown

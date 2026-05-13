@@ -21,23 +21,27 @@ If you're a Netflix engineer, this walkthrough adds the integrations that make w
 | Tracking Jira-tracked work | Paste ticket details inline | `/worklog jira <KEY>` - pulls status, title, owner |
 | Looking up Netflix internals | Web search Manuals manually | Manuals RAG via Core Tools surfaces authoritative answers |
 
-## Step 1: join the `genai-core-tools` profile
+## Step 1: setup.sh runs `newt join` automatically (strict mode)
 
-One command opts you into Netflix's paved-path MCP bundle:
+The Netflix-detection block in `setup.sh` runs this for you when it sees an `@netflix.com` git email:
 
 ```bash
 newt --app-type=dev-profiles join --profile=genai-core-tools
 ```
 
-This installs (or makes available via `/mcp` in Claude Code) the canonical Netflix-internal MCPs:
+If the join fails, `setup.sh` aborts before declaring "Setup complete!" - the script never leaves you with a partial install. If you're already joined (verified via `newt --app-type=dev-profiles resolve`), the script skips the join step.
 
-- __Netflix Search API__ - cross-search Slack + Manuals + Confluence
-- __Netflix Search Data__ - fetch the full body of any internal doc by URL
-- __Manuals RAG__ - retrieval-augmented search of `manuals.netflix.net`
-- __Slack RAG__ - retrieval-augmented search of help channels and discussions
-- __Fetch Slack Thread__ - get full thread content + metadata for any Slack thread you have access to
+This installs (or makes available via `/mcp` in Claude Code) the canonical Netflix-internal MCP server `core-tools`, which exposes these exact tool IDs that the worklog skill pins to:
 
-After joining, restart Claude Code. Verify with `/mcp` - you should see the core-tools server listed.
+| Tool ID | Purpose | Used by |
+|---------|---------|---------|
+| `mcp__core-tools__fetch-slack-thread` | Get full thread content + metadata for any Slack thread you have access to | `/worklog ingest <slack-permalink>` |
+| `mcp__core-tools__netflix_search_data` | Fetch the body of an internal doc by URL (Coda, Google Docs, Confluence) | `/worklog ingest <doc-url>` |
+| `mcp__core-tools__netflix_search_api` | Cross-search Slack + Manuals + Confluence + Pandora | `/worklog whois <name>` and people-resolution inside `/worklog ingest` |
+| `mcp__core-tools__manuals_get_page_content` | Fetch a single Manuals page | Available; not currently pinned to a worklog command |
+| `mcp__core-tools__rag-manuals-prod` / `rag-slack-prod` / `dgw_rag_generic` | RAG search variants | Available; not currently pinned |
+
+After `setup.sh` exits 0, restart Claude Code once. The MCPs load on session start, not mid-session.
 
 ## Step 2: verify additional MCPs (recommended)
 
@@ -58,23 +62,29 @@ The Tier 1 MCPs (Atlassian, NECP, Slack) cover ~90% of the worklog's Netflix-spe
 
 ## Step 3: identity and backup defaults
 
-The fork's `setup.sh` detects `@netflix.com` git emails and offers Netflix-appropriate defaults:
+The fork's `setup.sh` detects `@netflix.com` git emails and:
 
-- Backup repo default: `git@github.netflix.net:<your-username>/<vault-name>.git` (instead of GitHub.com)
-- Reminder about Netflix Git Credential Manager: visit `go/authorizecm` and install the Netflix-GCM app on your GHE account (one-time)
+- Resolves your authoritative GHE login via `gh api user --jq .login` (with `GH_HOST=github.netflix.net`) - never guesses from `$(whoami)`
+- Defaults backup repo to `https://github.netflix.net/<your-ghe-login>/<vault-basename>.git` - __HTTPS, not SSH__, because port 22 to github.netflix.net is blocked on many Netflix networks (the `insteadOf` git config rewrites the URL to the `git.netflix.net` proxy at push time)
+- Verifies the GHE repo exists via `gh repo view`. If it doesn't, prompts to create it via `gh repo create --private` and aborts if you decline
 
-If you ran `setup.sh` before this Netflix block existed, re-run it on a clean checkout to pick up the new prompts.
+One-time Netflix GHE setup (you may already have this):
+- Visit `go/authorizecm` to authorize Netflix Git Credential Manager
+- Install Netflix-GCM on your GHE account so HTTPS pushes work without per-push auth prompts
+
+If you ran `setup.sh` before this Netflix block existed, re-run it on a clean checkout: `git checkout skills/worklog/SKILL.md && ./setup.sh`
 
 ## Step 4: how Pandora identity flows into People notes
 
 When `/worklog whois <name>` is invoked, the skill:
 
-1. Resolves the name via `netflix_search_api` against Pandora (the authoritative org directory that powers Whitepages)
-2. Pulls: full name, title, manager (resolved to a wiki-link), team, manager-chain to L-level
-3. Creates or enriches `People/<Full Name>.md` with this metadata in the frontmatter
-4. Adds a context bullet noting when the person first appeared in your worklog
+1. Announces: `Using mcp__core-tools__netflix_search_api to resolve <input> against Pandora`
+2. Calls that exact tool with the input as the query
+3. Filters results for Pandora source entries; surfaces a numbered list if multiple, asks you to pick if disambiguation is needed, errors out if zero matches
+4. Updates frontmatter of `People/<Full Name>.md` with email, title, team, manager (wiki-linked), pandora_id, status
+5. Body content is preserved on merge (your accumulated context bullets are never overwritten)
 
-Disambiguation (multiple matches) prompts you to pick. See [NETFLIX-COMMANDS.md](NETFLIX-COMMANDS.md) for details.
+The "announce-which-tool" pattern applies to every Netflix command. You'll always see which MCP tool was called on which input - no silent enrichment.
 
 ## Step 5: ingesting Netflix-internal documents
 
@@ -85,10 +95,11 @@ Disambiguation (multiple matches) prompts you to pick. See [NETFLIX-COMMANDS.md]
 - Google Docs (`https://docs.google.com/document/d/...`)
 - Slack thread permalinks (`https://*.slack.com/archives/.../p...`)
 
-The skill routes by URL pattern:
-- Slack permalinks -> `Fetch Slack Thread` (Core Tools) -> treat as Meeting note
-- Coda / Confluence / Google Docs -> Netflix Search Data -> treat as raw meeting notes
-- Anything else -> error with a hint to paste body inline
+The skill routes by URL pattern (deterministic - no fallback chains):
+- Slack permalinks -> `mcp__core-tools__fetch-slack-thread` -> treat as Meeting note
+- Coda / Confluence (confluence.netflix.com) / Google Docs -> `mcp__core-tools__netflix_search_data`
+- `netflix.atlassian.net/wiki/` Confluence pages -> `mcp__plugin_atlassian_atlassian__getConfluencePage`
+- Anything else -> error with a hint to paste body inline; no inference attempted
 
 The fetched body flows through the same "raw input" extraction logic the skill already uses for pasted content: extract items, link people/programs, add to current week, create a `Meetings/` note if it's meeting-shaped.
 

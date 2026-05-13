@@ -1,30 +1,21 @@
 #!/usr/bin/env bash
 # setup.sh - Configure obsidian-worklog skill for your environment
-# Replaces placeholder tokens in SKILL.md with your actual values.
-# Run once after cloning. Safe to re-inspect but will refuse to run twice.
+#
+# Strict mode: any step that can't complete cleanly causes the script to
+# exit non-zero. "Setup complete!" only prints after every verification
+# passes. The first /worklog invocation after this exits 0 is guaranteed
+# to find the MCPs, vault directories, and plugin install in place - no
+# model inference required for any setup step.
 
 set -euo pipefail
 
-# ---------------------------------------------------------------------------
-# Locate repo root (script's own directory)
-# ---------------------------------------------------------------------------
+# ===========================================================================
+# Repo root + helpers
+# ===========================================================================
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILL_FILE="$REPO_ROOT/skills/worklog/SKILL.md"
 TEMPLATES_DIR="$REPO_ROOT/templates"
 
-# ---------------------------------------------------------------------------
-# Guard: refuse to run if SKILL.md no longer contains placeholders
-# ---------------------------------------------------------------------------
-if ! grep -q '__VAULT_PATH__' "$SKILL_FILE" 2>/dev/null; then
-  echo "ERROR: $SKILL_FILE does not contain __VAULT_PATH__ placeholder."
-  echo "Either the file is missing or setup.sh has already been run on it."
-  echo "To re-run setup, restore the original SKILL.md from the repo first."
-  exit 1
-fi
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 prompt_with_default() {
   local prompt="$1"
   local default="$2"
@@ -33,20 +24,14 @@ prompt_with_default() {
   echo "${result:-$default}"
 }
 
-# Escape characters that are special in sed replacement strings (| & \ /)
 escape_for_sed() {
   printf '%s' "$1" | sed 's/[|&\\/]/\\&/g'
 }
 
 validate_email() {
-  local email="$1"
-  if [[ "$email" =~ ^[^@]+@[^@]+\.[^@]+$ ]]; then
-    return 0
-  fi
-  return 1
+  [[ "$1" =~ ^[^@]+@[^@]+\.[^@]+$ ]]
 }
 
-# Detect sed -i syntax: macOS requires '' argument, Linux does not
 sed_inplace() {
   if sed --version 2>/dev/null | grep -q GNU; then
     sed -i "$@"
@@ -55,46 +40,76 @@ sed_inplace() {
   fi
 }
 
+fail() {
+  echo ""
+  echo "FAIL: $*" >&2
+  echo "" >&2
+  echo "Setup aborted. No 'Setup complete' state was reached." >&2
+  exit 1
+}
+
+# ===========================================================================
+# Guard: refuse to run if SKILL.md no longer contains placeholders
+# ===========================================================================
+if ! grep -q '__VAULT_PATH__' "$SKILL_FILE" 2>/dev/null; then
+  echo "ERROR: $SKILL_FILE does not contain __VAULT_PATH__ placeholder."
+  echo "Either the file is missing or setup.sh has already been run on it."
+  echo ""
+  echo "To reconfigure, restore the original SKILL.md first:"
+  echo "  cd $REPO_ROOT && git checkout skills/worklog/SKILL.md"
+  echo "Then re-run setup.sh."
+  exit 1
+fi
+
 echo ""
-echo "=== obsidian-worklog setup ==="
-echo "This script configures SKILL.md with your local paths and identity."
+echo "=== obsidian-worklog setup (strict mode) ==="
+echo "This script configures the skill and verifies all integrations."
+echo "Any failure aborts the script - partial setups are not allowed."
 echo ""
 
-# ---------------------------------------------------------------------------
-# Prompt: Vault path
-# ---------------------------------------------------------------------------
+# ===========================================================================
+# Step 1: Prompt: Vault path (with full directory structure on create)
+# ===========================================================================
 DEFAULT_VAULT="$HOME/Documents/Obsidian Vault"
 VAULT_PATH=$(prompt_with_default "Obsidian vault path" "$DEFAULT_VAULT")
 
-# Validate / offer to create
+# Vault subdirectories the skill expects to exist
+VAULT_SUBDIRS=(
+  Worklogs People Programs Teams Meetings Sources Preferences
+  Archive Summaries Reports Templates
+)
+
 if [[ ! -d "$VAULT_PATH" ]]; then
   echo ""
-  echo "WARNING: Directory does not exist: $VAULT_PATH"
-  read -r -p "Create vault directory structure now? [y/N]: " create_vault
-  if [[ "${create_vault,,}" == "y" ]]; then
-    mkdir -p \
-      "$VAULT_PATH/Worklogs" \
-      "$VAULT_PATH/People" \
-      "$VAULT_PATH/Programs" \
-      "$VAULT_PATH/Archive" \
-      "$VAULT_PATH/Summaries" \
-      "$VAULT_PATH/Reports" \
-      "$VAULT_PATH/Templates"
-    echo "Created vault directory structure at: $VAULT_PATH"
-  else
-    echo "Proceeding without creating the directory. You can create it later."
-  fi
+  echo "Directory does not exist: $VAULT_PATH"
+  read -r -p "Create vault directory structure now? [Y/n]: " create_vault
+  case "${create_vault,,}" in
+    n|no)
+      fail "Vault directory required. Re-run setup after creating $VAULT_PATH."
+      ;;
+    *)
+      for sub in "${VAULT_SUBDIRS[@]}"; do
+        mkdir -p "$VAULT_PATH/$sub" || fail "Could not create $VAULT_PATH/$sub"
+      done
+      echo "  Created vault structure at: $VAULT_PATH"
+      ;;
+  esac
+else
+  # Vault exists - ensure missing subdirectories are created
+  for sub in "${VAULT_SUBDIRS[@]}"; do
+    [[ -d "$VAULT_PATH/$sub" ]] || mkdir -p "$VAULT_PATH/$sub" || fail "Could not create $VAULT_PATH/$sub"
+  done
 fi
 
-# ---------------------------------------------------------------------------
-# Prompt: Display name (used in SKILL.md description and intro)
-# ---------------------------------------------------------------------------
+# ===========================================================================
+# Step 2: Display name
+# ===========================================================================
 DEFAULT_DISPLAY_NAME="$(whoami)"
 DISPLAY_NAME=$(prompt_with_default "Your display name (used in skill description)" "$DEFAULT_DISPLAY_NAME")
 
-# ---------------------------------------------------------------------------
-# Prompt: Git identity
-# ---------------------------------------------------------------------------
+# ===========================================================================
+# Step 3: Git identity
+# ===========================================================================
 DEFAULT_GIT_NAME="$(whoami)"
 GIT_USER_NAME=$(prompt_with_default "Git user.name for vault commits" "$DEFAULT_GIT_NAME")
 
@@ -102,7 +117,7 @@ GIT_USER_EMAIL=""
 while true; do
   GIT_USER_EMAIL=$(prompt_with_default "Git user.email for vault commits" "")
   if [[ -z "$GIT_USER_EMAIL" ]]; then
-    echo "  Email is required. Enter your git email address."
+    echo "  Email is required."
   elif validate_email "$GIT_USER_EMAIL"; then
     break
   else
@@ -110,59 +125,108 @@ while true; do
   fi
 done
 
-# ---------------------------------------------------------------------------
-# Detect Netflix identity and surface fork-specific guidance
-# ---------------------------------------------------------------------------
+# ===========================================================================
+# Step 4: Netflix identity detection + MCP profile setup
+# ===========================================================================
 IS_NETFLIX="no"
+GHE_LOGIN=""
+DEFAULT_BACKUP_REPO="NONE"
+
 if [[ "$GIT_USER_EMAIL" == *"@netflix.com" ]]; then
   IS_NETFLIX="yes"
   echo ""
   echo "=== Netflix identity detected ==="
-  echo "This fork includes Netflix-specific commands and MCP integrations."
-  echo "See docs/SETUP-NETFLIX.md for the full onboarding walkthrough."
-  echo ""
 
-  # Suggest joining the genai-core-tools profile (paved-path MCP bundle)
-  if command -v newt >/dev/null 2>&1; then
-    read -r -p "Run 'newt --app-type=dev-profiles join --profile=genai-core-tools' now? [y/N]: " join_core_tools
-    if [[ "${join_core_tools,,}" == "y" ]]; then
-      echo "Running newt join..."
-      newt --app-type=dev-profiles join --profile=genai-core-tools || {
-        echo "  newt join failed (non-fatal). You can run it manually later."
-      }
-    else
-      echo "  Skipping. You can run it later from docs/SETUP-NETFLIX.md step 1."
-    fi
-  else
-    echo "  'newt' not on PATH - install it (see https://manuals.netflix.net/view/newt),"
-    echo "  then run 'newt --app-type=dev-profiles join --profile=genai-core-tools'"
-    echo "  to opt into the Core Tools MCP bundle. See docs/SETUP-NETFLIX.md step 1."
+  # 4a. Verify newt is on PATH
+  if ! command -v newt >/dev/null 2>&1; then
+    fail "'newt' is not on PATH. Install from https://manuals.netflix.net/view/newt, then re-run setup.sh."
   fi
-  echo ""
+  echo "  OK newt installed at $(command -v newt)"
+
+  # 4b. Check / install genai-core-tools profile
+  if newt --app-type=dev-profiles resolve 2>/dev/null | grep -q "genai-core-tools"; then
+    echo "  OK genai-core-tools profile already joined"
+  else
+    echo "  - genai-core-tools profile not joined. Joining now..."
+    if ! newt --app-type=dev-profiles join --profile=genai-core-tools; then
+      fail "'newt join --profile=genai-core-tools' failed. Resolve the error above and re-run setup.sh."
+    fi
+    # 4c. Verify join landed
+    if ! newt --app-type=dev-profiles resolve 2>/dev/null | grep -q "genai-core-tools"; then
+      fail "'newt join' returned 0 but 'newt resolve' does not show genai-core-tools. Inspect manually and re-run."
+    fi
+    echo "  OK genai-core-tools profile joined"
+  fi
+
+  # 4d. Verify gh is on PATH and authed against github.netflix.net
+  if ! command -v gh >/dev/null 2>&1; then
+    fail "'gh' is not on PATH. Install Netflix gh CLI from https://github.netflix.net/dleen/cli/releases"
+  fi
+  if ! GH_HOST=github.netflix.net gh auth status >/dev/null 2>&1; then
+    fail "'gh' is not authenticated for github.netflix.net. Run: gh auth login -p https -h github.netflix.net"
+  fi
+  echo "  OK gh authenticated for github.netflix.net"
+
+  # 4e. Resolve GHE login (authoritative - don't guess from $(whoami))
+  GHE_LOGIN=$(GH_HOST=github.netflix.net gh api user --jq .login 2>/dev/null) \
+    || fail "Could not resolve GHE login via 'gh api user'."
+  if [[ -z "$GHE_LOGIN" ]]; then
+    fail "GHE login resolved to empty string."
+  fi
+  echo "  OK GHE login: $GHE_LOGIN"
+
+  # 4f. Compute default backup repo URL (HTTPS - port 22 SSH is blocked on many Netflix networks)
+  VAULT_BASENAME=$(basename "$VAULT_PATH" | tr ' ' '-' | tr '[:upper:]' '[:lower:]')
+  DEFAULT_BACKUP_REPO="https://github.netflix.net/${GHE_LOGIN}/${VAULT_BASENAME}.git"
 fi
 
-# ---------------------------------------------------------------------------
-# Prompt: Backup repo URL (Netflix-aware default)
-# ---------------------------------------------------------------------------
+# ===========================================================================
+# Step 5: Backup repo URL (with Netflix-aware default)
+# ===========================================================================
+echo ""
 if [[ "$IS_NETFLIX" == "yes" ]]; then
-  # Derive default from the local user; user can override or enter NONE
-  DEFAULT_BACKUP_REPO="git@github.netflix.net:$(whoami)/obsidian-vault.git"
-  echo "Netflix users: default backup repo points at GHE. Enter NONE to skip,"
-  echo "or override with any other URL."
-else
-  DEFAULT_BACKUP_REPO="NONE"
+  echo "Default backup repo points to GHE under your account ($GHE_LOGIN)."
+  echo "If the repo does not yet exist, setup will offer to create it."
 fi
 BACKUP_REPO_URL=$(prompt_with_default "Backup repo URL (enter NONE to skip)" "$DEFAULT_BACKUP_REPO")
 
-# ---------------------------------------------------------------------------
-# Prompt: Skill install path
-# ---------------------------------------------------------------------------
-DEFAULT_INSTALL_PATH="$HOME/.claude/plugins/marketplaces/personal/plugins/obsidian-worklog"
-SKILL_INSTALL_PATH=$(prompt_with_default "Skill install path (where this plugin lives after installation)" "$DEFAULT_INSTALL_PATH")
+# ===========================================================================
+# Step 6: Backup repo verification / creation (only if a real URL was given)
+# ===========================================================================
+if [[ "$BACKUP_REPO_URL" != "NONE" && "$IS_NETFLIX" == "yes" ]]; then
+  # Only auto-verify github.netflix.net URLs - leave other hosts alone
+  if [[ "$BACKUP_REPO_URL" == https://github.netflix.net/* || "$BACKUP_REPO_URL" == https://git.netflix.net/* ]]; then
+    # Extract <owner>/<repo> from URL
+    REPO_PATH=$(echo "$BACKUP_REPO_URL" | sed -E 's|https://[^/]+/||; s|\.git$||')
+    if GH_HOST=github.netflix.net gh repo view "$REPO_PATH" >/dev/null 2>&1; then
+      echo "  OK backup repo exists: $REPO_PATH"
+    else
+      echo "  Backup repo $REPO_PATH does not exist."
+      read -r -p "  Create it now (private)? [Y/n]: " create_repo
+      case "${create_repo,,}" in
+        n|no)
+          fail "Backup repo must exist before setup completes. Either create it manually or re-run with Y."
+          ;;
+        *)
+          if ! GH_HOST=github.netflix.net gh repo create "$REPO_PATH" --private --description "Obsidian worklog vault backup" >/dev/null; then
+            fail "'gh repo create $REPO_PATH' failed. Check the error above and re-run setup."
+          fi
+          echo "  OK backup repo created: https://github.netflix.net/$REPO_PATH"
+          ;;
+      esac
+    fi
+  fi
+fi
 
-# ---------------------------------------------------------------------------
-# Preview and confirm
-# ---------------------------------------------------------------------------
+# ===========================================================================
+# Step 7: Skill install path
+# ===========================================================================
+DEFAULT_INSTALL_PATH="$HOME/.claude/plugins/marketplaces/personal/plugins/obsidian-worklog"
+SKILL_INSTALL_PATH=$(prompt_with_default "Skill install path (plugin location after install)" "$DEFAULT_INSTALL_PATH")
+
+# ===========================================================================
+# Step 8: Preview and confirm
+# ===========================================================================
 echo ""
 echo "=== Configuration preview ==="
 echo "  Vault path:         $VAULT_PATH"
@@ -171,79 +235,167 @@ echo "  Git user.name:      $GIT_USER_NAME"
 echo "  Git user.email:     $GIT_USER_EMAIL"
 echo "  Backup repo URL:    $BACKUP_REPO_URL"
 echo "  Skill install path: $SKILL_INSTALL_PATH"
-echo ""
-read -r -p "Apply these settings? [y/N]: " confirm
-if [[ "${confirm,,}" != "y" ]]; then
-  echo "Aborted. No changes made."
-  exit 0
+if [[ "$IS_NETFLIX" == "yes" ]]; then
+  echo "  GHE login:          $GHE_LOGIN"
+  echo "  MCP profile:        genai-core-tools (joined and verified)"
 fi
-
-# ---------------------------------------------------------------------------
-# Apply sed replacements
-# Use | as delimiter to handle paths with slashes and spaces safely.
-# ---------------------------------------------------------------------------
 echo ""
-echo "Applying replacements to $SKILL_FILE ..."
+read -r -p "Apply these settings? [Y/n]: " confirm
+case "${confirm,,}" in
+  n|no)
+    fail "Aborted by user."
+    ;;
+esac
 
-# Escape all user inputs for safe sed substitution
-VAULT_PATH_ESC="$(escape_for_sed "$VAULT_PATH")"
-DISPLAY_NAME_ESC="$(escape_for_sed "$DISPLAY_NAME")"
-GIT_USER_NAME_ESC="$(escape_for_sed "$GIT_USER_NAME")"
-GIT_USER_EMAIL_ESC="$(escape_for_sed "$GIT_USER_EMAIL")"
-SKILL_INSTALL_PATH_ESC="$(escape_for_sed "$SKILL_INSTALL_PATH")"
-BACKUP_REPO_URL_ESC="$(escape_for_sed "$BACKUP_REPO_URL")"
+# ===========================================================================
+# Step 9: Apply sed replacements
+# ===========================================================================
+echo ""
+echo "Applying SKILL.md replacements..."
 
-# 1. Vault path (all occurrences)
+VAULT_PATH_ESC=$(escape_for_sed "$VAULT_PATH")
+DISPLAY_NAME_ESC=$(escape_for_sed "$DISPLAY_NAME")
+GIT_USER_NAME_ESC=$(escape_for_sed "$GIT_USER_NAME")
+GIT_USER_EMAIL_ESC=$(escape_for_sed "$GIT_USER_EMAIL")
+SKILL_INSTALL_PATH_ESC=$(escape_for_sed "$SKILL_INSTALL_PATH")
+BACKUP_REPO_URL_ESC=$(escape_for_sed "$BACKUP_REPO_URL")
+
+# Known placeholder names. Anything here MUST be replaced before "Setup complete".
+# This is an explicit list (not a regex) so markdown bold like __NOT__ doesn't
+# false-positive.
+PLACEHOLDERS=(
+  __VAULT_PATH__
+  __USER_NAME__
+  __GIT_USER_NAME__
+  __GIT_USER_EMAIL__
+  __SKILL_INSTALL_PATH__
+  __BACKUP_REPO_URL__
+)
+
 sed_inplace "s|__VAULT_PATH__|${VAULT_PATH_ESC}|g" "$SKILL_FILE"
-
-# 2. Display name
 sed_inplace "s|__USER_NAME__|${DISPLAY_NAME_ESC}|g" "$SKILL_FILE"
-
-# 3. Git identity
 sed_inplace "s|__GIT_USER_NAME__|${GIT_USER_NAME_ESC}|g" "$SKILL_FILE"
 sed_inplace "s|__GIT_USER_EMAIL__|${GIT_USER_EMAIL_ESC}|g" "$SKILL_FILE"
-
-# 4. Skill install path
 sed_inplace "s|__SKILL_INSTALL_PATH__|${SKILL_INSTALL_PATH_ESC}|g" "$SKILL_FILE"
-
-# 5. Backup repo URL (or disable git push if NONE)
 if [[ "$BACKUP_REPO_URL" == "NONE" ]]; then
   sed_inplace "s|__BACKUP_REPO_URL__|NONE|g" "$SKILL_FILE"
-  # Comment out git push in the /worklog sync block
   sed_inplace "s|^git push$|# git push  # configure a backup repo to enable|g" "$SKILL_FILE"
-  echo "  Note: git push disabled in /worklog sync (no backup repo configured)."
 else
   sed_inplace "s|__BACKUP_REPO_URL__|${BACKUP_REPO_URL_ESC}|g" "$SKILL_FILE"
 fi
 
-echo "  Done."
+# Verify each known placeholder is gone (literal match, not regex).
+REMAINING=""
+for ph in "${PLACEHOLDERS[@]}"; do
+  if grep -qF "$ph" "$SKILL_FILE"; then
+    REMAINING+="$ph "
+  fi
+done
+if [[ -n "$REMAINING" ]]; then
+  fail "Some placeholders were not replaced in SKILL.md: $REMAINING"
+fi
+echo "  OK all placeholders replaced"
 
-# ---------------------------------------------------------------------------
-# Copy Weekly.md template to vault if vault exists
-# ---------------------------------------------------------------------------
+# ===========================================================================
+# Step 10: Copy Weekly.md template into vault
+# ===========================================================================
 WEEKLY_TEMPLATE="$TEMPLATES_DIR/Weekly.md"
-if [[ -d "$VAULT_PATH" && -f "$WEEKLY_TEMPLATE" ]]; then
-  VAULT_TEMPLATES_DIR="$VAULT_PATH/Templates"
-  mkdir -p "$VAULT_TEMPLATES_DIR"
-  cp "$WEEKLY_TEMPLATE" "$VAULT_TEMPLATES_DIR/Weekly.md"
-  echo "Copied Weekly.md template to: $VAULT_TEMPLATES_DIR/Weekly.md"
+if [[ -f "$WEEKLY_TEMPLATE" ]]; then
+  cp "$WEEKLY_TEMPLATE" "$VAULT_PATH/Templates/Weekly.md" \
+    || fail "Could not copy Weekly.md template to $VAULT_PATH/Templates/"
+  echo "  OK Weekly.md template installed"
 fi
 
-# ---------------------------------------------------------------------------
+# ===========================================================================
+# Step 11: Install plugin (copy repo to install path)
+# ===========================================================================
+echo ""
+if [[ -d "$SKILL_INSTALL_PATH" ]]; then
+  read -r -p "Install path already exists at $SKILL_INSTALL_PATH. Overwrite? [Y/n]: " overwrite
+  case "${overwrite,,}" in
+    n|no)
+      fail "Install path conflict. Move or remove $SKILL_INSTALL_PATH and re-run."
+      ;;
+    *)
+      rm -rf "$SKILL_INSTALL_PATH" || fail "Could not remove existing $SKILL_INSTALL_PATH"
+      ;;
+  esac
+fi
+
+mkdir -p "$(dirname "$SKILL_INSTALL_PATH")" || fail "Could not create plugin parent directory"
+cp -R "$REPO_ROOT" "$SKILL_INSTALL_PATH" || fail "Plugin copy to $SKILL_INSTALL_PATH failed"
+# Remove the copied .git to avoid the plugin install path becoming a nested repo
+rm -rf "$SKILL_INSTALL_PATH/.git" 2>/dev/null || true
+echo "  OK plugin installed at $SKILL_INSTALL_PATH"
+
+# ===========================================================================
+# Step 12: Final verification block
+# ===========================================================================
+echo ""
+echo "=== Final verification ==="
+
+VERIFY_FAILED=0
+verify() {
+  local label="$1"
+  local check_cmd="$2"
+  if eval "$check_cmd" >/dev/null 2>&1; then
+    echo "  OK $label"
+  else
+    echo "  FAIL $label"
+    VERIFY_FAILED=1
+  fi
+}
+
+# All vault subdirectories present
+for sub in "${VAULT_SUBDIRS[@]}"; do
+  verify "vault has $sub/" "[[ -d \"$VAULT_PATH/$sub\" ]]"
+done
+
+# SKILL.md is fully configured (literal-match each known placeholder)
+for ph in "${PLACEHOLDERS[@]}"; do
+  verify "SKILL.md no longer contains $ph" "! grep -qF \"$ph\" \"$SKILL_FILE\""
+done
+
+# Plugin manifest present at install path
+verify "plugin manifest at install path" "[[ -f \"$SKILL_INSTALL_PATH/.claude-plugin/plugin.json\" ]]"
+verify "plugin SKILL.md at install path" "[[ -f \"$SKILL_INSTALL_PATH/skills/worklog/SKILL.md\" ]]"
+
+# Netflix-only verifications
+if [[ "$IS_NETFLIX" == "yes" ]]; then
+  verify "genai-core-tools profile joined" "newt --app-type=dev-profiles resolve 2>/dev/null | grep -q genai-core-tools"
+  if [[ "$BACKUP_REPO_URL" != "NONE" && ( "$BACKUP_REPO_URL" == https://github.netflix.net/* || "$BACKUP_REPO_URL" == https://git.netflix.net/* ) ]]; then
+    REPO_PATH=$(echo "$BACKUP_REPO_URL" | sed -E 's|https://[^/]+/||; s|\.git$||')
+    verify "GHE backup repo accessible: $REPO_PATH" "GH_HOST=github.netflix.net gh repo view \"$REPO_PATH\""
+  fi
+fi
+
+if [[ $VERIFY_FAILED -ne 0 ]]; then
+  fail "One or more verifications failed (see above). Setup not complete."
+fi
+
+# ===========================================================================
 # Success
-# ---------------------------------------------------------------------------
+# ===========================================================================
 echo ""
 echo "=== Setup complete! ==="
 echo ""
-echo "Next steps:"
-echo "  1. Install the plugin: copy this directory to $SKILL_INSTALL_PATH"
-echo "     or use your Claude Code plugin manager to point at this repo."
-echo "  2. Open your Obsidian vault in the app and enable Templater plugin"
-echo "     if you want to use the Weekly.md template for new week files."
-echo "  3. In Claude Code, try: /worklog status"
-echo "  4. Run /worklog sync after your first review to back up to your repo."
+echo "Verified state:"
+echo "  - Vault structure at $VAULT_PATH (10 subdirectories)"
+echo "  - Skill configured (all placeholders replaced)"
+echo "  - Plugin installed at $SKILL_INSTALL_PATH"
 if [[ "$IS_NETFLIX" == "yes" ]]; then
-  echo "  5. Netflix users: see docs/SETUP-NETFLIX.md for MCP setup and the"
-  echo "     /worklog ingest, /worklog whois, /worklog jira commands."
+  echo "  - Netflix MCP profile (genai-core-tools) joined"
+  if [[ "$BACKUP_REPO_URL" != "NONE" ]]; then
+    echo "  - Backup repo: $BACKUP_REPO_URL"
+  fi
+fi
+echo ""
+echo "Next steps:"
+echo "  1. Restart Claude Code to load the plugin and Netflix MCPs"
+echo "  2. Try: /worklog status"
+echo "  3. Create your first week: /worklog rollover"
+if [[ "$IS_NETFLIX" == "yes" ]]; then
+  echo "  4. Netflix commands available: /worklog ingest, /worklog whois, /worklog jira"
+  echo "     See docs/NETFLIX-COMMANDS.md for the reference."
 fi
 echo ""
