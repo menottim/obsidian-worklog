@@ -1,5 +1,7 @@
 # obsidian-worklog
 
+> __Netflix-internal fork.__ This is the Netflix variant of [`menottim/obsidian-worklog`](https://github.com/menottim/obsidian-worklog). It adds Netflix-specific MCP integrations and three new commands (`/worklog ingest`, `/worklog whois`, `/worklog jira`) on top of the public skill. If you're at Netflix, start with [`docs/SETUP-NETFLIX.md`](docs/SETUP-NETFLIX.md) after the standard setup below.
+
 A [Claude Code](https://claude.ai/claude-code) skill that turns your Obsidian vault into a structured worklog with weekly planning, a people and program knowledge graph, priority tracking, D3 visualizations, and AI-powered summaries.
 
 Built for anyone who tracks work across multiple projects and people. You paste in meeting notes, Slack threads, and raw context. Claude structures it, links it, and keeps it organized. Over time, your vault becomes a searchable history of what you did, who you worked with, and how your priorities evolved.
@@ -230,6 +232,16 @@ These fields enable [Dataview queries](docs/dataview-queries.md) for live dashbo
 | `/worklog summary [period]` | Impact summary for reporting up (week/month/quarter) |
 | `/worklog viz [period]` | D3.js charts as standalone HTML |
 | `/worklog sync` | Git backup: commit and push |
+
+### Netflix-specific commands (this fork only)
+
+These require Netflix-internal MCPs - see [`docs/SETUP-NETFLIX.md`](docs/SETUP-NETFLIX.md) for installation and [`docs/NETFLIX-COMMANDS.md`](docs/NETFLIX-COMMANDS.md) for full reference.
+
+| Command | What it does |
+|---------|--------------|
+| `/worklog ingest <url>` | Fetch a Coda / Confluence / Google Doc / Slack-thread URL via Netflix Search Data (or Core Tools `Fetch Slack Thread`), process its body as raw worklog input |
+| `/worklog whois <name>` | Resolve a person via Pandora (Netflix's identity directory), create/enrich their `People/` note with title, manager, team |
+| `/worklog jira <key>` | Pull a Jira ticket's current state via the Atlassian MCP, add it as a worklog item under the right subgroup |
 
 ### Key commands in detail
 

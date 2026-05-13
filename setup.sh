@@ -111,9 +111,48 @@ while true; do
 done
 
 # ---------------------------------------------------------------------------
-# Prompt: Backup repo URL
+# Detect Netflix identity and surface fork-specific guidance
 # ---------------------------------------------------------------------------
-BACKUP_REPO_URL=$(prompt_with_default "Backup repo URL (enter NONE to skip)" "NONE")
+IS_NETFLIX="no"
+if [[ "$GIT_USER_EMAIL" == *"@netflix.com" ]]; then
+  IS_NETFLIX="yes"
+  echo ""
+  echo "=== Netflix identity detected ==="
+  echo "This fork includes Netflix-specific commands and MCP integrations."
+  echo "See docs/SETUP-NETFLIX.md for the full onboarding walkthrough."
+  echo ""
+
+  # Suggest joining the genai-core-tools profile (paved-path MCP bundle)
+  if command -v newt >/dev/null 2>&1; then
+    read -r -p "Run 'newt --app-type=dev-profiles join --profile=genai-core-tools' now? [y/N]: " join_core_tools
+    if [[ "${join_core_tools,,}" == "y" ]]; then
+      echo "Running newt join..."
+      newt --app-type=dev-profiles join --profile=genai-core-tools || {
+        echo "  newt join failed (non-fatal). You can run it manually later."
+      }
+    else
+      echo "  Skipping. You can run it later from docs/SETUP-NETFLIX.md step 1."
+    fi
+  else
+    echo "  'newt' not on PATH - install it (see https://manuals.netflix.net/view/newt),"
+    echo "  then run 'newt --app-type=dev-profiles join --profile=genai-core-tools'"
+    echo "  to opt into the Core Tools MCP bundle. See docs/SETUP-NETFLIX.md step 1."
+  fi
+  echo ""
+fi
+
+# ---------------------------------------------------------------------------
+# Prompt: Backup repo URL (Netflix-aware default)
+# ---------------------------------------------------------------------------
+if [[ "$IS_NETFLIX" == "yes" ]]; then
+  # Derive default from the local user; user can override or enter NONE
+  DEFAULT_BACKUP_REPO="git@github.netflix.net:$(whoami)/obsidian-vault.git"
+  echo "Netflix users: default backup repo points at GHE. Enter NONE to skip,"
+  echo "or override with any other URL."
+else
+  DEFAULT_BACKUP_REPO="NONE"
+fi
+BACKUP_REPO_URL=$(prompt_with_default "Backup repo URL (enter NONE to skip)" "$DEFAULT_BACKUP_REPO")
 
 # ---------------------------------------------------------------------------
 # Prompt: Skill install path
@@ -203,4 +242,8 @@ echo "  2. Open your Obsidian vault in the app and enable Templater plugin"
 echo "     if you want to use the Weekly.md template for new week files."
 echo "  3. In Claude Code, try: /worklog status"
 echo "  4. Run /worklog sync after your first review to back up to your repo."
+if [[ "$IS_NETFLIX" == "yes" ]]; then
+  echo "  5. Netflix users: see docs/SETUP-NETFLIX.md for MCP setup and the"
+  echo "     /worklog ingest, /worklog whois, /worklog jira commands."
+fi
 echo ""

@@ -1336,3 +1336,109 @@ forward counts (with brief titles in parentheses). Only completed items as bulle
   `/worklog status`, `/worklog review`, `/worklog search`, `/worklog share`,
   `/worklog sync`) do __not__ nudge. If the user says "skip pull" or "not now"
   earlier in the session, suppress further nudges for that session.
+
+## Netflix-specific commands (this fork only)
+
+These commands are available only in the Netflix-internal fork of this skill. They require Netflix-internal MCPs - see `docs/SETUP-NETFLIX.md` and `docs/NETFLIX-COMMANDS.md` in the repo for user-facing context. The detailed behavior below is what __you__ (Claude) should follow when these commands are invoked.
+
+### `/worklog ingest <url>`
+
+Fetch an internal Netflix doc by URL and process its body as raw worklog input.
+
+__URL routing:__
+| Pattern | Tool to use |
+|---------|------------|
+| `*.slack.com/archives/.../p*` | Core Tools MCP - `Fetch Slack Thread` (or equivalent `fetch_slack_thread` tool) |
+| `coda.io` / `coda.netflix.net` | Netflix Search Data MCP - fetch by URL |
+| `confluence.netflix.com` / `netflix.atlassian.net/wiki/` | Netflix Search Data MCP first; fall back to Atlassian MCP `getConfluencePage` |
+| `docs.google.com/document/` | Netflix Search Data MCP - fetch by URL |
+| Anything else | Stop and tell the user the pattern isn't supported; suggest paste-body-inline as a fallback |
+
+__After fetching:__
+1. Detect doc shape:
+   - __Meeting-shaped__ (has a date in title, attendees section, or action items section): create `__VAULT_PATH__/Meetings/YYYY-MM-DD-<topic-slug>.md` following the same conventions as ingested Slack threads (frontmatter with `source_url`, `source_type`, `meeting_date`; body with `## Discussion` and `## Notes`)
+   - __Doc-shaped__ (status update, design doc, RFC): no Meetings/ note, just extract items
+2. Run the standard raw-input extraction (see "Processing raw input" earlier in this file): extract action items, decisions, follow-ups
+3. Wiki-link all people and programs mentioned (create stubs for new ones). For people who appear to be Netflix employees (mentioned with `@firstname.lastname` style or `firstname.lastname@netflix.com`), prefer resolving via `netflix_search_api` to get the canonical `Full Name` for the wiki-link target
+4. Add extracted items to the current week file under the right subgroup
+5. Report a summary: what was fetched, what items were added, what people/programs were linked, what Meetings/ note (if any) was created
+
+__Error handling:__
+- MCP not available -> "This needs the Netflix Search Data MCP. See `docs/SETUP-NETFLIX.md` step 1 to join `genai-core-tools` profile." Then offer manual-paste fallback.
+- Fetch returns access denied -> show the error verbatim, include the URL, and suggest the user request access from the doc owner
+- Empty / unparseable doc -> report what was fetched (title + length) and ask whether to proceed anyway
+
+### `/worklog whois <name-or-email>`
+
+Resolve a person via Pandora and create or enrich their `People/<Full Name>.md` note with org metadata.
+
+__Resolution:__
+1. Call `netflix_search_api` (or equivalent Pandora-search tool) with the input
+2. If 0 results: report "No Pandora match for '<input>'. Check spelling or try `firstname.lastname@netflix.com`." Do not create a stub.
+3. If 1 result: proceed
+4. If 2+ results: surface a numbered list with `Full Name - Title - Team` per result; ask the user to pick. Don't auto-pick by first-name match.
+
+__People note shape (frontmatter):__
+```yaml
+email: firstname.lastname@netflix.com
+title: <pulled from Pandora>
+team: <pulled from Pandora>
+manager: "[[<Manager Full Name>]]"
+manager_chain: ["[[<L1>]]", "[[<L2>]]", "[[<L3>]]"]
+pandora_id: <pandora username>
+status: active  # or "former" if no longer at Netflix
+```
+
+__Behavior:__
+1. If `People/<Full Name>.md` exists: merge - update frontmatter fields, preserve all body content (do not clobber accumulated context bullets)
+2. If new: create the note with frontmatter and a single body bullet `- _[YYYY-MM-DD]_ Created from Pandora via /worklog whois`
+3. If the existing note has different frontmatter values from Pandora (e.g., user has a custom `team:`), prefer Pandora's value and add a body bullet noting the change: `- _[YYYY-MM-DD]_ Title updated from '<old>' to '<new>' (Pandora refresh)`
+4. Wiki-link the manager. If `People/<Manager Full Name>.md` doesn't exist, create a stub with just `email:` and `pandora_id:` frontmatter and a body bullet `- _[YYYY-MM-DD]_ Stub created as manager of [[<Person>]]`
+5. Do NOT recurse on the manager chain - only link, don't auto-create the whole chain. The user can `/worklog whois` each manager individually if they want.
+6. Report: "Pulled <Full Name> (<Title>, <Team>). Manager: <Manager> (stub created / link to existing). People note: <path>."
+
+### `/worklog jira <ticket-key>` (also accepts a full Jira URL)
+
+Pull a Jira issue's current state and add it as a worklog item.
+
+__Resolution:__
+1. Extract ticket key from input (regex: `[A-Z]+-\d+`). If input is a URL, extract from the `/browse/` path.
+2. Call Atlassian MCP `getJiraIssue` with the key
+3. Pull: `summary` (title), `status`, `priority`, `assignee`, `labels`, `customfield_*` for epic link (project-specific), `issuetype`
+
+__Priority mapping:__
+- Worklog priority is set by command flag if present (`-p0` / `-p1` / `-p2`). Otherwise:
+  - Jira `Highest` or (`status == In Progress` AND has a due date within 7 days) -> __P0__
+  - Jira `High`, or `status == In Progress` (no near-term due date) -> __P1__
+  - Everything else -> __P2__
+
+__Subgroup choice:__
+1. If the ticket has an epic link AND the epic title appears as a subgroup heading in the current week file -> add under that subgroup
+2. Else if a subgroup heading contains the Jira project key or project name -> add there
+3. Else add to the most recently-used subgroup or create one named after the Jira project (e.g., subgroup `WISSE`)
+
+__Item format:__
+```markdown
+- __P1__ ⏳ In Progress - [WISSE-123](https://netflix.atlassian.net/browse/WISSE-123): <ticket summary>
+  - _[YYYY-MM-DD]_ Pulled from Jira: assignee `<pandora-id>`, status `<status>`, priority `<jira-priority>`
+```
+
+__Linking:__
+- If assignee resolves to an existing `People/<Name>.md`, wiki-link them in the annotation bullet
+- If the epic title matches an existing `Programs/<Name>.md`, wiki-link it; otherwise create a stub `Programs/<Epic Title>.md` with frontmatter `jira_epic: <KEY>`
+- Always link the ticket key as `[KEY](https://netflix.atlassian.net/browse/KEY)` - don't rely on auto-link detection
+
+__Status quirks:__
+- If ticket is __Closed/Done/Resolved__: ask the user "This ticket is closed. Add as ✅ Done (logging completed work) or skip?"
+- If ticket has __no assignee__: add as P2 with annotation `_[YYYY-MM-DD]_ Unassigned`
+- If user lacks access: surface error verbatim with the URL
+
+### Netflix-specific raw-input enrichment
+
+When processing __any__ raw input (not just the new commands), if Netflix MCPs are available:
+
+- For names that look like Netflix employees (`@firstname.lastname`, `firstname.lastname@netflix.com`, or unique full names mentioned with org context): resolve via `netflix_search_api` to get the canonical Full Name before creating the wiki-link
+- For Jira ticket keys mentioned inline (regex match `[A-Z]+-\d+`): hyperlink them as `[KEY](https://netflix.atlassian.net/browse/KEY)`; do not auto-pull ticket details (the user has `/worklog jira` for that)
+- For Confluence / Coda / Google Doc URLs in raw input: do NOT auto-fetch; the user has `/worklog ingest` for that
+
+This enrichment is silent - apply it during normal processing without asking. It's the difference between a generic worklog and a Netflix-native one.
