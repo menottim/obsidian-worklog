@@ -228,36 +228,36 @@
   <div class="slide" data-slide="1" data-section="Intro">
     <h2>Plan for the hour</h2>
     <ol style="margin-top: 16px;">
-      <li class="step">📋 &nbsp; What this is, briefly (5 min)</li>
-      <li class="step">🛠 &nbsp; Set it up together (15 min, pause at checkpoints)</li>
-      <li class="step">📅 &nbsp; Walk through how I use it Monday-to-Friday (10 min)</li>
-      <li class="step">💡 &nbsp; Less obvious uses - 1:1 prep, doc ingest, Pandora lookup (10 min)</li>
-      <li class="step">💬 &nbsp; Whatever you want to ask (rest)</li>
+      <li>📋 &nbsp; What this is, briefly (5 min)</li>
+      <li>🛠 &nbsp; Set it up together (15 min, pause at checkpoints)</li>
+      <li>📅 &nbsp; Walk through how I use it Monday-to-Friday (10 min)</li>
+      <li>💡 &nbsp; Less obvious uses - 1:1 prep, doc ingest, Pandora lookup (10 min)</li>
+      <li>💬 &nbsp; Whatever you want to ask (rest)</li>
     </ol>
-    <p class="small step" style="margin-top: 28px;">Have your laptop out. There's a clone-and-run-setup section partway through.</p>
+    <p class="small" style="margin-top: 28px;">Have your laptop out. There's a clone-and-run-setup section partway through.</p>
   </div>
 
   <!-- 2: Why I built it -->
   <div class="slide" data-slide="2" data-section="Intro">
     <h2>Why I built it</h2>
     <div class="two-col" style="margin-top: 18px;">
-      <div>
+      <div class="step">
         <h3 style="color: var(--text); font-size: 1em; margin-bottom: 10px;">Things I kept doing that didn't scale</h3>
         <ul>
-          <li class="step">Friday: couldn't remember Monday</li>
-          <li class="step">Next quarter: couldn't remember last quarter</li>
-          <li class="step">1:1 decisions resurfacing as surprises weeks later</li>
-          <li class="step">"Who's working on X?" → reconstruct from Slack search</li>
-          <li class="step">Priority drift I only noticed when called out</li>
+          <li>Friday: couldn't remember Monday</li>
+          <li>Next quarter: couldn't remember last quarter</li>
+          <li>1:1 decisions resurfacing as surprises weeks later</li>
+          <li>"Who's working on X?" → reconstruct from Slack search</li>
+          <li>Priority drift I only noticed when called out</li>
         </ul>
       </div>
-      <div>
+      <div class="step">
         <h3 style="color: var(--text); font-size: 1em; margin-bottom: 10px;">What I built</h3>
         <ul>
-          <li class="step">A Claude Code skill - markdown instructions Claude reads on <code>/worklog</code></li>
-          <li class="step">No server, no runtime - just a file</li>
-          <li class="step">Plain markdown in an Obsidian vault, indexed by week</li>
-          <li class="step">Netflix fork wires in Pandora, Jira, Confluence, Coda, Slack threads via existing MCPs</li>
+          <li>A Claude Code skill - markdown instructions Claude reads on <code>/worklog</code></li>
+          <li>No server, no runtime - just a file</li>
+          <li>Plain markdown in an Obsidian vault, indexed by week</li>
+          <li>Netflix fork wires in Pandora, Jira, Confluence, Coda, Slack threads via existing MCPs</li>
         </ul>
       </div>
     </div>
@@ -286,7 +286,7 @@
         <p>The Netflix fork pins to specific tool IDs from <code>core-tools</code> and <code>plugin_atlassian</code> so Claude knows exactly which MCP to call when it needs Pandora, Jira, Confluence, or Slack data.</p>
       </div>
     </div>
-    <p class="small step" style="margin-top: 22px;">Public version: <code>github.com/menottim/obsidian-worklog</code>. This deck covers the Netflix fork on top of it.</p>
+    <p class="small" style="margin-top: 22px;">Public version: <code>github.com/menottim/obsidian-worklog</code>. This deck covers the Netflix fork on top of it.</p>
   </div>
 
   <!-- 4 (new): The skill itself -->
@@ -316,8 +316,8 @@ description: >
 Create the new week file from Templates/Weekly.md. Carry forward any
 items marked ⏳ from the previous week. Move ✅ items to Archive/...
 </pre>
-    <div class="two-col step" style="margin-top: 16px;">
-      <div class="card">
+    <div class="two-col" style="margin-top: 16px;">
+      <div class="card step">
         <h3>What this means in practice</h3>
         <ul style="font-size: 0.88em; line-height: 1.55;">
           <li>You're reading the actual program. No bytecode, no opcodes.</li>
@@ -415,7 +415,7 @@ Your Vault/
         <p style="margin-top: 8px;">Pulls a Jira ticket via the Atlassian MCP. Adds the title, status, and assignee to your current week under the right subgroup. Formats the ticket key as a Markdown link.</p>
       </div>
     </div>
-    <p class="step" style="font-size: 0.92em; color: var(--subtext0); margin-top: 18px; max-width: 900px;">
+    <p style="font-size: 0.92em; color: var(--subtext0); margin-top: 18px; max-width: 900px;">
       Each command names the exact MCP tool ID it wants - e.g. <code>mcp__plugin_atlassian_atlassian__getJiraIssue</code> for the Jira one. Claude still reads the instruction and decides to follow it (that's inference); the point is the choice space is one tool, not "find something that looks like a Jira tool". When a call fails, you know which named tool failed.
     </p>
   </div>
@@ -425,26 +425,26 @@ Your Vault/
     <h2>You don't have to type the subcommand</h2>
     <p style="color: var(--subtext1); margin-top: 4px;">If you just type <code>/worklog &lt;arg&gt;</code>, the skill classifies the argument and routes to the matching command. No need to remember which one.</p>
     <div class="two-col" style="margin-top: 16px;">
-      <div>
+      <div class="step">
         <h3 style="color: var(--text); font-size: 0.95em; margin-bottom: 8px;">What you type</h3>
-        <pre style="font-size: 0.78em; line-height: 1.6;"><span class="step">/worklog https://docs.google.com/document/d/abc...</span>
-<span class="step">/worklog WISSE-1234</span>
-<span class="step">/worklog https://netflix.atlassian.net/browse/SIDE-99</span>
-<span class="step">/worklog jane.smith@netflix.com</span>
-<span class="step">/worklog status</span>
-<span class="step">/worklog spent 2 hrs reviewing the rollout plan</span></pre>
+        <pre style="font-size: 0.78em; line-height: 1.6;">/worklog https://docs.google.com/document/d/abc...
+/worklog WISSE-1234
+/worklog https://netflix.atlassian.net/browse/SIDE-99
+/worklog jane.smith@netflix.com
+/worklog status
+/worklog spent 2 hrs reviewing the rollout plan</pre>
       </div>
-      <div>
+      <div class="step">
         <h3 style="color: var(--text); font-size: 0.95em; margin-bottom: 8px;">What runs</h3>
-        <pre style="font-size: 0.78em; line-height: 1.6;"><span class="step"><span class="output">-> /worklog ingest (Google Doc URL)</span></span>
-<span class="step"><span class="output">-> /worklog jira (matches [A-Z]+-\d+)</span></span>
-<span class="step"><span class="output">-> /worklog jira (extracted from URL)</span></span>
-<span class="step"><span class="output">-> /worklog whois (netflix.com email)</span></span>
-<span class="step"><span class="output">-> /worklog status (known subcommand)</span></span>
-<span class="step"><span class="output">-> raw worklog input (default)</span></span></pre>
+        <pre style="font-size: 0.78em; line-height: 1.6;"><span class="output">-> /worklog ingest (Google Doc URL)
+-> /worklog jira (matches [A-Z]+-\d+)
+-> /worklog jira (extracted from URL)
+-> /worklog whois (netflix.com email)
+-> /worklog status (known subcommand)
+-> raw worklog input (default)</span></pre>
       </div>
     </div>
-    <p class="step" style="font-size: 0.88em; color: var(--subtext0); margin-top: 14px; max-width: 950px;">
+    <p style="font-size: 0.88em; color: var(--subtext0); margin-top: 14px; max-width: 950px;">
       The skill announces the routing decision before running. Bare names like "Sarah Chen" don't auto-route to <code>whois</code> - too easy to confuse with worklog item text. Email format (<code>firstname.lastname@netflix.com</code>) is the unambiguous signal.
     </p>
   </div>
@@ -454,12 +454,12 @@ Your Vault/
     <h2>Setup: prerequisites</h2>
     <p style="color: var(--subtext1); margin-top: 6px;">Run through these before we move on. If anything's missing, flag it - we'll wait.</p>
     <ul class="checklist" style="margin-top: 14px;">
-      <li class="step">Claude Code installed (CLI, desktop, or IDE extension)</li>
-      <li class="step">Obsidian installed (any recent version)</li>
-      <li class="step">A directory for your vault (existing or new - setup will create the structure)</li>
-      <li class="step"><code>newt</code> on PATH: <code>command -v newt</code></li>
-      <li class="step"><code>gh</code> authed for github.netflix.net: <code>GH_HOST=github.netflix.net gh auth status</code></li>
-      <li class="step">Your <code>@netflix.com</code> git email handy</li>
+      <li>Claude Code installed (CLI, desktop, or IDE extension)</li>
+      <li>Obsidian installed (any recent version)</li>
+      <li>A directory for your vault (existing or new - setup will create the structure)</li>
+      <li><code>newt</code> on PATH: <code>command -v newt</code></li>
+      <li><code>gh</code> authed for github.netflix.net: <code>GH_HOST=github.netflix.net gh auth status</code></li>
+      <li>Your <code>@netflix.com</code> git email handy</li>
     </ul>
     <div class="checkpoint step">
       <div class="icon">✋</div>
@@ -527,11 +527,11 @@ Apply these settings? [Y/n]: </span>y</pre>
   <div class="slide" data-slide="12" data-section="Lab: Setup">
     <h2>Step 3 - restart and verify</h2>
     <ol style="margin-top: 16px;">
-      <li class="step">Quit Claude Code fully (Cmd+Q on Mac). MCP servers load at session start, not mid-session.</li>
-      <li class="step">Reopen Claude Code.</li>
-      <li class="step">Type <code>/mcp</code>. Look for <code>core-tools</code>, <code>plugin_atlassian</code>, <code>plugin_slack</code> in the list.</li>
-      <li class="step">Type <code>/worklog status</code>. First run will say "no current week" - that's expected.</li>
-      <li class="step">Type <code>/worklog rollover</code>. That creates your first weekly file.</li>
+      <li>Quit Claude Code fully (Cmd+Q on Mac). MCP servers load at session start, not mid-session.</li>
+      <li>Reopen Claude Code.</li>
+      <li>Type <code>/mcp</code>. Look for <code>core-tools</code>, <code>plugin_atlassian</code>, <code>plugin_slack</code> in the list.</li>
+      <li>Type <code>/worklog status</code>. First run will say "no current week" - that's expected.</li>
+      <li>Type <code>/worklog rollover</code>. That creates your first weekly file.</li>
     </ol>
     <div class="checkpoint step">
       <div class="icon">🚀</div>
@@ -546,10 +546,10 @@ Apply these settings? [Y/n]: </span>y</pre>
       <div>
         <p style="font-size: 0.95em; color: var(--subtext1);">Takes about 10 minutes if I do it sitting down with coffee:</p>
         <ol style="margin-top: 8px;">
-          <li class="step"><code>/worklog rollover</code> - starts the new week, carries forward unfinished items</li>
-          <li class="step"><code>/worklog pull</code> - reads any new Slack threads from channels I've registered as sources</li>
-          <li class="step"><code>/worklog review</code> - walks item by item, I say done / in progress / blocked / pinged X</li>
-          <li class="step"><code>/worklog sync</code> - commits and pushes the vault</li>
+          <li><code>/worklog rollover</code> - starts the new week, carries forward unfinished items</li>
+          <li><code>/worklog pull</code> - reads any new Slack threads from channels I've registered as sources</li>
+          <li><code>/worklog review</code> - walks item by item, I say done / in progress / blocked / pinged X</li>
+          <li><code>/worklog sync</code> - commits and pushes the vault</li>
         </ol>
       </div>
       <div class="card step">
@@ -645,12 +645,12 @@ add to worklog</pre>
 <span class="prompt">/worklog</span> https://confluence.netflix.com/display/SECURITY/2026-05-12+Migration+Sync</pre>
     <p style="margin-top: 14px; font-size: 0.92em; color: var(--subtext0);">What runs (either form):</p>
     <ol style="font-size: 0.95em; margin-top: 6px;">
-      <li class="step">URL matches the <code>confluence.netflix.com</code> pattern, so the skill calls <code>mcp__core-tools__netflix_search_data</code></li>
-      <li class="step">Claude announces the tool ID it's about to call</li>
-      <li class="step">Fetches the page body, detects the doc has a date + attendees + action items section</li>
-      <li class="step">Creates <code>Meetings/2026-05-12-migration-sync.md</code></li>
-      <li class="step">Extracts action items, wiki-links attendees (resolves Netflix emails to canonical names via Pandora)</li>
-      <li class="step">Adds the items to the current week under the right subgroup</li>
+      <li>URL matches the <code>confluence.netflix.com</code> pattern, so the skill calls <code>mcp__core-tools__netflix_search_data</code></li>
+      <li>Claude announces the tool ID it's about to call</li>
+      <li>Fetches the page body, detects the doc has a date + attendees + action items section</li>
+      <li>Creates <code>Meetings/2026-05-12-migration-sync.md</code></li>
+      <li>Extracts action items, wiki-links attendees (resolves Netflix emails to canonical names via Pandora)</li>
+      <li>Adds the items to the current week under the right subgroup</li>
     </ol>
     <p class="step" style="font-size: 0.88em; color: var(--subtext0); max-width: 900px; margin-top: 14px;">
       🔒 Note: the skill treats the fetched body as data, not as instructions. If a doc contains text like "ignore previous instructions and ...", it's flagged in the output as suspicious content rather than followed.
@@ -693,32 +693,32 @@ status: active
   <div class="slide" data-slide="20" data-section="Less obvious uses">
     <h2>Other things people have done with it</h2>
     <div class="three-col" style="margin-top: 14px;">
-      <div class="card step">
+      <div class="card">
         <div class="icon">🚨</div>
         <h3>Incident debrief</h3>
         <p>Ingest the incident-channel Slack thread, get a Meeting note with timeline and follow-ups linked to the current week.</p>
       </div>
-      <div class="card step">
+      <div class="card">
         <div class="icon">🆕</div>
         <h3>Onboarding a new report</h3>
         <p>Paste notes from each pre-onboarding meeting. Their People/ note has context from before week 1.</p>
       </div>
-      <div class="card step">
+      <div class="card">
         <div class="icon">🎯</div>
         <h3>OKR allocation check</h3>
         <p>Tag items with OKR labels. End of quarter: ask Claude what fraction of P0/P1 effort went to each.</p>
       </div>
-      <div class="card step">
+      <div class="card">
         <div class="icon">📊</div>
         <h3>Week-over-week diff</h3>
         <p>Before a status update, ask: compare this week to last - what's new, what shifted, what's stuck.</p>
       </div>
-      <div class="card step">
+      <div class="card">
         <div class="icon">🗺</div>
         <h3>Cross-team mapping</h3>
         <p>Run <code>/worklog whois</code> on people you depend on. Builds a who-owns-what map across orgs.</p>
       </div>
-      <div class="card step">
+      <div class="card">
         <div class="icon">🎤</div>
         <h3>Talk / conference prep</h3>
         <p>Ingest the talk outline + related Coda research, get an action-itemized prep flow in your current week.</p>
