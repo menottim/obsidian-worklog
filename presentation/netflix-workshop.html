@@ -239,15 +239,27 @@
   <!-- 2: Why I built it -->
   <div class="slide" data-slide="2" data-section="Intro">
     <h2>Why I built it</h2>
-    <p style="font-size: 1.05em; max-width: 900px; line-height: 1.6; color: var(--subtext1); margin-top: 14px;">
-      I kept losing context across weeks. By Friday I couldn't remember Monday. By the next quarter I couldn't remember last quarter. Decisions from 1:1s would resurface as surprises. People would ask "who's working on X?" and I'd have to reconstruct it from Slack searches.
-    </p>
-    <p style="font-size: 1.05em; max-width: 900px; line-height: 1.6; color: var(--subtext1); margin-top: 14px;">
-      So I wrote a Claude Code skill that maintains my vault as a structured worklog. The skill reads and writes plain markdown. There's no server, no runtime, no daemon - it's a markdown file that tells Claude what to do when I type <code>/worklog</code>.
-    </p>
-    <p style="font-size: 1.05em; max-width: 900px; line-height: 1.6; color: var(--subtext1); margin-top: 14px;">
-      The Netflix fork adds integrations with our internal tooling - Pandora, Jira, Confluence, Coda, Slack threads - via the MCP servers we already have.
-    </p>
+    <div class="two-col" style="margin-top: 18px;">
+      <div>
+        <h3 style="color: var(--text); font-size: 1em; margin-bottom: 10px;">Things I kept doing that didn't scale</h3>
+        <ul>
+          <li class="step">Friday: couldn't remember Monday</li>
+          <li class="step">Next quarter: couldn't remember last quarter</li>
+          <li class="step">1:1 decisions resurfacing as surprises weeks later</li>
+          <li class="step">"Who's working on X?" → reconstruct from Slack search</li>
+          <li class="step">Priority drift I only noticed when called out</li>
+        </ul>
+      </div>
+      <div>
+        <h3 style="color: var(--text); font-size: 1em; margin-bottom: 10px;">What I built</h3>
+        <ul>
+          <li class="step">A Claude Code skill - markdown instructions Claude reads on <code>/worklog</code></li>
+          <li class="step">No server, no runtime - just a file</li>
+          <li class="step">Plain markdown in an Obsidian vault, indexed by week</li>
+          <li class="step">Netflix fork wires in Pandora, Jira, Confluence, Coda, Slack threads via existing MCPs</li>
+        </ul>
+      </div>
+    </div>
   </div>
 
   <!-- 3: What it is -->
@@ -274,6 +286,54 @@
       </div>
     </div>
     <p class="small step" style="margin-top: 22px;">Public version: <code>github.com/menottim/obsidian-worklog</code>. This deck covers the Netflix fork on top of it.</p>
+  </div>
+
+  <!-- 4 (new): The skill itself -->
+  <div class="slide" data-slide="4" data-section="What it is">
+    <h2>What "a skill" actually is</h2>
+    <p style="color: var(--subtext1); margin-top: 4px;">If you haven't built one yet, the moving parts are simpler than they sound.</p>
+    <pre style="font-size: 0.74em; margin-top: 14px; max-width: 1020px;"><span class="comment">--- skills/worklog/SKILL.md ---</span>
+---
+name: worklog
+description: >
+  Manage Menotti's personal worklog stored in Obsidian. Use this skill
+  whenever the user says "worklog", "weekly rollover", "what's on my
+  plate", "add to my worklog", "summarize my week", or anything about
+  managing weekly work priorities.
+---
+<span class="comment"># How Claude Code uses this file:
+# 1. User types /worklog (or any keyword in the description above)
+# 2. Claude reads this entire SKILL.md
+# 3. Claude follows the prose instructions below as its plan</span>
+
+## Vault path
+~/Documents/Obsidian Vault
+
+## Commands
+
+### /worklog rollover
+Create the new week file from Templates/Weekly.md. Carry forward any
+items marked ⏳ from the previous week. Move ✅ items to Archive/...
+</pre>
+    <div class="two-col step" style="margin-top: 16px;">
+      <div class="card">
+        <h3>What this means in practice</h3>
+        <ul style="font-size: 0.88em; line-height: 1.55;">
+          <li>You're reading the actual program. No bytecode, no opcodes.</li>
+          <li>Editing the skill = editing your own behavior</li>
+          <li>Diffs are reviewable like any prose</li>
+          <li>You can read it on your phone</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Skills vs MCPs vs plugins</h3>
+        <ul style="font-size: 0.88em; line-height: 1.55;">
+          <li><strong>Skill</strong>: markdown instructions Claude follows</li>
+          <li><strong>MCP</strong>: an external tool Claude can call (Atlassian, Slack, core-tools)</li>
+          <li><strong>Plugin</strong>: a distribution unit that bundles skills + commands</li>
+        </ul>
+      </div>
+    </div>
   </div>
 
   <!-- 4: Vault structure -->
@@ -359,7 +419,36 @@ Your Vault/
     </p>
   </div>
 
-  <!-- 8: Lab start - prereqs -->
+  <!-- 8: Auto-routing -->
+  <div class="slide" data-slide="8" data-section="What it does">
+    <h2>You don't have to type the subcommand</h2>
+    <p style="color: var(--subtext1); margin-top: 4px;">If you just type <code>/worklog &lt;arg&gt;</code>, the skill classifies the argument and routes to the matching command. No need to remember which one.</p>
+    <div class="two-col" style="margin-top: 16px;">
+      <div>
+        <h3 style="color: var(--text); font-size: 0.95em; margin-bottom: 8px;">What you type</h3>
+        <pre style="font-size: 0.78em; line-height: 1.6;"><span class="step">/worklog https://docs.google.com/document/d/abc...</span>
+<span class="step">/worklog WISSE-1234</span>
+<span class="step">/worklog https://netflix.atlassian.net/browse/SIDE-99</span>
+<span class="step">/worklog jane.smith@netflix.com</span>
+<span class="step">/worklog status</span>
+<span class="step">/worklog spent 2 hrs reviewing the rollout plan</span></pre>
+      </div>
+      <div>
+        <h3 style="color: var(--text); font-size: 0.95em; margin-bottom: 8px;">What runs</h3>
+        <pre style="font-size: 0.78em; line-height: 1.6;"><span class="step"><span class="output">-> /worklog ingest (Google Doc URL)</span></span>
+<span class="step"><span class="output">-> /worklog jira (matches [A-Z]+-\d+)</span></span>
+<span class="step"><span class="output">-> /worklog jira (extracted from URL)</span></span>
+<span class="step"><span class="output">-> /worklog whois (netflix.com email)</span></span>
+<span class="step"><span class="output">-> /worklog status (known subcommand)</span></span>
+<span class="step"><span class="output">-> raw worklog input (default)</span></span></pre>
+      </div>
+    </div>
+    <p class="step" style="font-size: 0.88em; color: var(--subtext0); margin-top: 14px; max-width: 950px;">
+      The skill announces the routing decision before running. Bare names like "Sarah Chen" don't auto-route to <code>whois</code> - too easy to confuse with worklog item text. Email format (<code>firstname.lastname@netflix.com</code>) is the unambiguous signal.
+    </p>
+  </div>
+
+  <!-- 9: Lab start - prereqs -->
   <div class="slide" data-slide="8" data-section="Lab: Setup">
     <h2>Setup: prerequisites</h2>
     <p style="color: var(--subtext1); margin-top: 6px;">Run through these before we move on. If anything's missing, flag it - we'll wait.</p>
@@ -550,8 +639,10 @@ add to worklog</pre>
   <!-- 18: Less obvious - ingest doc -->
   <div class="slide" data-slide="18" data-section="Less obvious uses">
     <h2>Ingest a Confluence/Coda doc</h2>
-    <pre><span class="prompt">/worklog ingest</span> https://confluence.netflix.com/display/SECURITY/2026-05-12+Migration+Sync</pre>
-    <p style="margin-top: 14px; font-size: 0.92em; color: var(--subtext0);">What runs:</p>
+    <pre><span class="prompt">/worklog ingest</span> https://confluence.netflix.com/display/SECURITY/2026-05-12+Migration+Sync
+<span class="comment"># or just:</span>
+<span class="prompt">/worklog</span> https://confluence.netflix.com/display/SECURITY/2026-05-12+Migration+Sync</pre>
+    <p style="margin-top: 14px; font-size: 0.92em; color: var(--subtext0);">What runs (either form):</p>
     <ol style="font-size: 0.95em; margin-top: 6px;">
       <li class="step">URL matches the <code>confluence.netflix.com</code> pattern, so the skill calls <code>mcp__core-tools__netflix_search_data</code></li>
       <li class="step">Claude announces the tool ID it's about to call</li>
