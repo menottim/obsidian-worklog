@@ -245,7 +245,7 @@
         <h3 style="color: var(--text); font-size: 1em; margin-bottom: 10px;">The experiment</h3>
         <ul>
           <li>I wanted a better TODO list. Mine kept drifting.</li>
-          <li>Claude Code had just landed. I wrote a tiny skill: paste raw stuff, get a clean weekly list.</li>
+          <li>Wrote a tiny Claude Code skill: paste raw stuff, get a clean weekly list.</li>
           <li>Started linking people I mentioned (<code>[[Sarah]]</code>) so I could find what I'd discussed with whom.</li>
           <li>Then programs got their own notes. Then summaries. Then the graph started being useful on its own.</li>
         </ul>
@@ -291,7 +291,6 @@
   <!-- 4 (new): The skill itself -->
   <div class="slide" data-slide="4" data-section="What it is">
     <h2>What "a skill" actually is</h2>
-    <p style="color: var(--subtext1); margin-top: 4px;">If you haven't built one yet, the moving parts are simpler than they sound.</p>
     <pre style="font-size: 0.74em; margin-top: 14px; max-width: 1020px;"><span class="comment">--- skills/worklog/SKILL.md ---</span>
 ---
 name: worklog
@@ -369,7 +368,7 @@ Your Vault/
 
   <!-- 6: Commands -->
   <div class="slide" data-slide="6" data-section="What it does">
-    <h2>The command surface</h2>
+    <h2>Commands and features</h2>
     <table>
       <tr><th>Command</th><th>What it does</th><th>When</th></tr>
       <tr><td><code>/worklog</code></td><td>Show active items by priority</td><td>Any time</td></tr>
@@ -439,8 +438,45 @@ Your Vault/
     </p>
   </div>
 
-  <!-- 9: Lab start - prereqs -->
-  <div class="slide" data-slide="8" data-section="Lab: Setup">
+  <!-- 9: Compared to STRIDE -->
+  <div class="slide" data-slide="9" data-section="What it does">
+    <h2>Where this sits next to <a href="https://github.netflix.net/corp/stride" style="color: var(--blue); text-decoration: none;">STRIDE</a></h2>
+    <p style="color: var(--subtext1); margin-top: 4px;">STRIDE is a personal assistant. The two are complementary.</p>
+    <table style="margin-top: 12px;">
+      <tr><th style="width: 22%;"></th><th>STRIDE</th><th>obsidian-worklog</th></tr>
+      <tr>
+        <td><strong>One-liner</strong></td>
+        <td>Personal assistant for the day-to-day - email triage, calendar, channel summaries, scheduled debriefs</td>
+        <td>Weekly worklog as a long-arc context vault - people, programs, decisions, summaries</td>
+      </tr>
+      <tr>
+        <td><strong>Runs as</strong></td>
+        <td>Daemon + Slack bot on Dev Workspace; also via Claude Code</td>
+        <td>A Claude Code skill, on-demand when you type <code>/worklog</code></td>
+      </tr>
+      <tr>
+        <td><strong>Time horizon</strong></td>
+        <td>"What needs my attention <em>right now</em>?"</td>
+        <td>"What have I been doing over the last quarter?" / "Prep me for this 1:1"</td>
+      </tr>
+      <tr>
+        <td><strong>Storage</strong></td>
+        <td>Reads your existing email, calendar, Slack, etc.</td>
+        <td>Writes a single Obsidian vault on disk</td>
+      </tr>
+      <tr>
+        <td><strong>Scheduled?</strong></td>
+        <td>Yes - daily / weekly debriefs on cron</td>
+        <td>No - runs when you invoke it</td>
+      </tr>
+    </table>
+    <p style="font-size: 0.92em; color: var(--subtext0); margin-top: 14px; max-width: 1000px;">
+      Common workflow: STRIDE summarizes your inbox and channels in the morning. You skim, decide what's worth keeping, and feed those bits into <code>/worklog</code> as raw input. The vault accumulates the context-worth-keeping; STRIDE handles the always-arriving stuff.
+    </p>
+  </div>
+
+  <!-- 10: Lab start - prereqs -->
+  <div class="slide" data-slide="10" data-section="Lab: Setup">
     <h2>Setup: prerequisites</h2>
     <p style="color: var(--subtext1); margin-top: 6px;">Run through these before we move on. If anything's missing, flag it - we'll wait.</p>
     <ul class="checklist" style="margin-top: 14px;">
@@ -714,43 +750,6 @@ status: active
         <p>Ingest the talk outline + related Coda research, get an action-itemized prep flow in your current week.</p>
       </div>
     </div>
-  </div>
-
-  <!-- 21 (new): Compared to STRIDE -->
-  <div class="slide" data-slide="21" data-section="Less obvious uses">
-    <h2>Where this sits next to <a href="https://github.netflix.net/corp/stride" style="color: var(--blue); text-decoration: none;">STRIDE</a></h2>
-    <p style="color: var(--subtext1); margin-top: 4px;">STRIDE is Netflix's broader personal-assistant agent. The two are complementary, not competing.</p>
-    <table style="margin-top: 12px;">
-      <tr><th style="width: 22%;"></th><th>STRIDE</th><th>obsidian-worklog</th></tr>
-      <tr>
-        <td><strong>One-liner</strong></td>
-        <td>Personal assistant for the day-to-day - email triage, calendar, channel summaries, scheduled debriefs</td>
-        <td>Weekly worklog as a long-arc context vault - people, programs, decisions, summaries</td>
-      </tr>
-      <tr>
-        <td><strong>Runs as</strong></td>
-        <td>Daemon + Slack bot on Dev Workspace; also via Claude Code</td>
-        <td>A Claude Code skill, on-demand when you type <code>/worklog</code></td>
-      </tr>
-      <tr>
-        <td><strong>Time horizon</strong></td>
-        <td>"What needs my attention <em>right now</em>?"</td>
-        <td>"What have I been doing over the last quarter?" / "Prep me for this 1:1"</td>
-      </tr>
-      <tr>
-        <td><strong>Storage</strong></td>
-        <td>Reads your existing email, calendar, Slack, etc.</td>
-        <td>Writes a single Obsidian vault on disk</td>
-      </tr>
-      <tr>
-        <td><strong>Scheduled?</strong></td>
-        <td>Yes - daily / weekly debriefs on cron</td>
-        <td>No - runs when you invoke it</td>
-      </tr>
-    </table>
-    <p style="font-size: 0.92em; color: var(--subtext0); margin-top: 14px; max-width: 1000px;">
-      Common workflow: STRIDE summarizes your inbox and channels in the morning. You skim, decide what's worth keeping, and feed those bits into <code>/worklog</code> as raw input. The vault accumulates the context-worth-keeping; STRIDE handles the always-arriving stuff.
-    </p>
   </div>
 
   <!-- 22: Wrap -->
