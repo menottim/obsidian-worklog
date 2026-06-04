@@ -429,6 +429,45 @@ source" (or similar phrasing), resolve the channel ID via `slack_search_channels
 write the new `Sources/<channel-name>.md` with template defaults, then run a first
 pull against just that source.
 
+__Registering a context channel:__ when the user says "register `#X` as a context
+channel" (or hands over a list of important channels to sweep), resolve each via
+`slack_search_channels`, confirm, and write `Sources/<channel-name>.md` with
+`type: context-channel`, `last_scan_ts: null`, `first_scan_lookback_days: 7`,
+`nudge_threshold_days: 5`. One file per channel (preserves per-channel state). The
+list is the input to registration, not a stored config blob. Then run the first sweep
+for the newly-registered channel(s).
+
+### Source type: `context-channel`
+
+A second source type for __high-traffic human-discussion channels__ you want swept
+for worklog-relevant context (not forwarded-email meeting notes). Same registry,
+same `Sources/<channel-name>.md` file shape — only `type` and the lookback default
+differ:
+
+```yaml
+---
+type: context-channel
+channel_name: "#infrasec-leads"
+channel_id: C0XXXXXXX
+nudge_threshold_days: 5
+last_scan_ts: null              # null on first run; advances per processed message
+first_scan_lookback_days: 7     # smaller default than email sources (high-traffic)
+---
+
+# #infrasec-leads
+
+Human-readable notes about this channel — what it's for, who's in it, why it's
+worth sweeping.
+```
+
+Field semantics are identical to `meeting-notes-via-email` except:
+- `type: context-channel` selects the sweep-and-classify pull flow (see `/worklog pull`).
+- `first_scan_lookback_days` defaults to __7__ (not 14): a busy channel's first sweep
+  over two weeks is large. Tunable per channel.
+
+There are no `Meetings/` notes for this type — relevant content folds directly into
+worklog items and People/Program/Team notes, with a Slack permalink for provenance.
+
 ## Meetings
 
 The `Meetings/` directory holds one markdown note per ingested Slack thread. These
@@ -636,6 +675,15 @@ thread becomes a `Meetings/YYYY-MM-DD-<slug>.md` artifact, and the existing
 __Processing raw input__ pipeline runs against the meeting body + replies to
 extract action items into the current week file.
 
+__Source-type branch:__ `/worklog pull` processes every `Sources/*.md`. For each
+source, branch on `type`:
+- `meeting-notes-via-email` → the per-thread flow documented below (unchanged).
+- `context-channel` → the __Context-channel sweep flow__ below.
+
+Uncertain and new candidates from all `context-channel` sources accumulate into a
+single approval batch presented once, at the very end of the whole pull (after the
+email sources finish their own inline paste/skip flow).
+
 __Pull flow:__
 
 1. Glob `__VAULT_PATH__/Sources/*.md`. If empty, walk the user through registering
@@ -750,6 +798,86 @@ __Pull flow:__
    - `<M> threads updated` (with thread titles)
    - `<K> items extracted to [[YYYY-WNN]]`
    - For each source pulled, the new `last_scan_ts`.
+
+For `context-channel` sources, the summary additionally reports, per channel:
+`N scanned · M auto-folded · J surfaced for approval · K dropped`, then itemizes each
+auto-fold (one line: summary → target item, with permalink) so any mis-classification
+is visible and can be undone, followed by the approval-batch outcomes.
+
+__Context-channel sweep flow:__
+
+For each source with `type: context-channel`:
+
+1. Compute the window: messages with `ts > last_scan_ts`. On first run
+   (`last_scan_ts` is null), look back `first_scan_lookback_days` (default 7).
+   Incremental only — never re-read messages already past `last_scan_ts`.
+2. `slack_read_channel` to list top-level messages in the window. Exclude bots
+   (`include_bots=false`); include the user's own messages. For each top-level
+   message with replies, `slack_read_thread` to fetch the full thread.
+3. Build the working set of __conversation units__: a unit is a thread (parent +
+   its replies) or a standalone message. The thread is the unit of analysis.
+4. __Volume guardrail:__ if a channel yields more than ~100 units, STOP and tell the
+   user the count and the window, and ask whether to proceed, narrow the window, or
+   skip this channel. Never silently truncate.
+5. Classify each unit three ways (see __Three-way classification__).
+6. Apply high-confidence matches immediately (see __What auto-fold writes__). Stage
+   uncertain + new units for the approval batch.
+7. Advance `last_scan_ts` per processed unit (resumable across a crash), then to the
+   current time at the end of the channel.
+
+__Three-way classification__ — judge each unit against the __entire vault__ (current
+week, Backlog, `Archive/`, `People/`, `Programs/`, `Teams/`):
+
+- __High-confidence match → auto-fold.__ The unit clearly concerns one specific
+  existing worklog item, person, program, or team: it names the program/initiative,
+  continues a thread already tracked as an item, or is the same people advancing the
+  same topic.
+- __Weak/uncertain match, OR genuinely new-but-worth-tracking → approval batch.__
+  Weak = topically adjacent but not clearly the same item, could attach to more than
+  one item, or concerns a tracked person/program without obviously-actionable
+  context. New-worthy = matches nothing but is a decision, ownership change, risk,
+  ask, commitment, or status change worth tracking. __Never force-fit a weak match —
+  always ask.__ When torn between auto-fold and ask, choose ask.
+- __Noise → drop silently.__ Banter, logistics, unrelated chatter, FYIs with no
+  bearing on tracked work.
+
+__What auto-fold writes__ — same shape as the __Processing raw input__ pipeline:
+
+- A dated sub-item under the matched worklog item:
+  `  - <concise summary> ([#channel-name](<slack-permalink>), <Mon D>)` — date from
+  the Slack message timestamp (user's local TZ), wiki-linking known
+  people/programs/teams and creating stubs per the Cross-Linking rules.
+- Substantive context appended to a matched Person/Program/Team note when the unit is
+  about that entity.
+- Summarize, do not transcribe; the genericize-at-the-public-boundary rule applies
+  later, at publish time. The Slack permalink is the provenance (no `Meetings/` note).
+- Regenerate enriched frontmatter only if a top-level item was added/changed; pure
+  sub-item adds skip regeneration.
+
+__Approval batch (human-in-the-loop)__ — after every source is swept (email +
+context), if any uncertain/new candidates were staged, present ONE consolidated
+numbered checklist in chat:
+
+```
+Context-channel pull — N items need your call:
+
+1. [#infrasec-leads · Jun 4] <one-line summary>
+   → Might relate to [[GCP CSPM tool evaluation]] — attach as sub-item? (uncertain match)
+   permalink: <url>
+
+2. [#side-team · Jun 3] <one-line summary>
+   → No match. Looks new — suggest P1 under "SPA Programs": "<proposed title>". Add?
+   permalink: <url>
+…
+Reply e.g.: "add 1; 2 as P2 under Cloud Security; skip 3; 4 attach to [[Triage SIDE]]"
+```
+
+Each entry carries: source channel, date, one-line summary, the proposed action
+(attach to `[[item]]` as sub-item / new `P?` item under `<subgroup>` / new Backlog
+item), and the permalink. The user approves / rejects / edits in bulk free text. This
+is a chat checklist, not `AskUserQuestion` (batches exceed its 4-option cap). On the
+response, apply approved additions (dated with the Slack timestamp, wiki-linked,
+permalink provenance) and regenerate frontmatter if any top-level items were added.
 
 __First-run registration:__
 
@@ -1336,6 +1464,10 @@ forward counts (with brief titles in parentheses). Only completed items as bulle
   `/worklog status`, `/worklog review`, `/worklog search`, `/worklog share`,
   `/worklog sync`) do __not__ nudge. If the user says "skip pull" or "not now"
   earlier in the session, suppress further nudges for that session.
+- __Context channels are swept, not transcribed.__ Sources with `type: context-channel`
+  are swept since `last_scan_ts`, classified by relevance, and high-confidence matches
+  are folded directly into existing worklog items and People/Program/Team notes with a
+  Slack permalink for provenance. They are __never__ written as `Meetings/` notes.
 
 ## Netflix-specific commands (this fork only)
 
