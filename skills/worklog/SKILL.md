@@ -407,8 +407,9 @@ about ingesting from this channel.
 
 __Frontmatter fields:__
 
-- `type`: source-type identifier. v1 supports only `meeting-notes-via-email`. The
-  parser logic for `/worklog pull` is keyed off this value.
+- `type`: source-type identifier. Supported values: `meeting-notes-via-email`
+  (per-thread Meetings flow) and `context-channel` (sweep-and-classify flow, see
+  below). The parser logic for `/worklog pull` is keyed off this value.
 - `channel_name`: the human-readable Slack channel name with the `#` prefix.
 - `channel_id`: the Slack channel ID (e.g., `C0XXXXXXX`). Resolved during
   registration via `slack_search_channels`.
