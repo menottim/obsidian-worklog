@@ -84,6 +84,42 @@
       "prompt": "/worklog pull (with 1 new thread; helper script not installed OR token file missing OR token expired/revoked)",
       "expected_output": "Should attempt auto-fetch first; helper exits non-zero (or doesn't exist). Should fall back to manual-paste prompt: present thread summary including a one-line note about the auto-fetch error, ask user to paste body or say 'skip' / 'skip all remaining'. On paste: same downstream pipeline as auto-fetch path. Should NOT silently fail; should NOT skip the thread without user confirmation; should NOT block the entire pull (other threads are processed normally).",
       "issue_tested": "v5.4.0 auto-fetch fallback - manual paste path remains fully functional when helper is missing or fails"
+    },
+    {
+      "id": 15,
+      "prompt": "/worklog pull (one meeting-notes-via-email source and one context-channel source registered)",
+      "expected_output": "Should branch on type: run the existing per-thread Meetings flow for the email source, and the sweep-and-classify flow for the context-channel source. The two must not interfere. Context-channel must NOT create Meetings/ notes. Email source behavior is unchanged.",
+      "issue_tested": "Source-type branch - both pull modes coexist in one /worklog pull"
+    },
+    {
+      "id": 16,
+      "prompt": "/worklog pull (context-channel with a thread that clearly names a program already tracked as a worklog item)",
+      "expected_output": "Should classify the thread as a high-confidence match and auto-fold it as a dated sub-item under the matching worklog item, wiki-linked, with a Slack permalink for provenance and the Slack timestamp as the date. Should NOT prompt for this item. Should list the auto-fold in the end-of-pull summary (summary -> target item + permalink).",
+      "issue_tested": "High-confidence match auto-folds with provenance and is itemized in the summary"
+    },
+    {
+      "id": 17,
+      "prompt": "/worklog pull (context-channel with one weakly-related thread and one clearly-new decision thread)",
+      "expected_output": "Should stage BOTH into a single end-of-pull approval batch (a numbered chat checklist) - the weak one as an uncertain match proposing attachment to a candidate item, the new one as a proposed new item with priority and subgroup. Nothing is written until the user responds. Should never force-fit the weak match. A bulk reply (e.g. 'add 1; 2 as P2 under X; skip') applies edits correctly and regenerates frontmatter only if a top-level item was added.",
+      "issue_tested": "Weak + new candidates batch for approval; no force-fit; bulk edit applies"
+    },
+    {
+      "id": 18,
+      "prompt": "/worklog pull (context-channel containing only unrelated banter and logistics)",
+      "expected_output": "Should classify all units as noise and drop them silently - zero writes to any worklog item or note, no approval-batch entries. The summary reports them as dropped (count only).",
+      "issue_tested": "Noise is dropped silently with no writes"
+    },
+    {
+      "id": 19,
+      "prompt": "/worklog pull (run a second time within seconds against the same context-channel, no new Slack content)",
+      "expected_output": "Should be idempotent: ts > last_scan_ts yields no new units, so no auto-folds, no approval batch, no writes. last_scan_ts advances to current time. Summary reports 0 scanned/0 folded/0 surfaced/0 dropped for that channel.",
+      "issue_tested": "Context-channel idempotency via last_scan_ts"
+    },
+    {
+      "id": 20,
+      "prompt": "/worklog pull (context-channel whose window contains more than ~100 conversation units)",
+      "expected_output": "Should hit the volume guardrail: stop and tell the user the unit count and the window, and ask whether to proceed, narrow the window, or skip the channel. Should NOT silently truncate or silently analyze only a subset.",
+      "issue_tested": "Volume guardrail - no silent truncation on large windows"
     }
   ]
 }
