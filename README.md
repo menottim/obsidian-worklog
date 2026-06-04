@@ -32,7 +32,7 @@ Built for anyone who tracks work across multiple projects and people. You paste 
 - **D3.js visualizations** of time allocation, program activity, and completion rates
 - **Vault health checks** that find stale notes, stuck items, and missing links
 - **Preferences as first-class citizens** -- the skill maintains a `Preferences/` directory as its general-purpose memory layer: voice, style, workflow, tooling, decision rules, vault conventions, anything durable about how you work, captured once and applied automatically across sessions
-- **Slack channel inbox** -- register a Slack channel where meeting notes get forwarded (e.g., from a Google Group). `/worklog pull` discovers new threads, fetches each email body, creates `Meetings/` notes, and extracts action items into the current week. Auto-fetch happens via a one-time `files:read`-scoped Slack OAuth token + a small Bash helper (see [`docs/SETUP-SLACK.md`](docs/SETUP-SLACK.md)); without that setup, the skill falls back to prompting you to paste each body inline. The skill nudges you on `/worklog rollover` / `tidy` / `audit` if a registered channel hasn't been pulled in over 5 days
+- **Slack channel inbox** -- register one or more Slack channels as sources; `/worklog pull` sweeps each and processes it based on its type. `meeting-notes-via-email`: discovers new forwarded-email threads, fetches each body, creates a `Meetings/` note per thread, and extracts action items into the current week (auto-fetch via a one-time `files:read`-scoped Slack OAuth token + a small Bash helper -- see [`docs/SETUP-SLACK.md`](docs/SETUP-SLACK.md); falls back to inline paste without it). `context-channel`: sweeps a high-traffic discussion channel since the last pull, auto-folds high-confidence matches into the worklog items they relate to (with a Slack permalink), asks before adding anything new or uncertain, and drops noise -- no per-thread files. The skill nudges you on `/worklog rollover` / `tidy` / `audit` if a registered channel hasn't been pulled in over 5 days
 
 ![Obsidian graph view showing the knowledge graph of people, programs, and weekly files](docs/images/graph-view.png)
 
@@ -389,6 +389,9 @@ The next `/worklog pull` will re-ingest it (auto-fetch path) or re-prompt you to
 
 **What if I edit a meeting note?**
 Your edits are preserved. Subsequent pulls only append new thread replies under `## Discussion` and update `slack_last_reply_ts` in the frontmatter. The `## Notes` section and anything else you add is never overwritten.
+
+**What's the difference between the two Slack source types?**
+`meeting-notes-via-email` treats one forwarded-email thread as one meeting and saves a `Meetings/` note per thread. `context-channel` sweeps a busy discussion channel since the last pull, auto-folds high-confidence matches into the items they relate to (with a Slack permalink), asks before adding anything new or uncertain, and drops noise -- no per-thread files.
 
 ## License
 
