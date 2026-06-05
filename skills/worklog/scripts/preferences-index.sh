@@ -12,7 +12,11 @@ for f in *.md; do
   applies="$(awk -F'applies-to:' '/^applies-to:/{print $2; exit}' "$f" | tr -d '[]"' | sed 's/^ *//; s/ *$//')"
   # rule = first non-empty line after "## The Rule"; fallback = description field from frontmatter;
   # final fallback = first non-heading, non-empty body line after frontmatter
-  rule="$(awk '/^## The Rule/{f=1; next} f && NF {print; exit}' "$f")"
+  rule="$(awk '/^## The Rule/{f=1; next}
+               f && /^(##|---$)/{exit}
+               f && NF {buf = buf (buf ? " " : "") $0}
+               f && !NF && buf {exit}
+               END{print buf}' "$f" | cut -c1-200)"
   if [ -z "$rule" ]; then
     rule="$(awk -F'description:' '/^description:/{print $2; exit}' "$f" | sed 's/^ *//; s/ *$//' | tr -d '"')"
   fi
