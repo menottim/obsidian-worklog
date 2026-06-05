@@ -123,45 +123,45 @@
     },
     {
       "id": 21,
-      "prompt": "/worklog pull (Sources/_dms.md enabled, slack-list-dms helper present, plus context-channel sources)",
-      "expected_output": "Should process channel sources, then run the DM sweep after them: enumerate DMs via the helper, read each since last_scan_ts, classify against the vault. DM candidates join the SAME end-of-pull approval batch as context-channel uncertain/new items. NOTHING from a DM is auto-folded.",
-      "issue_tested": "DM-sweep branch runs after channels; DM items batch, never auto-fold"
+      "prompt": "/worklog pull (Sources/_dms.md enabled, slack-search-dms helper present and scope/consent granted, plus context-channel sources)",
+      "expected_output": "Should process channel sources, then run the DM sweep after them: call slack-search-dms with after=last_scan_ts and channel_types from include_1on1/include_groups, paginate via next_cursor, classify each result against the vault. DM candidates join the SAME end-of-pull approval batch as context-channel uncertain/new items. NOTHING from a DM is auto-folded.",
+      "issue_tested": "DM-sweep branch runs after channels via search; DM items batch, never auto-fold"
     },
     {
       "id": 22,
-      "prompt": "/worklog pull (a DM thread clearly matches a tracked worklog item)",
+      "prompt": "/worklog pull (a DM search result clearly matches a tracked worklog item)",
       "expected_output": "Should present the DM match in the approval batch with a recommended 'attach as sub-item under [[item]]' option - NOT write it silently. Unlike a context-channel high-confidence match, a DM high-confidence match is never auto-folded.",
       "issue_tested": "DM high-confidence match goes to approval batch, not auto-fold"
     },
     {
       "id": 23,
       "prompt": "/worklog pull then approve a DM-derived item from the batch",
-      "expected_output": "On approval, the folded sub-item is a genericized, workstream-level summary (no verbatim 1:1 quote, no personal detail beyond the item's need), dated with the Slack timestamp, wiki-linked, with a Slack permalink for provenance.",
+      "expected_output": "On approval, the folded sub-item is a genericized, workstream-level summary (no verbatim 1:1 quote, no personal detail beyond the item's need), dated with the result's message_ts, wiki-linked, with the result's permalink for provenance.",
       "issue_tested": "Approved DM items fold as genericized summaries with provenance"
     },
     {
       "id": 24,
-      "prompt": "/worklog pull (Sources/_dms.md enabled but slack-list-dms helper missing or returns non-zero)",
-      "expected_output": "Should run the helper, get a non-zero exit, print a one-line 'DM sweep skipped: <reason>' note, and continue/complete the rest of the pull normally. Must NOT block or fail the whole pull.",
-      "issue_tested": "Helper missing/unauthorized -> DM sweep skipped gracefully"
+      "prompt": "/worklog pull (Sources/_dms.md enabled but slack-search-dms missing, scope absent, or consent not granted so the helper returns non-zero)",
+      "expected_output": "Should run the helper, get a non-zero exit (e.g. missing_scope), print a one-line 'DM sweep skipped: <reason>' note, and continue/complete the rest of the pull normally. Must NOT block or fail the whole pull.",
+      "issue_tested": "Helper missing/unauthorized/not-consented -> DM sweep skipped gracefully"
     },
     {
       "id": 25,
       "prompt": "/worklog pull (_dms.md has exclude_users and exclude_conversations populated)",
-      "expected_output": "Conversations whose id is in exclude_conversations, and 1:1 DMs whose other-user-id is in exclude_users, are filtered out BEFORE any slack_read_channel call - their content never enters context. include_1on1/include_groups are honored.",
-      "issue_tested": "DM exclusions filter before reading; nothing excluded is fetched"
+      "expected_output": "Search results whose channel_id is in exclude_conversations, and whose author_user_id is in exclude_users, are dropped before classification - their content never enters the approval batch. include_1on1/include_groups are honored by selecting channel_types.",
+      "issue_tested": "DM exclusions filter search results before classification"
     },
     {
       "id": 26,
       "prompt": "/worklog pull (run twice with no new DM activity)",
-      "expected_output": "Second run: ts > last_scan_ts yields no DM units, no batch entries, no writes; last_scan_ts advances to now. Idempotent.",
-      "issue_tested": "DM-sweep idempotency via global last_scan_ts"
+      "expected_output": "Second run: search with after=last_scan_ts returns no results, no batch entries, no writes; last_scan_ts advances to now. Idempotent.",
+      "issue_tested": "DM-sweep idempotency via global last_scan_ts as the search after filter"
     },
     {
       "id": 27,
-      "prompt": "/worklog pull (DM window yields more than ~100 conversation units)",
-      "expected_output": "Should hit the volume guardrail: stop and tell the user the count and window, ask whether to proceed / narrow / skip. No silent truncation.",
-      "issue_tested": "DM-sweep volume guardrail - no silent truncation"
+      "prompt": "/worklog pull (DM search yields more than max_results results, next_cursor still set at the cap)",
+      "expected_output": "Should hit the volume guardrail up front: stop and tell the user the count and window, ask whether to proceed / narrow / skip. No silent truncation.",
+      "issue_tested": "DM-sweep volume guardrail at max_results - no silent truncation"
     }
   ]
 }
