@@ -24,8 +24,8 @@ for b in "${RECENT_BN[@]:-}"; do
   [ -f "Archive/$b" ]  && RECENT+=("Archive/$b")
 done
 BACKLOG="Worklogs/Backlog.md"
-ACTIVE="$(ls Worklogs 2>/dev/null | grep -E '^[0-9]{4}-W[0-9]{2}\.md$' | sort -r | head -1)"
-ACTIVE="Worklogs/${ACTIVE}"
+ACTIVE_BN="$(ls Worklogs 2>/dev/null | grep -E '^[0-9]{4}-W[0-9]{2}\.md$' | sort -r | head -1)"
+ACTIVE="${ACTIVE_BN:+Worklogs/${ACTIVE_BN}}"
 
 emit_array(){ jq -s '.'; }
 
@@ -52,15 +52,7 @@ orphan_programs(){
 empty_stubs(){
   shopt -s nullglob
   for f in People/*.md Programs/*.md; do
-    # For Programs notes: count bullets under ## Context (canonical section per SKILL.md).
-    # For People notes: count ALL body bullets (section structure varies — Role, Current Focus,
-    # Working Dynamics, dated headers, etc.). A People note with any bullets is not a stub.
-    if [[ "$f" == Programs/* ]]; then
-      bullets="$(awk '/^## Context$/{c=1; next} /^## /{c=0} c && /^[[:space:]]*-[[:space:]]/{n++} END{print n+0}' "$f")"
-    else
-      # Skip frontmatter (between first and second ---), count all bullet lines in body
-      bullets="$(awk 'BEGIN{fm=0} /^---$/{fm++; next} fm<2{next} /^[[:space:]]*-[[:space:]]/{n++} END{print n+0}' "$f")"
-    fi
+    bullets="$(awk 'BEGIN{fm=0} /^---$/{fm++; next} fm<2{next} /^[[:space:]]*-[[:space:]]/{n++} END{print n+0}' "$f")"
     if [ "${bullets:-0}" -eq 0 ]; then
       jq -cn --arg file "$f" '{file:$file}'
     fi
@@ -83,20 +75,29 @@ frontmatter_gaps(){
 
 missing_links(){
   shopt -s nullglob
-  names="$( { ls People 2>/dev/null; ls Programs 2>/dev/null; } | sed 's/\.md$//' | sort -u )"
+  local pfile
+  pfile="$(mktemp)"
+  { ls People 2>/dev/null; ls Programs 2>/dev/null; } | sed 's/\.md$//' | sort -u > "$pfile"
   for f in "${RECENT[@]:-}"; do
     [ -n "$f" ] && [ -f "$f" ] || continue
-    while IFS= read -r name; do
-      [ -n "$name" ] || continue
-      grep -nF "$name" "$f" 2>/dev/null | grep -vF "[[$name" | while IFS=: read -r ln rest; do
-        jq -cn --arg file "$f" --argjson line "$ln" --arg text "$name" \
-           '{file:$file, line:$line, text:$text, suggest:("[[" + $text + "]]")}'
-      done
-    done <<< "$names"
+    grep -nFf "$pfile" "$f" 2>/dev/null | while IFS=: read -r ln rest; do
+      while IFS= read -r name; do
+        [ -n "$name" ] || continue
+        case "$rest" in *"[[$name"*) continue ;; esac
+        case "$rest" in
+          *"$name"*)
+            jq -cn --arg file "$f" --argjson line "$ln" --arg text "$name" \
+               '{file:$file, line:$line, text:$text, suggest:("[[" + $text + "]]")}'
+          ;;
+        esac
+      done < "$pfile"
+    done
   done | emit_array
+  rm -f "$pfile"
 }
 
 stuck_items(){
+  [ -n "${ACTIVE:-}" ] && [ -f "$ACTIVE" ] || { echo '[]'; return; }
   shopt -s nullglob
   ARCH=()
   while IFS= read -r a; do ARCH+=("$a"); done < <(ls Archive 2>/dev/null | grep -E '^[0-9]{4}-W[0-9]{2}\.md$' | sort)
