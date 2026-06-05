@@ -207,55 +207,91 @@ The skill detects the missing helper and prompts for paste on every thread.
 
 ## Optional: DM sweep setup
 
-To let `/worklog pull` also sweep your 1:1 + group DMs, do two one-time things.
+To let `/worklog pull` also sweep your 1:1 and group DMs, do two one-time things. The
+sweep uses Slack's Real-time Search API (`assistant.search.context`) to retrieve only
+DM messages relevant to your work, so it makes one search call instead of reading every
+conversation.
 
-### 1. Add scopes to your Slack user token
+### 1. Add search scopes to your Slack user token
 
-The DM sweep enumerates your conversations via Slack `users.conversations`, which needs
-`im:read` + `mpim:read` in addition to the existing `files:read`. In your Slack app at
-`api.slack.com/apps` → OAuth & Permissions → User Token Scopes, add `im:read` and
-`mpim:read`, then reinstall the app to your workspace and update the `xoxp-` token at
-`~/.config/obsidian-worklog/slack-token` (chmod 600). (Reading the DMs themselves uses the
-Slack MCP, which already has access — only enumeration needs these scopes.)
+In your Slack app at `api.slack.com/apps` → OAuth & Permissions → User Token Scopes, add:
 
-### 2. Install the `slack-list-dms` helper
+- `search:read.public` (required base scope for the Real-time Search API)
+- `search:read.im` (search your 1:1 DMs)
+- `search:read.mpim` (search your group DMs)
 
-Save this as `~/.config/obsidian-worklog/bin/slack-list-dms` and `chmod +x` it:
+Then reinstall the app to your workspace and update the `xoxp-` token at
+`~/.config/obsidian-worklog/slack-token` (chmod 600). Inside the Slack client, complete the
+one-time consent prompt that authorizes DM/MPIM search. Verify the workspace has Slack AI
+Search enabled:
+
+```bash
+TOKEN="$(tr -d '[:space:]' < ~/.config/obsidian-worklog/slack-token)"
+curl -sS -X POST https://slack.com/api/assistant.search.info \
+  -H "Authorization: Bearer $TOKEN" | jq .
+```
+
+If this returns `"ok": true`, you are set. If it returns `missing_scope` or a not-enabled
+error, finish the scope/consent steps above; until then `/worklog pull` skips the DM sweep
+with a one-line note and the rest of the pull is unaffected.
+
+### 2. Install the `slack-search-dms` helper
+
+Save this as `~/.config/obsidian-worklog/bin/slack-search-dms` and `chmod 700` it:
 
 ```bash
 #!/usr/bin/env bash
-# slack-list-dms — list the calling user's DM + group-DM conversations.
-# Output (one per line):  <conversation_id>\t<im|mpim>\t<other-user-id-if-im>
-# Exit 0 on success; non-zero with a one-line stderr message on any failure.
+# slack-search-dms <after_unix_ts> [cursor]
+# Searches the user's DMs + group-DMs via Slack's Real-time Search API
+# (assistant.search.context). Token at ~/.config/obsidian-worklog/slack-token.
+# Env overrides: SLACK_DM_QUERY (salience query), SLACK_DM_CHANNEL_TYPES (default im,mpim).
+# Prints one compact JSON result object per line to stdout, then a final line
+# {"next_cursor":"<value-or-empty>"}. Exit 0 on success; non-zero + one-line stderr on
+# missing scope / not consented / network error.
 set -euo pipefail
 
+AFTER="${1:?usage: slack-search-dms <after_unix_ts> [cursor]}"
+CURSOR="${2:-}"
 TOKEN_FILE="${SLACK_TOKEN_FILE:-$HOME/.config/obsidian-worklog/slack-token}"
-[[ -r "$TOKEN_FILE" ]] || { echo "slack-list-dms: token file not readable at $TOKEN_FILE" >&2; exit 3; }
+QUERY="${SLACK_DM_QUERY:-Direct messages with decisions, requests, commitments, blockers, risks, or status updates relevant to my ongoing work}"
+CHANNEL_TYPES="${SLACK_DM_CHANNEL_TYPES:-im,mpim}"
+
+[[ -r "$TOKEN_FILE" ]] || { echo "slack-search-dms: token file not readable at $TOKEN_FILE" >&2; exit 3; }
 TOKEN="$(tr -d '[:space:]' < "$TOKEN_FILE")"
-[[ -n "$TOKEN" ]] || { echo "slack-list-dms: empty token" >&2; exit 3; }
+[[ -n "$TOKEN" ]] || { echo "slack-search-dms: empty token" >&2; exit 3; }
 
-cursor=""
-while :; do
-  resp="$(curl -sS -G "https://slack.com/api/users.conversations" \
-    -H "Authorization: Bearer $TOKEN" \
-    --data-urlencode "types=im,mpim" \
-    --data-urlencode "exclude_archived=true" \
-    --data-urlencode "limit=200" \
-    ${cursor:+--data-urlencode "cursor=$cursor"})" \
-    || { echo "slack-list-dms: network error calling users.conversations" >&2; exit 4; }
+args=( -sS -X POST "https://slack.com/api/assistant.search.context"
+  -H "Authorization: Bearer $TOKEN"
+  -H "Content-Type: application/x-www-form-urlencoded"
+  --data-urlencode "query=$QUERY"
+  --data-urlencode "channel_types=$CHANNEL_TYPES"
+  --data-urlencode "content_types=messages"
+  --data-urlencode "include_context_messages=true"
+  --data-urlencode "include_bots=false"
+  --data-urlencode "after=$AFTER"
+  --data-urlencode "limit=20" )
+[[ -n "$CURSOR" ]] && args+=( --data-urlencode "cursor=$CURSOR" )
 
-  if [[ "$(printf '%s' "$resp" | jq -r '.ok')" != "true" ]]; then
-    echo "slack-list-dms: slack api error: $(printf '%s' "$resp" | jq -r '.error // "unknown_error"')" >&2
-    exit 5
-  fi
+resp="$(curl "${args[@]}")" || { echo "slack-search-dms: network error calling assistant.search.context" >&2; exit 4; }
 
-  printf '%s' "$resp" | jq -r '.channels[] | [.id, (if .is_im then "im" else "mpim" end), (.user // "")] | @tsv'
+ok="$(printf '%s' "$resp" | jq -r '.ok' 2>/dev/null)" || ok=""
+if [[ "$ok" != "true" ]]; then
+  err="$(printf '%s' "$resp" | jq -r '.error // "unknown_error"' 2>/dev/null || true)"
+  [[ -n "$err" ]] || err="unparseable_response"
+  echo "slack-search-dms: slack api error: $err" >&2
+  exit 5
+fi
 
-  cursor="$(printf '%s' "$resp" | jq -r '.response_metadata.next_cursor // ""')"
-  [[ -n "$cursor" ]] || break
-done
+printf '%s' "$resp" | jq -c '.results.messages[]? | {channel_id, message_ts, author_user_id, author_name, is_author_bot, permalink, content, context_messages}'
+printf '%s' "$resp" | jq -c '{next_cursor: (.response_metadata.next_cursor // "")}'
 ```
 
-Test it: `~/.config/obsidian-worklog/bin/slack-list-dms | head` should print conversation
-IDs. A non-zero exit (missing scope, bad token) makes `/worklog pull` skip the DM sweep
-gracefully.
+Test it (3-day window): `~/.config/obsidian-worklog/bin/slack-search-dms "$(date -v-3d +%s)"   # macOS; Linux: date -d '3 days ago' +%s`
+prints JSON result lines then a `{"next_cursor":...}` line. A non-zero exit (missing scope,
+bad token, network) makes `/worklog pull` skip the DM sweep gracefully.
+
+### Deprecation: `slack-list-dms`
+
+The earlier `slack-list-dms` enumeration helper and the `im:read` / `mpim:read` scopes are no
+longer used by the DM sweep (search replaces enumeration). You can leave them in place or
+remove `~/.config/obsidian-worklog/bin/slack-list-dms`; the sweep does not call it.
