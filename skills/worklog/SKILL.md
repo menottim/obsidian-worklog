@@ -469,6 +469,40 @@ Field semantics are identical to `meeting-notes-via-email` except:
 There are no `Meetings/` notes for this type — relevant content folds directly into
 worklog items and People/Program/Team notes, with a Slack permalink for provenance.
 
+### Source type: `dm-sweep`
+
+A third source type that sweeps the user's Slack __direct messages and group DMs__
+(MPIMs) — not a single channel. DMs are auto-enumerated, so there is __one__ config file
+for the whole sweep, `Sources/_dms.md`:
+
+```yaml
+---
+type: dm-sweep
+enabled: true
+include_1on1: true
+include_groups: true
+last_scan_ts: null              # global baseline; first run = now − first_scan_lookback_days
+first_scan_lookback_days: 3
+nudge_threshold_days: 5
+exclude_users: []               # user IDs/names whose 1:1 DMs are never swept
+exclude_conversations: []       # specific conversation IDs (im/mpim) to skip
+---
+
+# Direct Messages
+
+Auto-enumerated DM + group-DM sweep. One global `last_scan_ts`, incremental by message
+timestamp. DM content is __never auto-folded__ — everything routes through the approval
+batch and is folded only on approval, as a genericized workstream-level summary.
+```
+
+Notes:
+- A single global `last_scan_ts` governs the whole sweep (a message is new if
+  `ts > last_scan_ts`); there is no per-conversation state.
+- Enumerating the user's DMs needs the `slack-list-dms` helper (there is no MCP
+  `conversations.list`). Reading each DM reuses the MCP (`slack_read_channel` /
+  `slack_read_thread`).
+- Requires one-time token scopes `im:read` + `mpim:read` (see `docs/SETUP-SLACK.md`).
+
 ## Meetings
 
 The `Meetings/` directory holds one markdown note per ingested Slack thread. These
@@ -805,6 +839,11 @@ For `context-channel` sources, the summary additionally reports, per channel:
 auto-fold (one line: summary → target item, with permalink) so any mis-classification
 is visible and can be undone, followed by the approval-batch outcomes.
 
+For the DM sweep, the summary reports `N conversations · M surfaced for approval · K
+dropped` (DMs never report auto-folds, since none are auto-folded), followed by the
+approval-batch outcomes. If the helper was unavailable, report `DM sweep skipped:
+<reason>` and nothing else for DMs.
+
 __Context-channel sweep flow:__
 
 For each source with `type: context-channel`:
@@ -873,6 +912,43 @@ Lead with the most likely option and mark it recommended; the user picks per ite
 can override the priority, subgroup, or target. After the responses, apply the
 approved additions (dated with the Slack timestamp, wiki-linked, permalink provenance)
 and regenerate frontmatter only if any top-level items were added.
+
+__DM sweep flow:__
+
+If `Sources/_dms.md` exists and is `enabled: true`, run this after all channel sources
+(its candidates join the same end-of-pull approval batch):
+
+1. Enumerate the user's DMs by running the helper (unconditionally; do not pre-check
+   "is it configured" — run it and branch on exit code, same pattern as `slack-fetch-file`):
+   ```bash
+   ~/.config/obsidian-worklog/bin/slack-list-dms
+   ```
+   It prints one conversation per line: `<id><TAB><im|mpim><TAB><other-user-id-if-im>`.
+   On any non-zero exit, print a one-line skip note with the helper's stderr and __skip the
+   DM sweep__; the rest of the pull is unaffected.
+2. Filter the list: drop entries whose id is in `exclude_conversations`; drop `im` entries
+   whose other-user-id is in `exclude_users`; honor `include_1on1` / `include_groups`.
+3. Window: messages with `ts > last_scan_ts`. First run (`last_scan_ts` null): look back
+   `first_scan_lookback_days` (default 3).
+4. For each conversation, `slack_read_channel` since the window (bots excluded); expand
+   group-DM threads via `slack_read_thread` as needed. Build conversation units (a unit is
+   a thread or a standalone message).
+5. __Volume guardrail:__ if total DM units exceed ~100, STOP and ask (proceed / narrow /
+   skip). Never silently truncate.
+6. Classify each unit against the __entire vault__ using the three-way rubric above, with
+   the DM privacy override below.
+7. Advance `last_scan_ts` to the current time after the sweep completes.
+
+__DM privacy override (differs from channels):__
+- __DM content is never auto-folded.__ Every relevant DM unit — high-confidence match
+  included — goes into the approval batch. High-confidence ones lead with the recommended
+  "attach as a sub-item under `[[matched item]]`" option; weak/new ones offer attach / new
+  `P?` item / Backlog / drop (new standalone items are allowed). Noise is dropped silently.
+- On approval, fold a __genericized, workstream-level summary__ — no verbatim 1:1 quotes,
+  no personal detail beyond what the item needs (honors the user's "no DM quotes in public
+  artifacts" rule even though the vault is private). Provenance: a Slack permalink to the DM
+  message. Dated with the Slack timestamp; wiki-linked; frontmatter regenerated only if a
+  top-level item is added.
 
 __First-run registration:__
 
@@ -1463,6 +1539,12 @@ forward counts (with brief titles in parentheses). Only completed items as bulle
   are swept since `last_scan_ts`, classified by relevance, and high-confidence matches
   are folded directly into existing worklog items and People/Program/Team notes with a
   Slack permalink for provenance. They are __never__ written as `Meetings/` notes.
+- __DM sweeps are approval-only and genericized.__ With `Sources/_dms.md` enabled, pulls
+  also sweep the user's 1:1 + group DMs (enumerated via the `slack-list-dms` helper). DM
+  content is __never auto-folded__ — every relevant item routes through the one-by-one
+  approval batch, and approved items are folded as genericized, workstream-level summaries
+  with a Slack permalink. If the helper is missing/unauthorized, the DM sweep is skipped and
+  the channel pull is unaffected.
 
 ## Netflix-specific commands (this fork only)
 
