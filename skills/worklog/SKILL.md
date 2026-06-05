@@ -472,36 +472,44 @@ worklog items and People/Program/Team notes, with a Slack permalink for provenan
 ### Source type: `dm-sweep`
 
 A third source type that sweeps the user's Slack __direct messages and group DMs__
-(MPIMs) — not a single channel. DMs are auto-enumerated, so there is __one__ config file
-for the whole sweep, `Sources/_dms.md`:
+(MPIMs). DMs are searched (not enumerated), so there is __one__ config file for the whole
+sweep, `Sources/_dms.md`:
 
 ```yaml
 ---
 type: dm-sweep
 enabled: true
-include_1on1: true
-include_groups: true
+include_1on1: true              # search im conversations
+include_groups: true            # search mpim (group DM) conversations
 last_scan_ts: null              # global baseline; first run = now − first_scan_lookback_days
 first_scan_lookback_days: 3
 nudge_threshold_days: 5
-exclude_users: []               # user IDs/names whose 1:1 DMs are never swept
-exclude_conversations: []       # specific conversation IDs (im/mpim) to skip
+query: ""                       # optional salience query override; empty = built-in default
+max_results: 100                # pagination cap and volume-guardrail threshold
+exclude_users: []               # user IDs whose 1:1 DMs are dropped from results
+exclude_conversations: []       # conversation IDs (im/mpim) dropped from results
 ---
 
 # Direct Messages
 
-Auto-enumerated DM + group-DM sweep. One global `last_scan_ts`, incremental by message
-timestamp. DM content is __never auto-folded__ — everything routes through the approval
-batch and is folded only on approval, as a genericized workstream-level summary.
+Search-based DM + group-DM sweep via Slack's Real-time Search API. One global
+`last_scan_ts`, incremental by message timestamp. DM content is __never auto-folded__:
+everything routes through the approval batch and is folded only on approval, as a
+genericized workstream-level summary.
 ```
 
 Notes:
 - A single global `last_scan_ts` governs the whole sweep (a message is new if
-  `ts > last_scan_ts`); there is no per-conversation state.
-- Enumerating the user's DMs needs the `slack-list-dms` helper (there is no MCP
-  `conversations.list`). Reading each DM reuses the MCP (`slack_read_channel` /
-  `slack_read_thread`).
-- Requires one-time token scopes `im:read` + `mpim:read` (see `docs/SETUP-SLACK.md`).
+  `ts > last_scan_ts`, filtered server-side via the search `after` parameter — no local
+  re-filtering needed); there is no per-conversation state.
+- Discovery uses the `slack-search-dms` helper (Slack `assistant.search.context`), which
+  returns only relevant DM messages with permalinks, surrounding thread context, and a bot
+  flag. No enumeration or per-conversation reads.
+- `include_1on1` / `include_groups` select the search `channel_types` (`im` and/or `mpim`).
+- `query` overrides the built-in salience query; `max_results` caps pagination and is the
+  volume-guardrail threshold (default 100).
+- Requires one-time scopes `search:read.public` + `search:read.im` + `search:read.mpim` and
+  in-client DM-search consent (see `docs/SETUP-SLACK.md`).
 
 ## Meetings
 
@@ -839,10 +847,10 @@ For `context-channel` sources, the summary additionally reports, per channel:
 auto-fold (one line: summary → target item, with permalink) so any mis-classification
 is visible and can be undone, followed by the approval-batch outcomes.
 
-For the DM sweep, the summary reports `N conversations · M surfaced for approval · K
-dropped` (DMs never report auto-folds, since none are auto-folded), followed by the
-approval-batch outcomes. If the helper was unavailable, report `DM sweep skipped:
-<reason>` and nothing else for DMs.
+For the DM sweep, the summary reports `N results · M surfaced for approval · K dropped`
+(DMs never report auto-folds, since none are auto-folded), followed by the approval-batch
+outcomes. If the helper was unavailable, report `DM sweep skipped: <reason>` and nothing
+else for DMs.
 
 __Context-channel sweep flow:__
 
@@ -918,26 +926,41 @@ __DM sweep flow:__
 If `Sources/_dms.md` exists and is `enabled: true`, run this after all channel sources
 (its candidates join the same end-of-pull approval batch):
 
-1. Enumerate the user's DMs by running the helper (unconditionally; do not pre-check
-   "is it configured" — run it and branch on exit code, same pattern as `slack-fetch-file`):
+1. Compute the `after` timestamp: `last_scan_ts` if set, else `now − first_scan_lookback_days`
+   (default 3 days), as a UNIX timestamp.
+2. Search DMs by running the helper (unconditionally; do not pre-check "is it configured" —
+   run it and branch on exit code, same pattern as `slack-fetch-file`). Pass the `after`
+   timestamp; set the salience query via `SLACK_DM_QUERY` if `_dms.md` `query` is non-empty,
+   and `SLACK_DM_CHANNEL_TYPES` from `include_1on1`/`include_groups` (`im`, `mpim`, or both).
+   If both `include_1on1` and `include_groups` are false, skip the DM sweep entirely
+   (log `DM sweep skipped: no channel types selected`):
    ```bash
-   ~/.config/obsidian-worklog/bin/slack-list-dms
+   # SLACK_DM_CHANNEL_TYPES is computed from include_1on1/include_groups (both, here)
+   SLACK_DM_CHANNEL_TYPES="im,mpim" ~/.config/obsidian-worklog/bin/slack-search-dms <after_unix_ts>
    ```
-   It prints one conversation per line: `<id><TAB><im|mpim><TAB><other-user-id-if-im>`.
-   On any non-zero exit, print a one-line skip note with the helper's stderr and __skip the
-   DM sweep__; the rest of the pull is unaffected.
-2. Filter the list: drop entries whose id is in `exclude_conversations`; drop `im` entries
-   whose other-user-id is in `exclude_users`; honor `include_1on1` / `include_groups`.
-3. Window: messages with `ts > last_scan_ts`. First run (`last_scan_ts` null): look back
-   `first_scan_lookback_days` (default 3).
-4. For each conversation, `slack_read_channel` since the window (bots excluded); expand
-   group-DM threads via `slack_read_thread` as needed. Build conversation units (a unit is
-   a thread or a standalone message).
-5. __Volume guardrail:__ if total DM units exceed ~100, STOP and ask (proceed / narrow /
-   skip). Never silently truncate.
-6. Classify each unit against the __entire vault__ using the three-way rubric above, with
-   the DM privacy override below.
-7. Advance `last_scan_ts` to the current time after the sweep completes.
+   It prints one JSON result object per line, then a final `{"next_cursor":"..."}` line. On
+   any non-zero exit, print a one-line skip note with the helper's stderr and __skip the DM
+   sweep__; the rest of the pull is unaffected. Paginate by re-running with the returned
+   `next_cursor` as the second argument until it is empty or `max_results` results have been
+   collected.
+3. __Volume guardrail:__ if, after collecting `max_results` results (default 100), the last
+   page returned a non-empty `next_cursor`, STOP and ask (proceed / narrow the window / skip)
+   before classifying. Never silently truncate. Results are relevance-ranked, so earlier pages
+   matter most. On 'proceed', continue paginating from the last `next_cursor` until it is empty,
+   then classify.
+4. Filter results: drop any whose `channel_id` is in `exclude_conversations`; drop any whose
+   `author_user_id` is in `exclude_users`. (Bots are already excluded by the search; treat any
+   result with `is_author_bot: true` as a second-guard drop.)
+5. Each remaining result is a unit. Its `content` is the matched message; `context_messages`
+   (before/after, thread-limited) supplies surrounding thread context for classification and
+   for writing a genericized summary. `permalink` is the provenance; `message_ts` is the date;
+   `author_user_id` / `author_name` identify the person to wiki-link.
+6. Classify each unit against the __entire vault__ using the three-way rubric above, with the
+   DM privacy override below.
+7. Advance `last_scan_ts` to the current time after the sweep completes. On a partial failure
+   (network error mid-pagination), do __not__ advance `last_scan_ts`; report the partial sweep
+   so the next pull re-covers the window (re-surfaced units are harmless since nothing folds
+   without approval).
 
 __DM privacy override (differs from channels):__
 - __DM content is never auto-folded.__ Every relevant DM unit — high-confidence match
@@ -946,9 +969,9 @@ __DM privacy override (differs from channels):__
   `P?` item / Backlog / drop (new standalone items are allowed). Noise is dropped silently.
 - On approval, fold a __genericized, workstream-level summary__ — no verbatim 1:1 quotes,
   no personal detail beyond what the item needs (honors the user's "no DM quotes in public
-  artifacts" rule even though the vault is private). Provenance: a Slack permalink to the DM
-  message. Dated with the Slack timestamp; wiki-linked; frontmatter regenerated only if a
-  top-level item is added.
+  artifacts" rule even though the vault is private). Provenance: the `permalink` to the DM
+  message. Dated with `message_ts`; wiki-linked; frontmatter regenerated only if a top-level
+  item is added.
 
 __First-run registration:__
 
@@ -1540,11 +1563,11 @@ forward counts (with brief titles in parentheses). Only completed items as bulle
   are folded directly into existing worklog items and People/Program/Team notes with a
   Slack permalink for provenance. They are __never__ written as `Meetings/` notes.
 - __DM sweeps are approval-only and genericized.__ With `Sources/_dms.md` enabled, pulls
-  also sweep the user's 1:1 + group DMs (enumerated via the `slack-list-dms` helper). DM
-  content is __never auto-folded__ — every relevant item routes through the one-by-one
-  approval batch, and approved items are folded as genericized, workstream-level summaries
-  with a Slack permalink. If the helper is missing/unauthorized, the DM sweep is skipped and
-  the channel pull is unaffected.
+  also sweep the user's 1:1 + group DMs via Slack's Real-time Search API (the
+  `slack-search-dms` helper). DM content is __never auto-folded__ — every relevant item
+  routes through the one-by-one approval batch, and approved items are folded as genericized,
+  workstream-level summaries with a Slack permalink. If the helper is missing/unauthorized
+  (or DM-search consent is absent), the DM sweep is skipped and the channel pull is unaffected.
 
 ## Netflix-specific commands (this fork only)
 
