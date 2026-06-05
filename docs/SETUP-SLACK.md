@@ -204,3 +204,58 @@ rm ~/.config/obsidian-worklog/bin/slack-fetch-file
 ```
 
 The skill detects the missing helper and prompts for paste on every thread.
+
+## Optional: DM sweep setup
+
+To let `/worklog pull` also sweep your 1:1 + group DMs, do two one-time things.
+
+### 1. Add scopes to your Slack user token
+
+The DM sweep enumerates your conversations via Slack `users.conversations`, which needs
+`im:read` + `mpim:read` in addition to the existing `files:read`. In your Slack app at
+`api.slack.com/apps` → OAuth & Permissions → User Token Scopes, add `im:read` and
+`mpim:read`, then reinstall the app to your workspace and update the `xoxp-` token at
+`~/.config/obsidian-worklog/slack-token` (chmod 600). (Reading the DMs themselves uses the
+Slack MCP, which already has access — only enumeration needs these scopes.)
+
+### 2. Install the `slack-list-dms` helper
+
+Save this as `~/.config/obsidian-worklog/bin/slack-list-dms` and `chmod +x` it:
+
+```bash
+#!/usr/bin/env bash
+# slack-list-dms — list the calling user's DM + group-DM conversations.
+# Output (one per line):  <conversation_id>\t<im|mpim>\t<other-user-id-if-im>
+# Exit 0 on success; non-zero with a one-line stderr message on any failure.
+set -euo pipefail
+
+TOKEN_FILE="${SLACK_TOKEN_FILE:-$HOME/.config/obsidian-worklog/slack-token}"
+[[ -r "$TOKEN_FILE" ]] || { echo "slack-list-dms: token file not readable at $TOKEN_FILE" >&2; exit 3; }
+TOKEN="$(tr -d '[:space:]' < "$TOKEN_FILE")"
+[[ -n "$TOKEN" ]] || { echo "slack-list-dms: empty token" >&2; exit 3; }
+
+cursor=""
+while :; do
+  resp="$(curl -sS -G "https://slack.com/api/users.conversations" \
+    -H "Authorization: Bearer $TOKEN" \
+    --data-urlencode "types=im,mpim" \
+    --data-urlencode "exclude_archived=true" \
+    --data-urlencode "limit=200" \
+    ${cursor:+--data-urlencode "cursor=$cursor"})" \
+    || { echo "slack-list-dms: network error calling users.conversations" >&2; exit 4; }
+
+  if [[ "$(printf '%s' "$resp" | jq -r '.ok')" != "true" ]]; then
+    echo "slack-list-dms: slack api error: $(printf '%s' "$resp" | jq -r '.error // "unknown_error"')" >&2
+    exit 5
+  fi
+
+  printf '%s' "$resp" | jq -r '.channels[] | [.id, (if .is_im then "im" else "mpim" end), (.user // "")] | @tsv'
+
+  cursor="$(printf '%s' "$resp" | jq -r '.response_metadata.next_cursor // ""')"
+  [[ -n "$cursor" ]] || break
+done
+```
+
+Test it: `~/.config/obsidian-worklog/bin/slack-list-dms | head` should print conversation
+IDs. A non-zero exit (missing scope, bad token) makes `/worklog pull` skip the DM sweep
+gracefully.
