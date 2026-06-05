@@ -856,29 +856,23 @@ __What auto-fold writes__ — same shape as the __Processing raw input__ pipelin
   sub-item adds skip regeneration.
 
 __Approval batch (human-in-the-loop)__ — after every source is swept (email +
-context), if any uncertain/new candidates were staged, present ONE consolidated
-numbered checklist in chat:
+context), collect all uncertain/new candidates and present them __one at a time, each
+with its own explicit options__. This is the user's default for any multi-item input
+request: do NOT dump a single consolidated free-text checklist and ask for a bulk
+reply. Use a per-item options prompt (`AskUserQuestion`), up to 4 items per prompt,
+iterating in additional prompts if there are more than 4.
 
-```
-Context-channel pull — N items need your call:
+Each item shows its source channel, date, a one-line summary, and the Slack permalink,
+with a small set of routing options — for example:
+- Attach as a sub-item under `[[matched item]]` (for an uncertain match)
+- New `P?` item under `<subgroup>`
+- Add to the Backlog
+- Drop
 
-1. [#infrasec-leads · Jun 4] <one-line summary>
-   → Might relate to [[GCP CSPM tool evaluation]] — attach as sub-item? (uncertain match)
-   permalink: <url>
-
-2. [#side-team · Jun 3] <one-line summary>
-   → No match. Looks new — suggest P1 under "SPA Programs": "<proposed title>". Add?
-   permalink: <url>
-…
-Reply e.g.: "add 1; 2 as P2 under Cloud Security; skip 3; 4 attach to [[Triage SIDE]]"
-```
-
-Each entry carries: source channel, date, one-line summary, the proposed action
-(attach to `[[item]]` as sub-item / new `P?` item under `<subgroup>` / new Backlog
-item), and the permalink. The user approves / rejects / edits in bulk free text. This
-is a chat checklist, not `AskUserQuestion` (batches exceed its 4-option cap). On the
-response, apply approved additions (dated with the Slack timestamp, wiki-linked,
-permalink provenance) and regenerate frontmatter if any top-level items were added.
+Lead with the most likely option and mark it recommended; the user picks per item and
+can override the priority, subgroup, or target. After the responses, apply the
+approved additions (dated with the Slack timestamp, wiki-linked, permalink provenance)
+and regenerate frontmatter only if any top-level items were added.
 
 __First-run registration:__
 
