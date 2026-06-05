@@ -31,10 +31,30 @@ emit_array(){ jq -s '.'; }
 
 stale_people(){
   shopt -s nullglob
+  # Build sorted list of ALL weekly files (Worklogs + Archive) for last_seen lookup.
+  ALL_WEEKLY=()
+  while IFS= read -r b; do ALL_WEEKLY+=("$b"); done < <(
+    { ls Worklogs 2>/dev/null; ls Archive 2>/dev/null; } \
+      | grep -E '^[0-9]{4}-W[0-9]{2}\.md$' | sort -u | sort
+  )
   for f in People/*.md; do
     name="$(basename "$f" .md)"
     if ! grep -Fq "[[$name" "${RECENT[@]:-/dev/null}" "$BACKLOG" 2>/dev/null; then
-      jq -cn --arg file "$f" '{file:$file}'
+      # Find last_seen: highest WNN weekly file (basename without .md, sorted desc)
+      # among ALL weekly files in which [[<name appears.
+      last_seen="never"
+      for b in "${ALL_WEEKLY[@]:-}"; do
+        [ -n "$b" ] || continue
+        found_in=""
+        [ -f "Worklogs/$b" ] && grep -Fq "[[$name" "Worklogs/$b" 2>/dev/null && found_in="$b"
+        [ -f "Archive/$b"  ] && grep -Fq "[[$name" "Archive/$b"  2>/dev/null && found_in="$b"
+        if [ -n "$found_in" ]; then
+          # basename without .md = week label e.g. 2026-W19
+          last_seen="${found_in%.md}"
+        fi
+      done
+      # ALL_WEEKLY is sorted ascending, so last iteration that matched is the highest week
+      jq -cn --arg file "$f" --arg last_seen "$last_seen" '{file:$file, last_seen:$last_seen}'
     fi
   done | emit_array
 }
@@ -99,22 +119,63 @@ missing_links(){
 stuck_items(){
   [ -n "${ACTIVE:-}" ] && [ -f "$ACTIVE" ] || { echo '[]'; return; }
   shopt -s nullglob
+  # Sorted ascending list of archive basenames (e.g. 2026-W14.md, 2026-W15.md, ...)
   ARCH=()
   while IFS= read -r a; do ARCH+=("$a"); done < <(ls Archive 2>/dev/null | grep -E '^[0-9]{4}-W[0-9]{2}\.md$' | sort)
+  ARCH_LEN="${#ARCH[@]}"
   norm(){ printf '%s' "$1" | tr 'A-Z' 'a-z' | tr -cd 'a-z0-9 ' | tr -s ' '; }
   while IFS= read -r line; do
     title="${line#*In Progress - }"
     nt="$(norm "$title")"
     [ -n "$nt" ] || continue
-    hits=0
-    for a in "${ARCH[@]}"; do
+    prefix20="$(printf '%s' "$nt" | cut -c1-20)"
+
+    # --- Step 1: Collect indices of matching archives ---
+    match_indices=""
+    since_week=""
+    i=0
+    while [ "$i" -lt "$ARCH_LEN" ]; do
+      a="${ARCH[$i]}"
       roll="$(grep -oE 'rolled forward to [^(]*\(([^)]*)\)' "Archive/$a" 2>/dev/null | sed 's/.*(\(.*\))/\1/')"
-      if [ -n "$roll" ] && printf '%s' "$(norm "$roll")" | grep -qF "$(printf '%s' "$nt" | cut -c1-20)"; then
-        hits=$((hits+1))
+      if [ -n "$roll" ] && printf '%s' "$(norm "$roll")" | grep -qF "$prefix20"; then
+        match_indices="${match_indices} $i"
+        # earliest matching archive week (ascending sort => first match)
+        if [ -z "$since_week" ]; then since_week="${a%.md}"; fi
       fi
+      i=$((i+1))
     done
-    [ "$hits" -ge 2 ] || continue
-    jq -cn --arg title "$title" --argjson hits "$hits" '{title:$title, archives_hit:$hits}'
+
+    # Need at least 2 matches for any consecutiveness check
+    match_count=$(printf '%s' "$match_indices" | wc -w | tr -d ' ')
+    [ "$match_count" -ge 2 ] || continue
+
+    # --- Step 2: Require at least two ADJACENT (consecutive) matching indices ---
+    consecutive=0
+    prev=-99
+    for idx in $match_indices; do
+      if [ "$((idx - prev))" -eq 1 ]; then consecutive=1; break; fi
+      prev="$idx"
+    done
+    [ "$consecutive" -eq 1 ] || continue
+
+    # --- Step 3: Extract item block from active week, check for (Mon D) dated sub-item ---
+    # Capture lines from the item's header up to (but not including) the next P0/P1/P2 header.
+    item_block="$(awk -v tgt="$title" '
+      BEGIN{found=0}
+      /^- \*\*P[012]\*\* ⏳ In Progress - /{
+        if(found){exit}
+        if(index($0, tgt)>0){found=1; print; next}
+      }
+      found{print}
+    ' "$ACTIVE" 2>/dev/null)"
+    # Regex for (Mon D) or (Mon DD): e.g. (May 14), (Jun 4)
+    if printf '%s' "$item_block" | grep -qE '\([A-Z][a-z][a-z] [0-9]{1,2}\)'; then
+      continue  # has dated progress — not stuck
+    fi
+
+    # --- Step 4: Emit {title, since, last_dated:null} ---
+    jq -cn --arg title "$title" --arg since "$since_week" \
+       '{title:$title, since:$since, last_dated:null}'
   done < <(grep -E '^- \*\*P[012]\*\* ⏳ In Progress - ' "$ACTIVE" 2>/dev/null) | emit_array
 }
 
