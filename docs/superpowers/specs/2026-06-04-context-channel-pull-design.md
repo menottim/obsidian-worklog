@@ -161,6 +161,8 @@ skip regeneration.
 
 ## The approval batch (human-in-the-loop)
 
+> __Amendment (2026-06-05):__ per user preference, the approval batch presents staged items __one at a time, each with its own explicit options__ (`AskUserQuestion`-style, up to 4 per prompt), not the single consolidated free-text checklist described below. This is the default for any multi-item input request. Shipped in `SKILL.md` (commit `cd0368a`).
+
 After every source has been swept (email + all context-channels), if any uncertain or
 new candidates were staged, present __one consolidated numbered checklist__ in chat:
 
