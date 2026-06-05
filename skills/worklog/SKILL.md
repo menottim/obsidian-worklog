@@ -345,7 +345,7 @@ Before doing any task that has a preference-shaped surface - drafting a message,
 markdown, making a workflow choice, picking a tool, structuring a note - run the index:
 
 ```bash
-__SKILL_INSTALL_PATH__/scripts/preferences-index.sh '__VAULT_PATH__'
+__SKILL_INSTALL_PATH__/skills/worklog/scripts/preferences-index.sh '__VAULT_PATH__'
 ```
 
 It prints one record per preference (`title`, `applies_to`, `rule`). Select the 1-3 whose
@@ -788,7 +788,7 @@ __Run the scanner__ — it computes all six checks in bash so no `People`/`Progr
 load into context:
 
 ```bash
-__SKILL_INSTALL_PATH__/scripts/audit-scan.sh '__VAULT_PATH__'
+__SKILL_INSTALL_PATH__/skills/worklog/scripts/audit-scan.sh '__VAULT_PATH__'
 ```
 
 It prints JSON with six arrays: `stale_people`, `orphan_programs`, `stuck_items`,
@@ -1171,7 +1171,7 @@ forward counts (with brief titles in parentheses). Only completed items as bulle
   workflow, tooling, decision rules, vault conventions, formatting, defaults.
   Before any task with a preference-shaped surface (drafting communication,
   writing markdown, picking a tool, structuring a note, making a workflow choice),
-  run `__SKILL_INSTALL_PATH__/scripts/preferences-index.sh '__VAULT_PATH__'`, pick the
+  run `__SKILL_INSTALL_PATH__/skills/worklog/scripts/preferences-index.sh '__VAULT_PATH__'`, pick the
   1-3 relevant preferences from the digest, and read only those bodies. When the user gives feedback
   that sounds durable - "always", "never", "from now on", repeated corrections,
   or quiet endorsements of non-obvious choices - offer to capture it as a
