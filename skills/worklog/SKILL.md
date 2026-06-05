@@ -341,13 +341,17 @@ governs (e.g., `communication`, `slack-dm`, `status-update`, `markdown`,
 
 ### When to apply a preference
 
-Before doing any task that has a preference-shaped surface - drafting a message,
-writing markdown, making a workflow choice, picking a tool, structuring a note -
-glob `Preferences/*.md` and check whether any preferences apply. Cite them lightly
-when you act so the user can correct you if a preference needs updating.
+Before doing any task that has a preference-shaped surface - drafting a message, writing
+markdown, making a workflow choice, picking a tool, structuring a note - run the index:
 
-A user who has built up 10-20 preferences in this directory will see their working
-style preserved across sessions. That is the durable benefit of this pattern.
+```bash
+__SKILL_INSTALL_PATH__/scripts/preferences-index.sh '__VAULT_PATH__'
+```
+
+It prints one record per preference (`title`, `applies_to`, `rule`). Select the 1-3 whose
+`applies_to`/title/rule match the task, then read __only those__ full bodies from
+`Preferences/<Title>.md`. Do not read every preference file. Cite the ones you applied
+lightly so the user can correct you.
 
 ### Examples of preference notes worth capturing
 
@@ -1102,64 +1106,46 @@ Present as a checklist. Apply approved changes directly.
 
 ### `/worklog audit`
 
-__Nudge check (run first):__ Same as `/worklog rollover` above - check
-`Sources/*.md` and surface a stale-channel FYI before continuing.
+__Nudge check (run first):__ Same as `/worklog rollover` above - check `Sources/*.md` and
+surface a stale-channel FYI before continuing.
 
 Scan the vault for quality issues and present a fix-it checklist. No arguments.
 
-**Checks:**
+__Run the scanner__ — it computes all six checks in bash so no `People`/`Programs` bodies
+load into context:
 
-1. **Stale people**: Notes in `People/` not mentioned (via wiki-link) in any weekly
-   file dated within the last 4 weeks. Excludes people who appear in the Backlog.
-   Method: Glob `People/*.md`, then for each person Grep across the 4 most recent
-   weekly files (active + archive) for their wiki-link.
+```bash
+__SKILL_INSTALL_PATH__/scripts/audit-scan.sh '__VAULT_PATH__'
+```
 
-2. **Orphan programs**: Notes in `Programs/` with no wiki-link from any file in
-   `Worklogs/` or `Archive/` dated within the last 4 weeks. Same method as stale
-   people but for `Programs/*.md`.
+It prints JSON with six arrays: `stale_people`, `orphan_programs`, `stuck_items`,
+`missing_links`, `empty_stubs`, `frontmatter_gaps`. Read __only__ this output — do not glob
+or read `People`/`Programs` bodies yourself. The `stuck_items` and `missing_links` checks are
+heuristic; review each and drop obvious misfires before presenting.
 
-3. **Stuck items**: Items in the current active week that have been carried forward
-   from previous weeks without recent progress. To detect: for each "In Progress"
-   item in the active week, search the archive files' rollover notes (the parenthetical
-   list after "rolled forward to") for matching titles. If an item title appears in
-   2+ consecutive archives' rollover lists AND has no `(Mon D)` sub-item annotation
-   in the active week dated within the last 2 weeks, flag it as stuck. This works
-   with the archive summary format since rolled-forward items are listed by title.
-
-4. **Missing links**: Unlinked mentions of known people or programs in weekly files.
-   Glob `People/*.md` and `Programs/*.md` to get entity names. For each weekly file,
-   scan body text for name strings that are NOT wrapped in `[[wiki-links]]`. Report
-   the file, line, and suggested link.
-
-5. **Empty stubs**: People or Program notes where the Context section has no bullet
-   points (only the `## Context` heading exists, or is missing entirely).
-
-6. **Frontmatter gaps**: Weekly or archive files missing any of: `programs`, `people`,
-   `tags`, `item-count`, `done-count`.
-
-**Output:** Present findings grouped by check type in conversation. Each finding
-includes the file path and a suggested action. Example:
+Present the findings grouped by check type, each with a suggested action, e.g.:
 
 ```
 Vault audit results:
 
 Stale people (not mentioned in 4+ weeks):
-- People/Jordan Lee.md - last seen in W13
+- People/Jordan Lee.md - last seen in W19
   Suggested: archive, update context, or remove if no longer relevant
 
 Stuck items (3+ weeks without update):
-- "Figure out Q2 plans across Cloud Security" - P0 since W14, last dated sub-item Apr 13
+- "Figure out Q2 plans across Cloud Security" - P0 since W14
   Suggested: add a status update or reprioritize
 
 Missing links:
-- Worklogs/2026-W16.md:23 "Tom" -> [[Tom Rivera|Tom]]
+- Worklogs/2026-W23.md:23 "Tom" -> [[Tom Rivera|Tom]]
 
 Frontmatter gaps:
-- Archive/2026-W11.md: missing programs, people, tags, item-count, done-count
+- Archive/2026-W11.md: missing programs, people
 ```
 
-User picks which fixes to apply. Apply approved fixes directly using Edit/Write tools.
-For frontmatter gaps, regenerate using the Frontmatter Auto-generation rules.
+The user picks which fixes to apply. Apply approved fixes directly with Edit/Write; for
+frontmatter gaps, regenerate using the Frontmatter Auto-generation rules. The check
+definitions live in `scripts/audit-scan.sh` — do not re-derive them here.
 
 ### `/worklog search <term>`
 
@@ -1545,7 +1531,8 @@ forward counts (with brief titles in parentheses). Only completed items as bulle
   workflow, tooling, decision rules, vault conventions, formatting, defaults.
   Before any task with a preference-shaped surface (drafting communication,
   writing markdown, picking a tool, structuring a note, making a workflow choice),
-  glob `Preferences/*.md` and apply what's relevant. When the user gives feedback
+  run `__SKILL_INSTALL_PATH__/scripts/preferences-index.sh '__VAULT_PATH__'`, pick the
+  1-3 relevant preferences from the digest, and read only those bodies. When the user gives feedback
   that sounds durable - "always", "never", "from now on", repeated corrections,
   or quiet endorsements of non-obvious choices - offer to capture it as a
   `Preferences/` note. The user-approved capture is what makes this pattern
