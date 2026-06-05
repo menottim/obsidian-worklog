@@ -733,7 +733,7 @@ email sources finish their own inline paste/skip flow).
 
 __Full flow detail:__ the pull steps, the context-channel sweep, the DM sweep + privacy
 override, first-run registration, and body extraction live in
-`__SKILL_INSTALL_PATH__/references/pull-flow.md`. __Before executing `/worklog pull`, you MUST
+`__SKILL_INSTALL_PATH__/skills/worklog/references/pull-flow.md`. __Before executing `/worklog pull`, you MUST
 read that reference and follow it__ (kept out of this file for size; behavior is unchanged).
 
 ### `/worklog rollover`
@@ -1072,7 +1072,7 @@ Trends: Heaviest category: X (N%). M programs, N people engaged. X% completion r
 ### `/worklog viz [period]`
 
 Generate standalone HTML D3 charts for a period. __Before executing, you MUST read
-`__SKILL_INSTALL_PATH__/references/viz.md` and follow it__ (full mechanics + template-fill
+`__SKILL_INSTALL_PATH__/skills/worklog/references/viz.md` and follow it__ (full mechanics + template-fill
 live there to keep this file small).
 
 ### `/worklog sync`
@@ -1200,6 +1200,6 @@ forward counts (with brief titles in parentheses). Only completed items as bulle
 
 `/worklog ingest <url>`, `/worklog whois <name|email>`, `/worklog jira <key>`, and the
 `/worklog <arg>` auto-routing all live in detail in
-`__SKILL_INSTALL_PATH__/references/netflix-commands.md`. __Before running any of these (or
+`__SKILL_INSTALL_PATH__/skills/worklog/references/netflix-commands.md`. __Before running any of these (or
 auto-routing a bare `/worklog <arg>`), you MUST read that reference and follow it exactly__ —
 it names the exact MCP tool per action and the untrusted-content rules.
