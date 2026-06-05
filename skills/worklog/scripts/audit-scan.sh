@@ -52,7 +52,15 @@ orphan_programs(){
 empty_stubs(){
   shopt -s nullglob
   for f in People/*.md Programs/*.md; do
-    bullets="$(awk '/^## Context/{c=1; next} /^## /{c=0} c && /^[[:space:]]*-[[:space:]]/{n++} END{print n+0}' "$f")"
+    # For Programs notes: count bullets under ## Context (canonical section per SKILL.md).
+    # For People notes: count ALL body bullets (section structure varies — Role, Current Focus,
+    # Working Dynamics, dated headers, etc.). A People note with any bullets is not a stub.
+    if [[ "$f" == Programs/* ]]; then
+      bullets="$(awk '/^## Context$/{c=1; next} /^## /{c=0} c && /^[[:space:]]*-[[:space:]]/{n++} END{print n+0}' "$f")"
+    else
+      # Skip frontmatter (between first and second ---), count all bullet lines in body
+      bullets="$(awk 'BEGIN{fm=0} /^---$/{fm++; next} fm<2{next} /^[[:space:]]*-[[:space:]]/{n++} END{print n+0}' "$f")"
+    fi
     if [ "${bullets:-0}" -eq 0 ]; then
       jq -cn --arg file "$f" '{file:$file}'
     fi
