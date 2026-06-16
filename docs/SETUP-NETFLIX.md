@@ -2,11 +2,11 @@
 
 This document is specific to the Netflix-internal fork at `github.netflix.net/mminutillo/obsidian-worklog`. The public fork at `github.com/menottim/obsidian-worklog` does not include this.
 
-If you're a Netflix engineer, this walkthrough adds the integrations that make worklog feel native: Slack thread fetching via Netflix's paved-path MCP, internal doc ingestion (Coda / Confluence / Google Docs), Jira ticket pull, and Whitepages/Pandora people enrichment.
+If you're a Netflix engineer, this walkthrough adds the internal integrations: Slack thread fetching via Netflix's paved-path MCP, internal doc ingestion (Coda / Confluence / Google Docs), Jira ticket pull, and Whitepages/Pandora people enrichment.
 
 ## Prerequisites
 
-- The standard worklog prerequisites (Claude Code, Obsidian, a vault) - see the main [README](../README.md)
+- The standard worklog prerequisites (Claude Code, Obsidian, a vault); see the main [README](../README.md)
 - A Netflix `@netflix.com` git identity
 - `newt` on PATH (Netflix dev tooling). Install via `https://manuals.netflix.net/view/newt` if missing.
 
@@ -14,11 +14,11 @@ If you're a Netflix engineer, this walkthrough adds the integrations that make w
 
 | Worklog function | Without Netflix MCPs | With Netflix MCPs |
 |------------------|---------------------|-------------------|
-| `/worklog pull` (Slack thread ingest) | Personal Slack OAuth app + `xoxp-` token + custom Bash helper | Slack thread fetching via Core Tools MCP - no personal app needed |
-| Ingesting meeting notes | Paste body inline each time | `/worklog ingest <coda-or-confluence-url>` - body fetched via Netflix Search Data |
-| Creating People notes | Name only, you fill in context manually | `/worklog whois <name>` - title, manager, team auto-populated from Pandora |
+| `/worklog pull` (Slack thread ingest) | Personal Slack OAuth app + `xoxp-` token + custom Bash helper | Slack thread fetching via Core Tools MCP, no personal app needed |
+| Ingesting meeting notes | Paste body inline each time | `/worklog ingest <coda-or-confluence-url>`, body fetched via Netflix Search Data |
+| Creating People notes | Name only, you fill in context manually | `/worklog whois <name>`, title, manager, team auto-populated from Pandora |
 | Finding past discussions | Manual Slack search | Slack RAG via Netflix Search API can surface past threads on a topic |
-| Tracking Jira-tracked work | Paste ticket details inline | `/worklog jira <KEY>` - pulls status, title, owner |
+| Tracking Jira-tracked work | Paste ticket details inline | `/worklog jira <KEY>`, pulls status, title, owner |
 | Looking up Netflix internals | Web search Manuals manually | Manuals RAG via Core Tools surfaces authoritative answers |
 
 ## Step 1: setup.sh runs `newt join` automatically (strict mode)
@@ -29,7 +29,7 @@ The Netflix-detection block in `setup.sh` runs this for you when it sees an `@ne
 newt --app-type=dev-profiles join --profile=genai-core-tools
 ```
 
-If the join fails, `setup.sh` aborts before declaring "Setup complete!" - the script never leaves you with a partial install. If you're already joined (verified via `newt --app-type=dev-profiles resolve`), the script skips the join step.
+If the join fails, `setup.sh` aborts before declaring "Setup complete!", so the script never leaves you with a partial install. If you're already joined (verified via `newt --app-type=dev-profiles resolve`), the script skips the join step.
 
 This installs (or makes available via `/mcp` in Claude Code) the canonical Netflix-internal MCP server `core-tools`, which exposes these exact tool IDs that the worklog skill pins to:
 
@@ -54,7 +54,7 @@ The worklog skill specifically benefits from these. Check each via `/mcp`; insta
 | __Slack__ | `/worklog pull` thread reading | High (likely already installed) |
 | __Jenkins__ (`netflix-ci-official`) | CI status as worklog context | Medium |
 | __Atlas Metrics__ | Tracking dashboard alerts as items | Medium |
-| __Spinnaker__ | Linking Programs to their Spinnaker apps | Low - skill-level usage usually fine |
+| __Spinnaker__ | Linking Programs to their Spinnaker apps | Low; skill-level usage usually fine |
 | __Chronos Timeline__ | "Did the deploy happen this week?" context | Low |
 | __Incident Management__ (PagerDuty + incident.io) | Tracking incident response work | Situational |
 
@@ -64,8 +64,8 @@ The Tier 1 MCPs (Atlassian, NECP, Slack) cover ~90% of the worklog's Netflix-spe
 
 The fork's `setup.sh` detects `@netflix.com` git emails and:
 
-- Resolves your authoritative GHE login via `gh api user --jq .login` (with `GH_HOST=github.netflix.net`) - never guesses from `$(whoami)`
-- Defaults backup repo to `https://github.netflix.net/<your-ghe-login>/<vault-basename>.git` - __HTTPS, not SSH__, because port 22 to github.netflix.net is blocked on many Netflix networks (the `insteadOf` git config rewrites the URL to the `git.netflix.net` proxy at push time)
+- Resolves your authoritative GHE login via `gh api user --jq .login` (with `GH_HOST=github.netflix.net`); never guesses from `$(whoami)`
+- Defaults backup repo to `https://github.netflix.net/<your-ghe-login>/<vault-basename>.git`, using __HTTPS, not SSH__, because port 22 to github.netflix.net is blocked on many Netflix networks (the `insteadOf` git config rewrites the URL to the `git.netflix.net` proxy at push time)
 - Verifies the GHE repo exists via `gh repo view`. If it doesn't, prompts to create it via `gh repo create --private` and aborts if you decline
 
 One-time Netflix GHE setup (you may already have this):
@@ -84,7 +84,7 @@ When `/worklog whois <name>` is invoked, the skill:
 4. Updates frontmatter of `People/<Full Name>.md` with email, title, team, manager (wiki-linked), pandora_id, status
 5. Body content is preserved on merge (your accumulated context bullets are never overwritten)
 
-The "announce-which-tool" pattern applies to every Netflix command. You'll always see which MCP tool was called on which input - no silent enrichment.
+The "announce-which-tool" pattern applies to every Netflix command. You'll always see which MCP tool was called on which input; there's no silent enrichment.
 
 ## Step 5: ingesting Netflix-internal documents
 
@@ -95,7 +95,7 @@ The "announce-which-tool" pattern applies to every Netflix command. You'll alway
 - Google Docs (`https://docs.google.com/document/d/...`)
 - Slack thread permalinks (`https://*.slack.com/archives/.../p...`)
 
-The skill routes by URL pattern (deterministic - no fallback chains):
+The skill routes by URL pattern (deterministic, no fallback chains):
 - Slack permalinks -> `mcp__core-tools__fetch-slack-thread` -> treat as Meeting note
 - Coda / Confluence (confluence.netflix.com) / Google Docs -> `mcp__core-tools__netflix_search_data`
 - `netflix.atlassian.net/wiki/` Confluence pages -> `mcp__plugin_atlassian_atlassian__getConfluencePage`
@@ -107,8 +107,8 @@ The fetched body flows through the same "raw input" extraction logic the skill a
 
 The public skill's [`SETUP-SLACK.md`](SETUP-SLACK.md) walkthrough sets up a personal Slack app with `files:read` scope to fetch email-attachment bodies. At Netflix:
 
-- This still works - `files:read` is read-only and user-scoped, and Slack admins typically approve it quickly
-- Admin approval at Netflix may take a few business days - the manual-paste fallback keeps the feature working in the meantime
+- This still works. `files:read` is read-only and user-scoped, and Slack admins typically approve it quickly
+- Admin approval at Netflix may take a few business days. The manual-paste fallback keeps the feature working in the meantime
 - Alternative: use `/worklog ingest <slack-permalink>` to pull individual threads via Core Tools MCP instead of running a periodic `/worklog pull`. This avoids the personal-app path entirely for one-off ingestions
 
 If you want full `/worklog pull` automation, the personal-app path is still the cleanest. The Core Tools MCP doesn't (currently) expose file-body extraction for email attachments.
@@ -125,7 +125,7 @@ __`/worklog whois` returns no match__
 
 __`/worklog ingest` fails with "no access" on a Confluence URL__
 - You may need to be added to the space; check with the page owner
-- Verify by opening the URL in a browser first - if you can read it there, Netflix Search Data should also reach it
+- Verify by opening the URL in a browser first. If you can read it there, Netflix Search Data should also reach it
 
 __`/worklog pull` falls back to manual paste even after Slack setup__
 - Likely the Bash allowlist issue documented in `SETUP-SLACK.md` step 8

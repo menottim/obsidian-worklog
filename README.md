@@ -4,7 +4,7 @@
 
 A [Claude Code](https://claude.ai/claude-code) skill that turns your Obsidian vault into a structured worklog with weekly planning, a people and program knowledge graph, priority tracking, D3 visualizations, and AI-powered summaries.
 
-Built for anyone who tracks work across multiple projects and people. You paste in meeting notes, Slack threads, and raw context. Claude structures it, links it, and keeps it organized. Over time, your vault becomes a searchable history of what you did, who you worked with, and how your priorities evolved.
+It's built for anyone juggling work across a lot of projects and people. You paste in the raw stuff (meeting notes, Slack threads, transcripts) and Claude pulls out the action items, links the people and programs involved, and files everything under the right week. Do that for a few months and the vault becomes a searchable record of what you worked on and who you worked with.
 
 ## Table of Contents
 
@@ -32,13 +32,13 @@ Built for anyone who tracks work across multiple projects and people. You paste 
 - **D3.js visualizations** of time allocation, program activity, and completion rates
 - **Vault health checks** that find stale notes, stuck items, and missing links
 - **Preferences as first-class citizens** -- the skill maintains a `Preferences/` directory as its general-purpose memory layer: voice, style, workflow, tooling, decision rules, vault conventions, anything durable about how you work, captured once and applied automatically across sessions
-- **Slack channel inbox** -- register one or more Slack channels as sources; `/worklog pull` sweeps each and processes it based on its type. `meeting-notes-via-email`: discovers new forwarded-email threads, fetches each body, creates a `Meetings/` note per thread, and extracts action items into the current week (auto-fetch via a one-time `files:read`-scoped Slack OAuth token + a small Bash helper -- see [`docs/SETUP-SLACK.md`](docs/SETUP-SLACK.md); falls back to inline paste without it). `context-channel`: sweeps a high-traffic discussion channel since the last pull, auto-folds high-confidence matches into the worklog items they relate to (with a Slack permalink), asks before adding anything new or uncertain, and drops noise -- no per-thread files. The skill nudges you on `/worklog rollover` / `tidy` / `audit` if a registered channel hasn't been pulled in over 5 days. The pull can also sweep your 1:1 + group DMs (opt-in via `Sources/_dms.md` + a one-time `search:read.public`/`search:read.im`/`search:read.mpim` re-auth, in-client DM-search consent, and the `slack-search-dms` helper); it uses Slack's Real-time Search API to retrieve only relevant DM messages, and DM content is never auto-folded -- every relevant item routes through the approval batch and is folded as a genericized summary with a private Slack permalink
+- **Slack inbox** -- register Slack channels as sources and let `/worklog pull` sweep them into your current week. Three kinds of source are supported: forwarded-email meeting notes (one `Meetings/` note per thread), busy discussion channels (swept and folded in place, no per-thread files), and your own DMs (opt-in, never folded without your approval). Auto-fetch for email bodies needs a one-time Slack token (see [`docs/SETUP-SLACK.md`](docs/SETUP-SLACK.md)); the [FAQ](#faq) covers the rest
 
 ![Obsidian graph view showing the knowledge graph of people, programs, and weekly files](docs/images/graph-view.png)
 
 ## The Workflow
 
-The worklog creates a virtuous cycle: raw input goes in, structured knowledge comes out, and the vault gets smarter every week.
+It works as a loop: you put raw input in, structured notes come out, and each new week builds on the last.
 
 ```mermaid
 graph LR
@@ -168,7 +168,7 @@ Calendar sidebar -> click week number -> Periodic Notes creates the file -> Temp
 
 ## How It Works
 
-This is a Claude Code skill -- a markdown file ([SKILL.md](skills/worklog/SKILL.md)) that Claude reads as instructions. There is no runtime, no server, no API. Claude reads your vault files directly, follows the instructions to structure and link content, and writes the results back. The skill defines the file formats, linking conventions, and command behaviors. To keep token cost low, `/worklog audit` and preference application use bundled read-only scanner scripts in `skills/worklog/scripts/`, and less-common command detail (viz, the Netflix commands, the full pull flow) is loaded on demand from `skills/worklog/references/` rather than included in every invocation.
+This is a Claude Code skill: a markdown file ([SKILL.md](skills/worklog/SKILL.md)) that Claude reads as instructions. There is no runtime, no server, no API. Claude reads your vault files directly, follows the instructions to structure and link content, and writes the results back. The skill defines the file formats, linking conventions, and command behaviors. To keep token cost low, `/worklog audit` and preference application use bundled read-only scanner scripts in `skills/worklog/scripts/`, and less-common command detail (viz, the Netflix commands, the full pull flow) is loaded on demand from `skills/worklog/references/` rather than included in every invocation.
 
 ## Vault Structure
 
@@ -181,7 +181,7 @@ Your Vault/
   Programs/       One note per program/initiative, wiki-linked
   Teams/          One note per team, links members + parent org (optional)
   Preferences/    One note per durable preference (voice, style, workflow, etc.)
-  Sources/        Registered Slack channels for `/worklog pull`. One file per channel; frontmatter holds `channel_id`, `last_scan_ts`, and nudge threshold.
+  Sources/        Registered Slack channels for `/worklog pull`. One file per channel; frontmatter holds `type` (which selects the sweep behavior), `channel_id`, `last_scan_ts`, and nudge threshold.
   Meetings/       One file per ingested Slack thread (top-of-thread email + in-thread discussion). Linked into the knowledge graph via wiki-linked participants and programs.
   Archive/        Completed weeks in compact summary format
   Summaries/      Weekly, monthly, quarterly summaries
@@ -223,7 +223,7 @@ These fields enable [Dataview queries](docs/dataview-queries.md) for live dashbo
 | `/worklog review` | Monday morning item-by-item review (updates current week in place) |
 | `/worklog rollover` | Create new week, archive previous, carry forward unfinished items |
 | `/worklog add P1 <title>` | Quick-add an item, checks for overlaps |
-| `/worklog pull` | Ingest unprocessed threads from registered Slack channels into `Meetings/` notes plus extract action items into the current week file. On first run with no `Sources/`, walks you through registering a channel. |
+| `/worklog pull` | Sweep registered Slack channels and fold new context into the current week. Email-notes channels become per-thread `Meetings/` notes; context channels fold in place. On first run with no `Sources/`, walks you through registering one. |
 | `/worklog tidy` | Cleanup suggestions: move done items, flag stuck items, dedup |
 | `/worklog audit` | Vault health check with fix-it checklist |
 | `/worklog search <term>` | Search across all vault files |
@@ -245,7 +245,7 @@ These require Netflix-internal MCPs - see [`docs/SETUP-NETFLIX.md`](docs/SETUP-N
 
 ### Key commands in detail
 
-**`/worklog review`** -- Walks through each active item for quick status updates ("done", "still on it", "pinged Sarah"). Collects new items. Updates the current week file in place. Does _not_ create a new week or archive anything -- use `/worklog rollover` for that.
+**`/worklog review`** -- Walks through each active item for quick status updates ("done", "still on it", "pinged Sarah"). Collects new items. Updates the current week file in place. Does _not_ create a new week or archive anything. Use `/worklog rollover` for that.
 
 **`/worklog summary [period]`** -- Generates an impact-oriented summary for reporting up. Accepts: `week`, `month`, `quarter`, or specific references like `W20`, `March`, `Q1`. Monthly and quarterly summaries include **Priority Drift** (how P0s shift over time) and **Trends** (time allocation, completion rates). Writes a wiki-linked vault file and copies a plain-text version to clipboard.
 
@@ -290,13 +290,13 @@ Every time Claude writes to the vault, it wiki-links all people, programs, and t
 - Click any team to see its members and the work flowing through it
 - The graph view shows how people, programs, and teams cluster together
 
-**People notes** (`People/Sarah Chen.md`) accumulate context over time -- role, relationship, what you're working on together. New bullet points are added as substantive updates happen. The optional `team:` frontmatter property links a person to a team note.
+**People notes** (`People/Sarah Chen.md`) accumulate context over time: role, relationship, what you're working on together. New bullet points are added as substantive updates happen. The optional `team:` frontmatter property links a person to a team note.
 
 **Program notes** (`Programs/Platform Migration.md`) track status evolution, key decisions, and who's involved.
 
 **Team notes** (`Teams/Platform.md`) capture team membership and the work the team owns. The optional `parent:` frontmatter property links sub-teams to their parent org, so the graph can model nested team structures.
 
-**Preference notes** (`Preferences/Markdown Formatting.md`, `Preferences/Slack DM Voice.md`, `Preferences/Commit Discipline.md`, ...) are the skill's general-purpose memory for how you work. One note per preference -- voice, style, workflow, tooling, decision rules, vault conventions, anything you want to remember and apply later. Claude reads these before any task with a preference-shaped surface, so your working style stays consistent across sessions instead of drifting back to a generic LLM default.
+**Preference notes** (`Preferences/Markdown Formatting.md`, `Preferences/Slack DM Voice.md`, `Preferences/Commit Discipline.md`, ...) are the skill's general-purpose memory for how you work. One note per preference: voice, style, workflow, tooling, decision rules, vault conventions, anything you want to remember and apply later. Claude reads these before any task with a preference-shaped surface, so your working style stays consistent across sessions instead of drifting back to a generic LLM default.
 
 Claude creates stub notes for new people, programs, and teams automatically. The graph grows organically as your worklog evolves.
 
@@ -364,7 +364,7 @@ The skill reads and writes plain markdown files, so technically no. But Obsidian
 Yes. The skill creates its own directories (Worklogs/, People/, Programs/, etc.) within your vault. It won't touch your existing notes.
 
 **How do I handle multiple projects?**
-Use thematic subgroups within each week. The skill adapts subgroup labels to your current work -- you don't need separate vaults or files per project.
+Use thematic subgroups within each week. The skill adapts subgroup labels to your current work, so you don't need separate vaults or files per project.
 
 **Can I edit files directly in Obsidian?**
 Absolutely. The skill reads the current file state before every change. Edit freely in Obsidian between Claude sessions.
@@ -376,22 +376,22 @@ Nothing breaks. Run `/worklog rollover` whenever you're ready. The old week stay
 Each week adds ~2-5 KB. After a year: 52 weekly files + 50-100 people + 20-30 programs = a few hundred KB total.
 
 **How do I add a new Slack channel to monitor?**
-Run `/worklog pull`. If `Sources/` is empty, the skill walks you through registering the channel: it asks for the channel name, resolves the channel ID via Slack search, writes a `Sources/<channel>.md` config file, and runs the first pull. To add another channel later, just say "register `#another-channel` as a source."
+Run `/worklog pull`. If `Sources/` is empty, the skill walks you through registering the channel: it asks for the channel name, resolves the channel ID via Slack search, writes a `Sources/<channel>.md` config file, and runs the first pull. To add another channel later, just say "register `#another-channel` as a source" (a raw channel ID works too).
 
 **How do I set up auto-fetch for email bodies?**
 See [`docs/SETUP-SLACK.md`](docs/SETUP-SLACK.md) for a 5-minute walkthrough: register a personal Slack app at `api.slack.com/apps` with `files:read` scope, install it to your workspace, store the `xoxp-` user token at `~/.config/obsidian-worklog/slack-token` (chmod 600), and drop in a small `slack-fetch-file` helper script. After that, `/worklog pull` ingests email bodies automatically. If your workspace requires admin approval for new apps, the manual-paste fallback keeps the feature working while you wait.
 
 **What if auto-fetch isn't set up?**
-The skill falls back to prompting you to paste each email body inline. Same outcome (`Meetings/` note + action items extracted), just one extra step per thread. You can also say `skip` to advance past a thread without ingesting it, or `skip all remaining` to bail out of the entire pull while preserving un-shown threads for the next run. No skeleton notes get created -- the vault stays clean.
+The skill falls back to prompting you to paste each email body inline. Same outcome (`Meetings/` note + action items extracted), just one extra step per thread. You can also say `skip` to advance past a thread without ingesting it, or `skip all remaining` to bail out of the entire pull while preserving un-shown threads for the next run. No skeleton notes get created, so the vault stays clean.
 
 **What if I delete a meeting note by accident?**
-The next `/worklog pull` will re-ingest it (auto-fetch path) or re-prompt you to paste (manual path), since the `slack_thread_ts` no longer matches anything in `Meetings/*.md` and the thread is treated as new. To permanently skip a thread, use `skip` in the manual-paste prompt -- that advances `last_scan_ts` past it.
+The next `/worklog pull` will re-ingest it (auto-fetch path) or re-prompt you to paste (manual path), since the `slack_thread_ts` no longer matches anything in `Meetings/*.md` and the thread is treated as new. To permanently skip a thread, use `skip` in the manual-paste prompt; that advances `last_scan_ts` past it.
 
 **What if I edit a meeting note?**
 Your edits are preserved. Subsequent pulls only append new thread replies under `## Discussion` and update `slack_last_reply_ts` in the frontmatter. The `## Notes` section and anything else you add is never overwritten.
 
 **What's the difference between the two Slack source types?**
-`meeting-notes-via-email` treats one forwarded-email thread as one meeting and saves a `Meetings/` note per thread. `context-channel` sweeps a busy discussion channel since the last pull, auto-folds high-confidence matches into the items they relate to (with a Slack permalink), asks before adding anything new or uncertain, and drops noise -- no per-thread files.
+`meeting-notes-via-email` treats one forwarded-email thread as one meeting and saves a `Meetings/` note per thread. `context-channel` sweeps a busy discussion channel since the last pull, auto-folds high-confidence matches into the items they relate to (with a Slack permalink), asks before adding anything new or uncertain, and drops noise, with no per-thread files.
 
 **Does the pull read my DMs?**
 Only if you opt in with `Sources/_dms.md` and install the `slack-search-dms` helper (plus the search scopes and DM-search consent). Even then, no DM content is ever written without your explicit approval, and approved items are genericized (no verbatim quotes) with a private Slack permalink.

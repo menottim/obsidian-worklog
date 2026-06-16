@@ -13,7 +13,7 @@ every future `/worklog pull` ingests bodies automatically.
 ## What you'll need
 
 - A Slack workspace where you can install personal apps (this may require admin
-  approval at your org — see [App Approval Process](#app-approval-process) below).
+  approval at your org; see [App Approval Process](#app-approval-process) below).
 - About 5 minutes.
 
 ## 1. Create a personal Slack app
@@ -31,7 +31,7 @@ In the left sidebar, go to __OAuth & Permissions__ → __Scopes__.
 - That's the only scope you need. Skip __Bot Token Scopes__ entirely.
 
 > __Why user-token (`xoxp-...`), not bot-token (`xoxb-...`)?__ User tokens
-> inherit your channel access — if you're a member of a channel, the token can
+> inherit your channel access. If you're a member of a channel, the token can
 > read files in it. Bot tokens require an explicit `/invite @your-bot` to each
 > channel, which is extra friction with no benefit when you're the only user.
 
@@ -46,12 +46,12 @@ workspace name. Click __Allow__.
 > approval for new apps, you'll see a "Request to Install" button instead of
 > direct approval. Submit the request; an admin will review and approve. The
 > `files:read` scope is read-only, scoped to your own access, and one of the
-> most common scopes — approval is usually fast.
+> most common scopes, so approval is usually fast.
 
 ## 4. Copy the user OAuth token
 
 After installation, scroll back up on the __OAuth & Permissions__ page. You'll
-see __OAuth Tokens__ at the top with __User OAuth Token__ — a long string
+see __OAuth Tokens__ at the top with __User OAuth Token__, a long string
 starting with `xoxp-`. Copy it.
 
 ## 5. Store the token
@@ -147,7 +147,7 @@ Re-copy from the OAuth & Permissions page and rewrite step 5.
 Even with the helper installed, Claude Code prompts for permission each time
 it tries to run a bash command from a path it hasn't seen before. If you
 operate in `/focus` mode or with `skipAutoPermissionPrompt`, those prompts
-get silently denied — the skill will fall back to manual paste even though
+get silently denied, and the skill falls back to manual paste even though
 auto-fetch is fully set up.
 
 Add the helper path to your Bash allowlist in `~/.claude/settings.json`:
@@ -163,7 +163,7 @@ Add the helper path to your Bash allowlist in `~/.claude/settings.json`:
 Or, easier: type `/permissions` in Claude Code and add
 `Bash(~/.config/obsidian-worklog/bin/slack-fetch-file:*)` via the UI.
 
-Restart Claude Code after editing settings.json — settings load on session
+Restart Claude Code after editing settings.json: settings load on session
 start, not mid-session. The next `/worklog pull` will use auto-fetch
 automatically.
 
@@ -175,12 +175,12 @@ including personal-use apps. Common scenarios:
 - __Personal/small workspaces__: usually no approval needed, install is instant.
 - __Larger orgs with security policies__: an "App Approval Bot" or admin review
   process intercepts the install request. `files:read` is a read-only,
-  user-scoped, low-risk scope — approval is typically fast (hours to days).
+  user-scoped, low-risk scope, so approval is typically fast (hours to days).
 - __Compliance-heavy workspaces__: may have a stricter review (security/IT
   ticket). Follow your org's process.
 
 If approval at your org takes a long time, the skill's manual-paste fallback
-keeps `/worklog pull` working in the meantime — you don't have to wait.
+keeps `/worklog pull` working in the meantime, so you don't have to wait.
 
 ## Token rotation and revocation
 

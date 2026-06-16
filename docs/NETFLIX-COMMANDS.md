@@ -1,6 +1,6 @@
 # Netflix-specific worklog commands
 
-These commands exist only in the Netflix fork (`github.netflix.net/mminutillo/obsidian-worklog`). They depend on Netflix-internal MCPs - see [SETUP-NETFLIX.md](SETUP-NETFLIX.md) for installation.
+These commands exist only in the Netflix fork (`github.netflix.net/mminutillo/obsidian-worklog`). They depend on Netflix-internal MCPs; see [SETUP-NETFLIX.md](SETUP-NETFLIX.md) for installation.
 
 ## `/worklog ingest <url>`
 
@@ -66,7 +66,7 @@ __Behavior:__
    ```
    (Note: `manager_chain` is intentionally not populated. SKILL.md instructs "do not recurse on the manager chain" - you can `/worklog whois <manager-name>` to walk up one level at a time.)
 4. If a People note already exists, merge: update frontmatter, preserve all body content (your accumulated context bullets)
-5. Wiki-link the manager - creates a stub `People/<Manager Name>.md` if missing
+5. Wiki-link the manager, creating a stub `People/<Manager Name>.md` if missing
 6. Append a context bullet: `- _[YYYY-MM-DD]_ Org metadata refreshed from Pandora`
 
 __Errors:__
@@ -89,7 +89,7 @@ __Accepts:__
 
 __Behavior:__
 1. Announces: `Using mcp__plugin_atlassian_atlassian__getJiraIssue to pull <KEY>`
-2. Invokes that exact tool - reads title, status, assignee, priority, labels, parent/epic link
+2. Invokes that exact tool, reading title, status, assignee, priority, labels, parent/epic link
 3. Determines worklog priority deterministically:
    - Command flag `-p0` / `-p1` / `-p2` always wins if present
    - Otherwise: Jira priority `Highest` -> __P0__, `High` -> __P1__, anything else -> __P2__
@@ -120,14 +120,14 @@ Same but forces P0 priority regardless of Jira priority.
 
 ## Interaction with existing commands
 
-The Netflix commands are __additive__ - they don't change existing behavior:
+The Netflix commands are __additive__. They don't change existing behavior:
 
 - `/worklog pull` works the same way (paved-path Slack MCP if available, otherwise the personal-app fallback)
 - `/worklog summary` / `viz` / `rollup` / etc. operate on whatever's in the vault, regardless of how items got there
-- The Knowledge Graph (People, Programs, Teams) is populated the same way by all three new commands - they just hydrate it from authoritative Netflix sources instead of relying on you to type everything in
+- The Knowledge Graph (People, Programs, Teams) is populated the same way by all three new commands. They hydrate it from authoritative Netflix sources instead of relying on you to type everything in
 
 ## When NOT to use these
 
 - `/worklog ingest` is for one-off doc fetches. For ongoing Slack-channel monitoring, `/worklog pull` is still the right tool.
 - `/worklog whois` is for people you'll work with repeatedly. For someone mentioned once in a meeting, the existing wiki-link-as-stub flow is lighter-weight.
-- `/worklog jira` is for tickets that need to surface in your weekly view. Don't bulk-import a whole project backlog - that's noise.
+- `/worklog jira` is for tickets that need to surface in your weekly view. Don't bulk-import a whole project backlog; that's noise.
