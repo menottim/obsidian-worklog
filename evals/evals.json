@@ -162,6 +162,12 @@
       "prompt": "/worklog pull (DM search yields more than max_results results, next_cursor still set at the cap)",
       "expected_output": "Should hit the volume guardrail up front: stop and tell the user the count and window, ask whether to proceed / narrow / skip. No silent truncation.",
       "issue_tested": "DM-sweep volume guardrail at max_results - no silent truncation"
+    },
+    {
+      "id": 28,
+      "prompt": "i'm adding a worklog note: 'Met with Brian and Astha about the Cloud Security migration; Chris is reviewing.' Wrap the people and programs as wiki-links.",
+      "expected_output": "Should run cross-link-index.sh (NOT glob People/Programs, NOT read bodies) to get the entity/alias digest. Should link [[Brian Gaines|Brian]] (the dominant referent), [[Astha Singhal|Astha]], and [[Cloud Security]]. For the ambiguous 'Chris' (multiple people, no dominant referent), should ask which Chris or leave it unlinked rather than guessing.",
+      "issue_tested": "cross-link-index helper: writes consult the digest instead of globbing; dominant alias auto-links, ambiguous alias is not guessed"
     }
   ]
 }
