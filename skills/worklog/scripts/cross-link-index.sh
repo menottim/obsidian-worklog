@@ -40,7 +40,30 @@ while IFS="$(printf '\t')" read -r name type; do
     [ "$first" != "$name" ] && printf '%s\t%s\tderived\n' "$first" "$name" >> "$TUP"
   fi
 done < "$ENTS"
-# --- Stage 3: declared tuples ---             (Task 3 fills this in)
+# --- Stage 3: declared tuples (frontmatter aliases: list or inline [a, b]) ---
+for dir in People Programs; do
+  [ -d "$dir" ] || continue
+  for f in "$dir"/*.md; do
+    name="$(basename "$f" .md)"
+    awk '
+      BEGIN{fm=0; ina=0}
+      /^---[[:space:]]*$/{fm++; if(fm>=2) exit; next}
+      fm==1 && /^aliases:/{
+        rest=$0; sub(/^aliases:[[:space:]]*/,"",rest)
+        if (rest ~ /^\[/) {                         # inline: aliases: [A, B]
+          gsub(/[][]/,"",rest); m=split(rest,a,",")
+          for (i=1;i<=m;i++){ gsub(/^[[:space:]]+|[[:space:]]+$/,"",a[i]); if(a[i]!="") print a[i] }
+          ina=0
+        } else ina=1
+        next
+      }
+      fm==1 && ina && /^[[:space:]]+-[[:space:]]*/{ item=$0; sub(/^[[:space:]]+-[[:space:]]*/,"",item); print item; next }
+      fm==1 && ina && /^[^[:space:]]/{ ina=0 }
+    ' "$f" | sed -e 's/^["'\'']//' -e 's/["'\'']$//' | while IFS= read -r al; do
+      [ -n "$al" ] && printf '%s\t%s\tdeclared\n' "$al" "$name" >> "$TUP"
+    done
+  done
+done
 # --- Stage 4: observed tuples + counts ---    (Task 4 fills this in)
 
 # --- Reducer: group tuples by surface form, resolve collisions ---

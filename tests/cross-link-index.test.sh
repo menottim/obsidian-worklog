@@ -20,8 +20,8 @@ assert_eq "people count"      "$(jq_ '.meta.people')"   "11"
 assert_eq "programs count"    "$(jq_ '.meta.programs')" "2"
 assert_eq "entities total"    "$(jq_ '.entities | length')" "13"
 assert_eq "metachar program"  "$(jq_ '[.entities[].canonical] | index("Auth (v2)") != null')" "true"
-assert_eq "alias count(t1)"   "$(jq_ '[.entities[].aliases] | add | length')" "4"
-assert_eq "ambiguous count(t1)" "$(jq_ '.ambiguous | length')" "3"
+assert_eq "alias count(t3)"   "$(jq_ '[.entities[].aliases] | add | length')" "6"
+assert_eq "ambiguous count(t3)" "$(jq_ '.ambiguous | length')" "2"
 
 # --- Task 2: derived aliases ---
 assert_eq "Astha derived"     "$(jq_ '.entities[] | select(.canonical=="Astha Singhal") | .aliases')" '["Astha"]'
@@ -33,6 +33,12 @@ assert_eq "Cloud Sec no alias" "$(jq_ '.entities[] | select(.canonical=="Cloud S
 assert_eq "Brian ambiguous(t2)"  "$(jq_ '.ambiguous.Brian | sort')" '["Brian Gaines","Brian Lee"]'
 assert_eq "Chris ambiguous"      "$(jq_ '.ambiguous.Chris | sort')" '["Chris Park","Chris Vincent"]'
 assert_eq "no Brian alias(t2)"   "$(jq_ '[.entities[] | select(.canonical=="Brian Gaines") | .aliases[]] | index("Brian")')" 'null'
+
+# --- Task 3: declared aliases ---
+assert_eq "DP declared"        "$(jq_ '.entities[] | select(.canonical=="Declared Person") | .aliases')" '["DP","Declared"]'
+assert_eq "Pat -> Pat Quinn"   "$(jq_ '[.entities[] | select(.canonical=="Pat Quinn") | .aliases[]] | index("Pat") != null')" 'true'
+assert_eq "Pat Rogers no Pat"  "$(jq_ '[.entities[] | select(.canonical=="Pat Rogers") | .aliases[]] | index("Pat")')" 'null'
+assert_eq "Pat not ambiguous"  "$(jq_ '.ambiguous | has("Pat")')" 'false'
 
 if [ "$FAILS" -gt 0 ]; then printf '\n%d test(s) failed\n' "$FAILS"; exit 1; fi
 printf '\nAll tests passed\n'
