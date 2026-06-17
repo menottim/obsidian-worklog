@@ -167,7 +167,7 @@
       "id": 28,
       "prompt": "i'm adding a worklog note: 'Met with Brian and Astha about the Cloud Security migration; Chris is reviewing.' Wrap the people and programs as wiki-links.",
       "expected_output": "Should run cross-link-index.sh (NOT glob People/Programs, NOT read bodies) to get the entity/alias digest. Should link [[Brian Gaines|Brian]] (the dominant referent), [[Astha Singhal|Astha]], and [[Cloud Security]]. For the ambiguous 'Chris' (multiple people, no dominant referent), should ask which Chris or leave it unlinked rather than guessing.",
-      "issue_tested": "cross-link-index helper: writes consult the digest instead of globbing; dominant alias auto-links, ambiguous alias is not guessed"
+      "issue_tested": "cross-link-index helper: writes consult the digest instead of globbing; dominant alias auto-links, ambiguous alias is not guessed (Brian-dominant is vault-data-driven; confirmed prod vault 2026-06)"
     }
   ]
 }

@@ -172,7 +172,7 @@ is what makes the Obsidian graph view useful - click any person to see every wee
 they appear in via backlinks.
 
 **When writing or updating ANY file in the vault (worklogs, people, programs, archive):**
-1. Run `__SKILL_INSTALL_PATH__/skills/worklog/scripts/cross-link-index.sh '__VAULT_PATH__'` once to get the entity/alias digest. Do NOT glob `People/*.md`/`Programs/*.md` and do NOT read note bodies to resolve aliases. Use `entities[].canonical` as link targets, `entities[].aliases` for partial/case forms, and treat any `ambiguous` surface form as resolve-from-context (ask or leave unlinked rather than guess the wrong person).
+1. Run `__SKILL_INSTALL_PATH__/skills/worklog/scripts/cross-link-index.sh '__VAULT_PATH__'` once per write to get the entity/alias digest (re-run after creating a new People/Programs stub so it picks up the new entity). Do NOT glob `People/*.md`/`Programs/*.md` and do NOT read note bodies to resolve aliases. Use `entities[].canonical` as link targets, `entities[].aliases` for partial/case forms, and treat any `ambiguous` surface form as resolve-from-context (ask or leave unlinked rather than guess the wrong person). If the script fails (non-zero exit), surface the error rather than falling back to globbing.
 2. Wrap recognized names and programs in `[[wiki-links]]` everywhere they appear -
    not just in the current week, but in any file being touched
 3. Only link on first mention within an item (don't re-link in sub-items)
