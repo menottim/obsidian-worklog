@@ -56,7 +56,8 @@ EMPTY="$(mktemp -d)"; mkdir -p "$EMPTY/People" "$EMPTY/Programs"
 EOUT="$("$HELPER" "$EMPTY")"
 assert_eq "empty entities" "$(printf '%s' "$EOUT" | jq -c '.entities')" "[]"
 assert_eq "empty ambiguous" "$(printf '%s' "$EOUT" | jq -c '.ambiguous')" "{}"
-assert_eq "empty meta people" "$(printf '%s' "$EOUT" | jq '.meta.people')" "0"
+assert_eq "empty meta people"    "$(printf '%s' "$EOUT" | jq '.meta.people')"    "0"
+assert_eq "empty meta programs" "$(printf '%s' "$EOUT" | jq '.meta.programs')" "0"
 rm -rf "$EMPTY"
 
 if [ "$FAILS" -gt 0 ]; then printf '\n%d test(s) failed\n' "$FAILS"; exit 1; fi

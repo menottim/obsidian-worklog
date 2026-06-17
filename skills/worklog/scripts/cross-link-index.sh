@@ -66,8 +66,9 @@ for dir in People Programs; do
   done
 done
 # --- Stage 4: observed tuples + counts (mine [[Canonical|alias]]) ---
-{ grep -rhoE '\[\[[^]]+\|[^]]+\]\]' . 2>/dev/null || true; } \
-  | sed -E 's/^\[\[//; s/\]\]$//' \
+# Mine [[Canonical|alias]] from markdown only; tolerate grep's no-match (exit 1) but NOT real errors (exit 2).
+grep -rhoE --include='*.md' '\[\[[^]]+\|[^]]+\]\]' . > "$TMP/obs.raw" 2>/dev/null || [ $? -eq 1 ]
+sed -E 's/^\[\[//; s/\]\]$//' "$TMP/obs.raw" \
   | awk -F'|' 'NF>=2 { canon=$1; alias=$2; cnt[alias "\t" canon]++ }
                END { for (k in cnt) print k "\t" cnt[k] }' \
   > "$TMP/obs.all"
@@ -118,6 +119,7 @@ awk -F'\t' -v DOM_RATIO="$DOM_RATIO" -v DOM_ABS="$DOM_ABS" '
 ' "$TUP" "$OBS" > "$REDUCE"
 
 # --- Assembly: build final JSON via jq (jq handles all string escaping) ---
+# alts uses split("") -- 0x1f unit separator byte (invisible in editors); matches awk \037 join above -- do not "correct" to ""
 RJSON="$({ grep '^R' "$REDUCE" || true; } | jq -R -s '
   split("\n") | map(select(length>0) | split("\t"))
   | map({canonical: .[1], alias: .[2], dominant: (.[3]=="1"),
