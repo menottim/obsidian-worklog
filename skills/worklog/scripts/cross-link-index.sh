@@ -4,7 +4,8 @@
 # bash 3.2; jq/awk/sed/grep. Precedence: declared > observed > derived.
 set -euo pipefail
 
-VAULT="${1:?usage: cross-link-index.sh <vault-path>}"
+[ "${1:-}" ] || { echo "usage: cross-link-index.sh <vault-path>" >&2; exit 2; }
+VAULT="$1"
 [ -d "$VAULT" ] || { echo "cross-link-index: vault dir not found: $VAULT" >&2; exit 2; }
 cd "$VAULT"
 
@@ -65,7 +66,7 @@ for dir in People Programs; do
   done
 done
 # --- Stage 4: observed tuples + counts (mine [[Canonical|alias]]) ---
-grep -rhoE '\[\[[^]]+\|[^]]+\]\]' . 2>/dev/null \
+{ grep -rhoE '\[\[[^]]+\|[^]]+\]\]' . 2>/dev/null || true; } \
   | sed -E 's/^\[\[//; s/\]\]$//' \
   | awk -F'|' 'NF>=2 { canon=$1; alias=$2; cnt[alias "\t" canon]++ }
                END { for (k in cnt) print k "\t" cnt[k] }' \

@@ -46,5 +46,18 @@ assert_eq "Pat -> Pat Quinn"   "$(jq_ '[.entities[] | select(.canonical=="Pat Qu
 assert_eq "Pat Rogers no Pat"  "$(jq_ '[.entities[] | select(.canonical=="Pat Rogers") | .aliases[]] | index("Pat")')" 'null'
 assert_eq "Pat not ambiguous"  "$(jq_ '.ambiguous | has("Pat")')" 'false'
 
+# --- Task 5: error handling + edge cases ---
+"$HELPER" >/dev/null 2>&1; assert_eq "no-arg exit 2"     "$?" "2"
+"$HELPER" /no/such/vault >/dev/null 2>&1; assert_eq "bad-vault exit 2" "$?" "2"
+# metachar canonical survives fixed-string matching (already in fixture as "Auth (v2)"):
+assert_eq "metachar canonical" "$(jq_ '[.entities[].canonical] | index("Auth (v2)") != null')" "true"
+# empty vault -> valid empty shape:
+EMPTY="$(mktemp -d)"; mkdir -p "$EMPTY/People" "$EMPTY/Programs"
+EOUT="$("$HELPER" "$EMPTY")"
+assert_eq "empty entities" "$(printf '%s' "$EOUT" | jq -c '.entities')" "[]"
+assert_eq "empty ambiguous" "$(printf '%s' "$EOUT" | jq -c '.ambiguous')" "{}"
+assert_eq "empty meta people" "$(printf '%s' "$EOUT" | jq '.meta.people')" "0"
+rm -rf "$EMPTY"
+
 if [ "$FAILS" -gt 0 ]; then printf '\n%d test(s) failed\n' "$FAILS"; exit 1; fi
 printf '\nAll tests passed\n'
