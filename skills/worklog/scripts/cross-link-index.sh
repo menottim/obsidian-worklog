@@ -31,7 +31,15 @@ for dir in People Programs; do
 done
 cut -f1 "$ENTS" | sort -u > "$NAMES"
 
-# --- Stage 2: canonical + derived tuples ---  (Task 2 fills this in)
+# --- Stage 2: canonical + derived tuples ---
+while IFS="$(printf '\t')" read -r name type; do
+  [ -n "$name" ] || continue
+  printf '%s\t%s\tcanonical\n' "$name" "$name" >> "$TUP"
+  if [ "$type" = "person" ]; then
+    first="${name%% *}"
+    [ "$first" != "$name" ] && printf '%s\t%s\tderived\n' "$first" "$name" >> "$TUP"
+  fi
+done < "$ENTS"
 # --- Stage 3: declared tuples ---             (Task 3 fills this in)
 # --- Stage 4: observed tuples + counts ---    (Task 4 fills this in)
 

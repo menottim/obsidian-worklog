@@ -20,8 +20,19 @@ assert_eq "people count"      "$(jq_ '.meta.people')"   "11"
 assert_eq "programs count"    "$(jq_ '.meta.programs')" "2"
 assert_eq "entities total"    "$(jq_ '.entities | length')" "13"
 assert_eq "metachar program"  "$(jq_ '[.entities[].canonical] | index("Auth (v2)") != null')" "true"
-assert_eq "all aliases empty" "$(jq_ '[.entities[].aliases] | add | length')" "0"
-assert_eq "ambiguous empty"   "$(jq_ '.ambiguous | length')" "0"
+assert_eq "alias count(t1)"   "$(jq_ '[.entities[].aliases] | add | length')" "4"
+assert_eq "ambiguous count(t1)" "$(jq_ '.ambiguous | length')" "3"
+
+# --- Task 2: derived aliases ---
+assert_eq "Astha derived"     "$(jq_ '.entities[] | select(.canonical=="Astha Singhal") | .aliases')" '["Astha"]'
+assert_eq "Dana derived"      "$(jq_ '.entities[] | select(.canonical=="Dana Wu") | .aliases')" '["Dana"]'
+assert_eq "Madonna no alias"  "$(jq_ '.entities[] | select(.canonical=="Madonna") | .aliases')" '[]'
+assert_eq "Jonathan derived"  "$(jq_ '.entities[] | select(.canonical=="Jonathan Looney") | .aliases')" '["Jonathan"]'
+assert_eq "Cloud Sec no alias" "$(jq_ '.entities[] | select(.canonical=="Cloud Security") | .aliases')" '[]'
+# Brian (no observed yet) and Chris are unresolved collisions -> ambiguous:
+assert_eq "Brian ambiguous(t2)"  "$(jq_ '.ambiguous.Brian | sort')" '["Brian Gaines","Brian Lee"]'
+assert_eq "Chris ambiguous"      "$(jq_ '.ambiguous.Chris | sort')" '["Chris Park","Chris Vincent"]'
+assert_eq "no Brian alias(t2)"   "$(jq_ '[.entities[] | select(.canonical=="Brian Gaines") | .aliases[]] | index("Brian")')" 'null'
 
 if [ "$FAILS" -gt 0 ]; then printf '\n%d test(s) failed\n' "$FAILS"; exit 1; fi
 printf '\nAll tests passed\n'
