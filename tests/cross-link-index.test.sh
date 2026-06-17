@@ -20,19 +20,25 @@ assert_eq "people count"      "$(jq_ '.meta.people')"   "11"
 assert_eq "programs count"    "$(jq_ '.meta.programs')" "2"
 assert_eq "entities total"    "$(jq_ '.entities | length')" "13"
 assert_eq "metachar program"  "$(jq_ '[.entities[].canonical] | index("Auth (v2)") != null')" "true"
-assert_eq "alias count(t3)"   "$(jq_ '[.entities[].aliases] | add | length')" "6"
-assert_eq "ambiguous count(t3)" "$(jq_ '.ambiguous | length')" "2"
+assert_eq "alias count(t4)"   "$(jq_ '[.entities[].aliases] | add | length')" "8"
+assert_eq "ambiguous count(t4)" "$(jq_ '.ambiguous | length')" "1"
 
 # --- Task 2: derived aliases ---
 assert_eq "Astha derived"     "$(jq_ '.entities[] | select(.canonical=="Astha Singhal") | .aliases')" '["Astha"]'
 assert_eq "Dana derived"      "$(jq_ '.entities[] | select(.canonical=="Dana Wu") | .aliases')" '["Dana"]'
 assert_eq "Madonna no alias"  "$(jq_ '.entities[] | select(.canonical=="Madonna") | .aliases')" '[]'
-assert_eq "Jonathan derived"  "$(jq_ '.entities[] | select(.canonical=="Jonathan Looney") | .aliases')" '["Jonathan"]'
+assert_eq "Jonathan derived"  "$(jq_ '[.entities[] | select(.canonical=="Jonathan Looney") | .aliases[]] | index("Jonathan") != null')" 'true'
 assert_eq "Cloud Sec no alias" "$(jq_ '.entities[] | select(.canonical=="Cloud Security") | .aliases')" '[]'
-# Brian (no observed yet) and Chris are unresolved collisions -> ambiguous:
-assert_eq "Brian ambiguous(t2)"  "$(jq_ '.ambiguous.Brian | sort')" '["Brian Gaines","Brian Lee"]'
 assert_eq "Chris ambiguous"      "$(jq_ '.ambiguous.Chris | sort')" '["Chris Park","Chris Vincent"]'
-assert_eq "no Brian alias(t2)"   "$(jq_ '[.entities[] | select(.canonical=="Brian Gaines") | .aliases[]] | index("Brian")')" 'null'
+
+# --- Task 4: observed aliases + dominance ---
+assert_eq "Brian -> Gaines"    "$(jq_ '[.entities[] | select(.canonical=="Brian Gaines") | .aliases[]] | index("Brian") != null')" 'true'
+assert_eq "Brian not ambiguous" "$(jq_ '.ambiguous | has("Brian")')" 'false'
+assert_eq "Brian alias_notes"  "$(jq_ '.entities[] | select(.canonical=="Brian Gaines") | .alias_notes[0]')" '{"alias":"Brian","alts":["Brian Lee"]}'
+assert_eq "Brian Lee no Brian" "$(jq_ '[.entities[] | select(.canonical=="Brian Lee") | .aliases[]] | index("Brian")')" 'null'
+assert_eq "JTL observed"       "$(jq_ '[.entities[] | select(.canonical=="Jonathan Looney") | .aliases[]] | index("JTL") != null')" 'true'
+# Chris stays ambiguous (no observed links):
+assert_eq "Chris still ambig"  "$(jq_ '.ambiguous.Chris | sort')" '["Chris Park","Chris Vincent"]'
 
 # --- Task 3: declared aliases ---
 assert_eq "DP declared"        "$(jq_ '.entities[] | select(.canonical=="Declared Person") | .aliases')" '["DP","Declared"]'

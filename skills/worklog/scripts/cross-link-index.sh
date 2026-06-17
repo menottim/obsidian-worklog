@@ -64,7 +64,18 @@ for dir in People Programs; do
     done
   done
 done
-# --- Stage 4: observed tuples + counts ---    (Task 4 fills this in)
+# --- Stage 4: observed tuples + counts (mine [[Canonical|alias]]) ---
+grep -rhoE '\[\[[^]]+\|[^]]+\]\]' . 2>/dev/null \
+  | sed -E 's/^\[\[//; s/\]\]$//' \
+  | awk -F'|' 'NF>=2 { canon=$1; alias=$2; cnt[alias "\t" canon]++ }
+               END { for (k in cnt) print k "\t" cnt[k] }' \
+  > "$TMP/obs.all"
+while IFS="$(printf '\t')" read -r alias canon cnt; do
+  [ -n "$alias" ] && [ -n "$canon" ] || continue
+  grep -Fxq "$canon" "$NAMES" || continue          # only links to existing People/Programs
+  printf '%s\t%s\tobserved\n' "$alias" "$canon" >> "$TUP"
+  printf '%s\t%s\t%s\n' "$alias" "$canon" "$cnt"  >> "$OBS"
+done < "$TMP/obs.all"
 
 # --- Reducer: group tuples by surface form, resolve collisions ---
 REDUCE="$TMP/reduced.tsv"   # "R" canonical surface dominant(0|1) alts(\x1f-joined)  |  "A" surface candidate
