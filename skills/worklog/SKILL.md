@@ -713,6 +713,8 @@ Tell the user the files are updated - visible in Obsidian immediately.
 
 ### Processing raw input (meeting notes, Slack messages, transcripts)
 
+Before processing a substantial input (a full transcript or a long notes doc, not a one-line add), run the Model Guard (see `## Model Guard`).
+
 When the user pastes raw content (meeting notes, Slack threads, transcripts) and
 asks to add it to the worklog, follow this pattern:
 
@@ -733,6 +735,8 @@ asks to add it to the worklog, follow this pattern:
 8. Regenerate enriched frontmatter
 
 ### `/worklog pull`
+
+Before proceeding, run the Model Guard (see `## Model Guard`).
 
 Ingest unprocessed messages from registered Slack channels into the vault. Each
 thread becomes a `Meetings/YYYY-MM-DD-<slug>.md` artifact, and the existing
@@ -781,6 +785,8 @@ and flag potential merges. Use the Edit tool to insert into the appropriate subg
 notes for new entities.
 
 ### `/worklog tidy`
+
+Before proceeding, run the Model Guard (see `## Model Guard`).
 
 __Nudge check (run first):__ Same as `/worklog rollover` above - check
 `Sources/*.md` and surface a stale-channel FYI before continuing.
@@ -943,6 +949,8 @@ is a one-shot, ephemeral message.
 
 ### `/worklog summary [period]`
 
+For a quarter summary, run the Model Guard (see `## Model Guard`) before proceeding. (Week and month summaries are lighter and do not need it.)
+
 Generate an impact-oriented summary for reporting up. Reads weekly files in the
 specified date range, synthesizes completed work into outcomes, and outputs both
 a vault file and a clipboard version.
@@ -1087,6 +1095,8 @@ Trends: Heaviest category: X (N%). M programs, N people engaged. X% completion r
   whether to overwrite or skip. If overwriting, proceed normally.
 
 ### `/worklog viz [period]`
+
+Before proceeding, run the Model Guard (see `## Model Guard`).
 
 Generate standalone HTML D3 charts for a period. __Before executing, you MUST read
 `__SKILL_INSTALL_PATH__/skills/worklog/references/viz.md` and follow it__ (full mechanics + template-fill
