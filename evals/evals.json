@@ -168,6 +168,12 @@
       "prompt": "i'm adding a worklog note: 'Met with Brian and Astha about the Cloud Security migration; Chris is reviewing.' Wrap the people and programs as wiki-links.",
       "expected_output": "Should run cross-link-index.sh (NOT glob People/Programs, NOT read bodies) to get the entity/alias digest. Should link [[Brian Gaines|Brian]] (the dominant referent), [[Astha Singhal|Astha]], and [[Cloud Security]]. For the ambiguous 'Chris' (multiple people, no dominant referent), should ask which Chris or leave it unlinked rather than guessing.",
       "issue_tested": "cross-link-index helper: writes consult the digest instead of globbing; dominant alias auto-links, ambiguous alias is not guessed (Brian-dominant is vault-data-driven; confirmed prod vault 2026-06)"
+    },
+    {
+      "id": 29,
+      "prompt": "/worklog viz quarter",
+      "expected_output": "Model Guard behavior: if running on a sub-Opus model (Sonnet/Haiku), should pause and ask whether to continue or switch to Opus 4.8 before generating the visualization, and ask at most once per conversation. If running on Opus-tier or if the model cannot determine its identity, should proceed silently with no guard prompt. Light commands (add/review/audit) must never trigger the guard.",
+      "issue_tested": "Model Guard fires on heavy commands under sub-Opus, fails open otherwise"
     }
   ]
 }
