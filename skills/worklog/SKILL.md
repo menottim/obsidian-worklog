@@ -67,6 +67,23 @@ __VAULT_PATH__/
 
 The vault is backed up to `__BACKUP_REPO_URL__` (private).
 
+## Model Guard
+
+Some worklog commands are heavy, single-shot synthesis and are more reliable on a more capable model. Before running one of those commands (each such section says "run the Model Guard first"), do this check:
+
+1. Determine which model you are running as, from your own context. Claude Code states this in your system prompt (for example, "You are powered by the model named ...").
+2. If you are Opus-tier (Opus 4.x): proceed silently. No guard.
+3. If you cannot determine your model with confidence: proceed silently. Do not guess and do not ask.
+4. If you are sub-Opus (Sonnet or Haiku tier) AND you have not already asked about this earlier in the current conversation: pause, ask the user, and wait for their answer:
+
+   > This is a heavy synthesis task and you're running on `<your model>`. In testing, Opus 4.8 was the most reliable on large worklog inputs; smaller models can truncate or lose fidelity. Want me to continue on `<your model>`, or pause so you can switch (`/model` to Opus 4.8, ideally at high or xhigh effort) and re-run?
+
+   - If the user says continue: proceed normally.
+   - If the user says switch: tell them to run `/model` and pick Opus 4.8, then re-invoke the command, and stop.
+   - Remember the user's choice for the rest of this conversation and do not ask again this session.
+
+This is advisory, not a hard gate. It never blocks work on its own, and it never fires for `add`, `review`, `audit`, `rollover`, single-item edits, or a monthly summary.
+
 ## Finding the Current Week
 
 Calculate the ISO week number from today's date. The current week file is at:
