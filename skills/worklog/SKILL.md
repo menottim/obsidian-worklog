@@ -1074,7 +1074,7 @@ Arguments are case-insensitive.
    milestones (items with dated sub-items showing meaningful progress)
 5. Collect all wiki-linked people and programs mentioned. For any entity that needs
    context in the synthesis, read its `summary` from
-   `cross-link-index.sh '__VAULT_PATH__' --with-summaries`. Do not read People or
+   `__SKILL_INSTALL_PATH__/skills/worklog/scripts/cross-link-index.sh '__VAULT_PATH__' --with-summaries`. Do not read People or
    Program bodies.
 
 **Synthesis guidelines:**

@@ -154,12 +154,13 @@ For each source with `type: context-channel`:
    current time at the end of the channel.
 
 __Three-way classification__ - judge each unit against the vault. Read the current
-week, Backlog, and `Archive/` directly. For entity identity, use the digest:
+week, Backlog, and `Archive/` directly. For person and program identity, use the digest:
 `__SKILL_INSTALL_PATH__/skills/worklog/scripts/cross-link-index.sh '__VAULT_PATH__' --with-summaries`,
-which gives you every person, program, and team with its aliases and a one-line
-summary. Open a specific `People/`, `Programs/`, or `Teams/` note body only when a
-unit plausibly concerns that entity and the summary is not enough to decide. Do not
-glob those directories:
+which gives every person and program with its aliases and a one-line summary. Do not
+glob `People/` or `Programs/`, and open one of those note bodies only when a unit
+plausibly concerns that entity and its summary is not enough to decide. The digest does
+NOT cover teams: read `Teams/` directly for team identity, which is cheap at the current
+16 notes:
 
 - __High-confidence match → auto-fold.__ The unit clearly concerns one specific
   existing worklog item, person, program, or team: it names the program/initiative,
