@@ -63,7 +63,8 @@ rm -rf "$EMPTY"
 # --- default output is unchanged (hot-path regression guard) ---
 GOLDEN="$HERE/fixtures/crosslink-default.golden.json"
 assert_eq "default output matches golden" \
-  "$(printf '%s\n' "$OUT" | diff -q - "$GOLDEN" >/dev/null 2>&1 && echo same || echo differs)" "same"
+  "$(printf '%s\n' "$OUT" | jq 'del(.meta.generated_for)' | diff -q - "$GOLDEN" >/dev/null 2>&1 && echo same || echo differs)" "same"
+assert_eq "default meta.generated_for is the vault arg" "$(jq_ '.meta.generated_for')" "\"$FIX\""
 assert_eq "default has no summary key" "$(jq_ '[.entities[] | has("summary")] | any')" "false"
 
 # --- --with-summaries ---
