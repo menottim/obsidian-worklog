@@ -374,6 +374,8 @@ Use short slug-like values that describe the surface or context the preference
 governs (e.g., `communication`, `slack-dm`, `status-update`, `markdown`,
 `workflow`, `tooling`, `vault-convention`, `decision-rule`).
 
+__Log it:__ append one entry with op `preference` and target the preference title.
+
 ### When to apply a preference
 
 Before doing any task that has a preference-shaped surface - drafting a message, writing
@@ -688,11 +690,11 @@ per month, which keeps it bounded without ever needing its own compaction.
 
 __The rule:__ log any operation that writes to the vault.
 
-That covers `pull`, `rollover`, `tidy`, `summary`, `viz`, `sync`, `compact`, filing an
-answer, and `audit` __only when fixes were applied__. It excludes `status`, `search`,
-`share`, and a read-only audit run, because none of those change the vault. Absence is
-informative too: no `pull` entries for three weeks answers "when did I last ingest"
-just as well as a positive entry would.
+That covers `add`, `pull`, `review`, `rollover`, `tidy`, `summary`, `viz`, `sync`,
+`preference` capture, filing an answer, and `audit` __only when fixes were applied__.
+It excludes `status`, `search`, `share`, and a read-only audit run, because none of
+those change the vault. Absence is informative too: no `pull` entries for three weeks
+answers "when did I last ingest" just as well as a positive entry would.
 
 __Always append through the helper__, never by editing the file directly:
 
@@ -775,6 +777,9 @@ After all updates and adds are collected:
 
 Tell the user the files are updated - visible in Obsidian immediately.
 
+__Log it:__ append one entry with op `review`, target the week label, recording items
+updated and items added.
+
 ### Processing raw input (meeting notes, Slack messages, transcripts)
 
 Before processing a substantial input (a full transcript or a long notes doc, not a one-line add), run the Model Guard (see `## Model Guard`).
@@ -854,6 +859,8 @@ Add a new item to the current week file. Check for overlaps with existing items
 and flag potential merges. Use the Edit tool to insert into the appropriate subgroup
 (or create a new subgroup if needed). Wiki-link any people or programs. Create stub
 notes for new entities.
+
+__Log it:__ append one entry with op `add`, target the item title.
 
 ### `/worklog tidy`
 
@@ -1024,7 +1031,8 @@ Next week: <one-liner, if relevant>
 **Formatting:**
 
 - Use Slack mrkdwn: `*bold*` for bold, `_italic_` for italic, `•` for bullets
-- No wiki-link syntax (`[[...]]`) - this is for Slack, not Obsidian
+- In the clipboard rendering, no wiki-link syntax (`[[...]]`) - Slack cannot render
+  it. The filed copy keeps its links; see Output below
 - Include names only when they denote program ownership or the right contact
   for a question (e.g., "Nick is tech lead" is fine; "strong signal on
   candidate X" is not)
@@ -1063,7 +1071,7 @@ specifics, and candidate details stay out of the filed copy too.
 
 If a file already exists for the period, tell the user and ask whether to overwrite.
 
-__Log it:__ append one entry with op `file` and target the filed path.
+__Log it:__ append one entry with op `rollup` and target the filed path.
 
 **Edge cases:**
 
@@ -1282,11 +1290,17 @@ cp __SKILL_INSTALL_PATH__/skills/worklog/SKILL.md \
 cp __SKILL_INSTALL_PATH__/.claude-plugin/plugin.json \
    "__VAULT_PATH__/.skills/worklog/plugin.json"
 
-# Commit and push
 cd "__VAULT_PATH__"
+
+# Log before staging, so the entry lands in the same commit. This also creates
+# Logs/ as a side effect on any vault that doesn't have it yet.
+COMMIT_MSG="worklog sync $(date +%Y-%m-%d)"
+__SKILL_INSTALL_PATH__/skills/worklog/scripts/log-append.sh '__VAULT_PATH__' sync vault "$COMMIT_MSG"
+
+# Commit and push
 git add Worklogs/ People/ Programs/ Teams/ Archive/ Summaries/ Reports/ References/ Templates/ Sources/ Meetings/ Logs/ Preferences/ .skills/
 git -c user.name="__GIT_USER_NAME__" -c user.email="__GIT_USER_EMAIL__" \
-    commit -m "worklog sync $(date +%Y-%m-%d)"
+    commit -m "$COMMIT_MSG"
 git push
 ```
 
@@ -1297,6 +1311,14 @@ skipped without warning and never reaches the backup. `Teams/`, `References/`, a
 was added with this rule in mind. After running the sync, if
 `git status --porcelain` still reports untracked files under the vault root, a
 directory is missing from the list - add it here rather than staging it by hand.
+
+Separately, `git add` fails atomically on a pathspec that does not exist on disk: if
+any single directory named in the list above is absent, the whole command fails and
+stages nothing at all, not even the directories that do exist. A listed-but-missing
+directory is therefore worse than an unlisted one. This is why every directory in the
+list must actually exist before this runs, whether created by `setup.sh` at install
+time or by the flow that owns it (as above, `log-append.sh` creates `Logs/` on first
+use).
 
 Before the first sync, check if a `.gitignore` exists in the vault root. If not,
 create one to prevent committing sensitive or unnecessary files:
@@ -1309,8 +1331,8 @@ create one to prevent committing sensitive or unnecessary files:
 .env
 ```
 
-__Log it:__ append one entry with op `sync` and target `vault`, recording the commit
-subject. Append it before staging so the entry is included in the same commit.
+__Log it:__ the code block above already does this (op `sync`, target `vault`, body
+the commit subject), appended before staging so the entry lands in the same commit.
 
 Run this after any major update (review, rollover, batch adds). The user may also
 ask to sync manually at any time.

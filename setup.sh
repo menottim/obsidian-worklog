@@ -76,7 +76,7 @@ VAULT_PATH=$(prompt_with_default "Obsidian vault path" "$DEFAULT_VAULT")
 # Vault subdirectories the skill expects to exist
 VAULT_SUBDIRS=(
   Worklogs People Programs Teams Meetings Sources Preferences
-  Archive Summaries Reports Templates
+  Archive Summaries Reports Templates Logs References
 )
 
 if [[ ! -d "$VAULT_PATH" ]]; then

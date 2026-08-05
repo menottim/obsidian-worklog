@@ -176,8 +176,8 @@ audit path from about 312K to about 26K.
 ### No backfill
 
 When `summary:` is absent, the script __derives__ a provisional summary in bash from the
-note's first content bullet (first bullet under the first `##` section after
-frontmatter), truncated to 120 characters, and marks `summary_source: "derived"`.
+note's first content bullet (the first bullet anywhere in the body, regardless of
+heading), truncated to 120 characters, and marks `summary_source: "derived"`.
 
 This means coverage is complete from day one with no backfill project. A one-time model
 pass over all 400 notes was considered and rejected at roughly 200K tokens for an

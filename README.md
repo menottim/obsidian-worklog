@@ -33,6 +33,9 @@ It's built for anyone juggling work across a lot of projects and people. You pas
 - **Vault health checks** that find stale notes, stuck items, and missing links
 - **Preferences as first-class citizens** -- the skill maintains a `Preferences/` directory as its general-purpose memory layer: voice, style, workflow, tooling, decision rules, vault conventions, anything durable about how you work, captured once and applied automatically across sessions
 - **Slack inbox** -- register Slack channels as sources and let `/worklog pull` sweep them into your current week. Three kinds of source are supported: forwarded-email meeting notes (one `Meetings/` note per thread), busy discussion channels (swept and folded in place, no per-thread files), and your own DMs (opt-in, never folded without your approval). Auto-fetch for email bodies needs a one-time Slack token (see [`docs/SETUP-SLACK.md`](docs/SETUP-SLACK.md)); the [FAQ](#faq) covers the rest
+- **Operations log** -- an append-only `Logs/YYYY-MM.md` record of what the skill did and when (pulls, rollovers, tidies, syncs), so "was the last pull complete" is answered by grep, not memory
+- **Entity summaries** -- People and Program notes carry a one-line `summary` (authored or derived), so the cross-link digest can tell you who or what something is without opening the note
+- **Filed answers** -- substantive analysis and weekly rollups can be filed to `References/` as durable, cross-linked vault artifacts instead of evaporating as a one-off chat reply or Slack paste
 
 ![Obsidian graph view showing the knowledge graph of people, programs, and weekly files](docs/images/graph-view.png)
 

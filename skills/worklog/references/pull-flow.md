@@ -74,13 +74,18 @@ __Pull flow:__
           body's "Attendees:" / "Participants:" section if present).
           Wiki-link all; create stub People notes for unknown names per the
           existing Cross-Linking rules.
-        - Resolve programs and people from the digest, not from a glob:
+        - Resolve programs and people from the digest, not from a glob. Run it once
+          per pull and reuse the result across every thread and unit; re-run only
+          after creating a new People or Programs stub, since that is the one thing
+          that changes the entity set:
           `__SKILL_INSTALL_PATH__/skills/worklog/scripts/cross-link-index.sh '__VAULT_PATH__' --with-summaries`.
           Use `entities[].canonical` as link targets, `entities[].aliases` for
           partial and case forms, and `entities[].summary` when you need to judge
-          whether the body is really about that entity. Treat anything in
-          `ambiguous` as resolve-from-context. Scan the body for matches;
-          wiki-link. Do not glob `Programs/*.md` and do not read note bodies.
+          whether the body is really about that entity. Treat `summary_source:
+          "derived"` as provisional (it is just the note's first bullet); read the
+          note body instead when a derived summary is what the decision rests on.
+          Treat anything in `ambiguous` as resolve-from-context. Scan the body for
+          matches; wiki-link. Do not glob `Programs/*.md` and do not read note bodies.
         - Write the new `Meetings/YYYY-MM-DD-<slug>.md`.
         - Run the __Processing raw input__ pipeline (above) against the body
           + replies, treating the meeting date as the source date for action
@@ -156,11 +161,14 @@ For each source with `type: context-channel`:
 __Three-way classification__ - judge each unit against the vault. Read the current
 week, Backlog, and `Archive/` directly. For person and program identity, use the digest:
 `__SKILL_INSTALL_PATH__/skills/worklog/scripts/cross-link-index.sh '__VAULT_PATH__' --with-summaries`,
-which gives every person and program with its aliases and a one-line summary. Do not
+which gives every person and program with its aliases and a one-line summary. Run it
+once per pull and reuse the result across every unit; re-run only after creating a new
+People or Programs stub, since that is the one thing that changes the entity set. Do not
 glob `People/` or `Programs/`, and open one of those note bodies only when a unit
-plausibly concerns that entity and its summary is not enough to decide. The digest does
-NOT cover teams: read `Teams/` directly for team identity, which is cheap at the current
-16 notes:
+plausibly concerns that entity and its summary is not enough to decide; treat
+`summary_source: "derived"` as provisional (it is just the note's first bullet) and read
+the note body instead when that is what the decision rests on. The digest does NOT cover
+teams: read `Teams/` directly for team identity, which is small enough to read directly:
 
 - __High-confidence match → auto-fold.__ The unit clearly concerns one specific
   existing worklog item, person, program, or team: it names the program/initiative,
