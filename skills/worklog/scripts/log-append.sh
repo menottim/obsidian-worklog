@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# log-append.sh <vault> <op> <target> [body-line ...] — append one entry to Logs/YYYY-MM.md.
+# log-append.sh <vault> <op> <target> [body-line ...] - append one entry to Logs/YYYY-MM.md.
 # The only WRITE-capable helper in the skill. Monthly files keep the log bounded.
 # The "## [YYYY-MM-DD] <op> | <target>" prefix is a contract: every consumer greps for it.
 # bash 3.2; coreutils only.

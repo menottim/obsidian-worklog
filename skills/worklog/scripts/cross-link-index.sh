@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# cross-link-index.sh <vault> — emit an entity/alias digest (JSON) for the worklog
+# cross-link-index.sh <vault> - emit an entity/alias digest (JSON) for the worklog
 # cross-linking flow. Read-only; computes fresh each call (no persisted index).
 # bash 3.2; jq/awk/sed/grep. Precedence: declared > observed > derived.
 set -euo pipefail

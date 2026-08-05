@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# preferences-index.sh <vault> — emit a compact digest of Preferences/*.md (title, applies-to, rule).
+# preferences-index.sh <vault> - emit a compact digest of Preferences/*.md (title, applies-to, rule).
 # Read-only. Lets the model pick relevant preferences without loading all bodies.
 set -euo pipefail
 VAULT="${1:?usage: preferences-index.sh <vault-path>}"

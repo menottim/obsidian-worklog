@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# audit-scan.sh <vault> — compute the six /worklog audit checks; emit JSON findings to stdout.
+# audit-scan.sh <vault> - compute the six /worklog audit checks; emit JSON findings to stdout.
 # Read-only. Scans the vault in bash so the model never loads People/Programs bodies.
 # Checks mirror the definitions in SKILL.md's `/worklog audit` section exactly.
 set -euo pipefail
@@ -170,7 +170,7 @@ stuck_items(){
     ' "$ACTIVE" 2>/dev/null)"
     # Regex for (Mon D) or (Mon DD): e.g. (May 14), (Jun 4)
     if printf '%s' "$item_block" | grep -qE '\([A-Z][a-z][a-z] [0-9]{1,2}\)'; then
-      continue  # has dated progress — not stuck
+      continue  # has dated progress - not stuck
     fi
 
     # --- Step 4: Emit {title, since, last_dated:null} ---
