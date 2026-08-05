@@ -200,6 +200,37 @@ oversized_notes(){
   done | emit_array
 }
 
+# Distribution, not findings: 86 distinct team: values across 314 People notes in the
+# real vault, of which only 7 resolve exactly. As a per-note dangling-reference list
+# that is ~300 findings and useless. The model reads the table and proposes merges.
+team_vocabulary(){
+  shopt -s nullglob
+  [ -d People ] || { echo '[]'; return; }
+  tn="$(mktemp)"
+  { ls Teams 2>/dev/null || true; } | sed 's/\.md$//' | sort > "$tn"
+  TAB="$(printf '\t')"
+  grep -h '^team:' People/*.md 2>/dev/null \
+    | sed -e 's/^team:[[:space:]]*//' -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'\$//" -e 's/[[:space:]]*$//' \
+    | grep -v '^$' \
+    | awk '{c[$0]++} END{for(k in c) printf "%d\t%s\n", c[k], k}' \
+    | sort -t"$TAB" -k1,1nr -k2,2 \
+    | while IFS="$TAB" read -r cnt value; do
+        [ -n "$value" ] || continue
+        if grep -Fxq "$value" "$tn"; then
+          jq -cn --arg v "$value" --argjson n "$cnt" '{value:$v, notes:$n, resolves:"exact"}'
+        else
+          cand="$(grep -iF "$value" "$tn" | head -1 || true)"
+          if [ -n "$cand" ]; then
+            jq -cn --arg v "$value" --argjson n "$cnt" --arg c "$cand" \
+               '{value:$v, notes:$n, resolves:"substring", candidate:$c}'
+          else
+            jq -cn --arg v "$value" --argjson n "$cnt" '{value:$v, notes:$n, resolves:"none"}'
+          fi
+        fi
+      done | emit_array
+  rm -f "$tn"
+}
+
 jq -n \
   --argjson stale_people "$(stale_people)" \
   --argjson orphan_programs "$(orphan_programs)" \
@@ -208,4 +239,5 @@ jq -n \
   --argjson empty_stubs "$(empty_stubs)" \
   --argjson frontmatter_gaps "$(frontmatter_gaps)" \
   --argjson oversized_notes "$(oversized_notes)" \
-  '{stale_people:$stale_people, orphan_programs:$orphan_programs, stuck_items:$stuck_items, missing_links:$missing_links, empty_stubs:$empty_stubs, frontmatter_gaps:$frontmatter_gaps, oversized_notes:$oversized_notes}'
+  --argjson team_vocabulary "$(team_vocabulary)" \
+  '{stale_people:$stale_people, orphan_programs:$orphan_programs, stuck_items:$stuck_items, missing_links:$missing_links, empty_stubs:$empty_stubs, frontmatter_gaps:$frontmatter_gaps, oversized_notes:$oversized_notes, team_vocabulary:$team_vocabulary}'
