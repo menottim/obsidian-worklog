@@ -24,7 +24,7 @@ for b in "${RECENT_BN[@]:-}"; do
   [ -f "Archive/$b" ]  && RECENT+=("Archive/$b")
 done
 BACKLOG="Worklogs/Backlog.md"
-ACTIVE_BN="$(ls Worklogs 2>/dev/null | grep -E '^[0-9]{4}-W[0-9]{2}\.md$' | sort -r | head -1)"
+ACTIVE_BN="$(ls Worklogs 2>/dev/null | grep -E '^[0-9]{4}-W[0-9]{2}\.md$' | sort -r | head -1 || true)"
 ACTIVE="${ACTIVE_BN:+Worklogs/${ACTIVE_BN}}"
 
 emit_array(){ jq -s '.'; }
@@ -179,6 +179,24 @@ stuck_items(){
   done < <(grep -E '^- \*\*P[012]\*\* ⏳ In Progress - ' "$ACTIVE" 2>/dev/null) | emit_array
 }
 
+oversized_notes(){
+  shopt -s nullglob
+  limit="${WORKLOG_COMPACT_LINES:-250}"
+  for f in People/*.md Programs/*.md; do
+    n="$(wc -l < "$f" | tr -d ' ')"
+    [ "$n" -gt "$limit" ] || continue
+    c="$(awk 'BEGIN{fm=0}
+              /^---[[:space:]]*$/{fm++; if(fm>=2) exit; next}
+              fm==1 && /^compacted:/{ s=$0; sub(/^compacted:[[:space:]]*/,"",s); gsub(/"/,"",s); print s; exit }' "$f")"
+    if [ -n "$c" ]; then
+      jq -cn --arg file "$f" --argjson lines "$n" --arg compacted "$c" \
+         '{file:$file, lines:$lines, compacted:$compacted}'
+    else
+      jq -cn --arg file "$f" --argjson lines "$n" '{file:$file, lines:$lines, compacted:null}'
+    fi
+  done | emit_array
+}
+
 jq -n \
   --argjson stale_people "$(stale_people)" \
   --argjson orphan_programs "$(orphan_programs)" \
@@ -186,4 +204,5 @@ jq -n \
   --argjson missing_links "$(missing_links)" \
   --argjson empty_stubs "$(empty_stubs)" \
   --argjson frontmatter_gaps "$(frontmatter_gaps)" \
-  '{stale_people:$stale_people, orphan_programs:$orphan_programs, stuck_items:$stuck_items, missing_links:$missing_links, empty_stubs:$empty_stubs, frontmatter_gaps:$frontmatter_gaps}'
+  --argjson oversized_notes "$(oversized_notes)" \
+  '{stale_people:$stale_people, orphan_programs:$orphan_programs, stuck_items:$stuck_items, missing_links:$missing_links, empty_stubs:$empty_stubs, frontmatter_gaps:$frontmatter_gaps, oversized_notes:$oversized_notes}'

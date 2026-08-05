@@ -1,0 +1,94 @@
+{
+  "stale_people": [
+    {
+      "file": "People/Astha Singhal.md",
+      "last_seen": "never"
+    },
+    {
+      "file": "People/Chris Park.md",
+      "last_seen": "never"
+    },
+    {
+      "file": "People/Chris Vincent.md",
+      "last_seen": "never"
+    },
+    {
+      "file": "People/Dana Wu.md",
+      "last_seen": "never"
+    },
+    {
+      "file": "People/Declared Person.md",
+      "last_seen": "never"
+    },
+    {
+      "file": "People/Madonna.md",
+      "last_seen": "never"
+    },
+    {
+      "file": "People/Pat Quinn.md",
+      "last_seen": "never"
+    },
+    {
+      "file": "People/Pat Rogers.md",
+      "last_seen": "never"
+    }
+  ],
+  "orphan_programs": [
+    {
+      "file": "Programs/Auth (v2).md"
+    },
+    {
+      "file": "Programs/Cloud Security.md"
+    }
+  ],
+  "stuck_items": [],
+  "missing_links": [],
+  "empty_stubs": [
+    {
+      "file": "People/Brian Gaines.md"
+    },
+    {
+      "file": "People/Brian Lee.md"
+    },
+    {
+      "file": "People/Chris Park.md"
+    },
+    {
+      "file": "People/Chris Vincent.md"
+    },
+    {
+      "file": "People/Dana Wu.md"
+    },
+    {
+      "file": "People/Declared Person.md"
+    },
+    {
+      "file": "People/Jonathan Looney.md"
+    },
+    {
+      "file": "People/Madonna.md"
+    },
+    {
+      "file": "People/Pat Quinn.md"
+    },
+    {
+      "file": "People/Pat Rogers.md"
+    },
+    {
+      "file": "Programs/Auth (v2).md"
+    },
+    {
+      "file": "Programs/Cloud Security.md"
+    }
+  ],
+  "frontmatter_gaps": [
+    {
+      "file": "Worklogs/2026-W20.md",
+      "missing": [
+        "tags",
+        "item-count",
+        "done-count"
+      ]
+    }
+  ]
+}
