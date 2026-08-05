@@ -556,6 +556,9 @@ assert_eq "sum: meta still present"    "$(sjq '.meta.people')" "3"
 
 # --- unknown option rejected ---
 "$HELPER" "$FIX" --nonsense >/dev/null 2>&1; assert_eq "unknown flag exit 2" "$?" "2"
+# --- usage message carries the script prefix (stderr, not stdout) ---
+assert_eq "no-arg usage message is prefixed" \
+  "$("$HELPER" 2>&1 >/dev/null | head -1 | cut -d: -f1)" "cross-link-index"
 # --- flag order does not matter ---
 assert_eq "flag before vault" \
   "$("$HELPER" --with-summaries "$SFIX" | jq -c "$(sel 'Bare Stub') | .summary_source")" '"none"'
@@ -595,12 +598,14 @@ while [ "$#" -gt 0 ]; do
   esac
   shift
 done
-[ -n "$VAULT" ] || { echo "usage: cross-link-index.sh <vault-path> [--with-summaries]" >&2; exit 2; }
+[ -n "$VAULT" ] || { echo "cross-link-index: usage: <vault-path> [--with-summaries]" >&2; exit 2; }
 [ -d "$VAULT" ] || { echo "cross-link-index: vault dir not found: $VAULT" >&2; exit 2; }
 cd "$VAULT"
 ```
 
 A `while` loop over positionals rather than an array, because `"${#ARR[@]}"` on an empty array trips `set -u` under bash 3.2.
+
+Every error path carries the `cross-link-index:` prefix, matching the other three helpers. The usage message is the one line in this script that previously did not.
 
 - [ ] **Step 6: Add the summary extraction functions and TSV**
 
