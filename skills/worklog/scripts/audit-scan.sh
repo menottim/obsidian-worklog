@@ -234,6 +234,44 @@ team_vocabulary(){
   rm -f "$tn"
 }
 
+# Distribution, not findings. Prototyped as findings first: 23 tags recur in 3+ files in
+# the real vault, 21 have no Programs page, and only ~2 of those deserve one -- "strategy",
+# "growth", and "leadership" are themes, not programs. ~90% false positive. So emit counts
+# and let the model judge which recurring themes deserve promotion.
+# Tags (not subgroup headings) are the signal because tags: frontmatter survives archiving
+# while archiving rewrites weekly bodies as flat lists, discarding subgroup structure.
+recurring_tags(){
+  shopt -s nullglob
+  min="${WORKLOG_TAG_MIN_FILES:-3}"
+  pn="$(mktemp)"; tf="$(mktemp)"
+  { ls Programs 2>/dev/null || true; } | sed 's/\.md$//' > "$pn"
+  TAB="$(printf '\t')"
+  for f in Worklogs/[0-9]*-W*.md Archive/[0-9]*-W*.md; do
+    [ -f "$f" ] || continue
+    awk '
+      BEGIN{fm=0; t=0}
+      /^---[[:space:]]*$/{fm++; if(fm>=2) exit; next}
+      fm==1 && /^tags:/{t=1; next}
+      fm==1 && t && /^[[:space:]]+-[[:space:]]*/{
+        s=$0; sub(/^[[:space:]]+-[[:space:]]*/,"",s)
+        gsub(/^["'\'']|["'\'']$/,"",s); if(s!="") print s; next }
+      fm==1 && t && /^[^[:space:]]/{t=0}
+    ' "$f" | sort -u
+  done | awk -v min="$min" '{c[$0]++} END{for(k in c) if (c[k]+0 >= min+0) printf "%d\t%s\n", c[k], k}' \
+       | sort -t"$TAB" -k1,1nr -k2,2 > "$tf"
+  while IFS="$TAB" read -r cnt tag; do
+    [ -n "$tag" ] || continue
+    has=false
+    while IFS= read -r p; do
+      [ -n "$p" ] || continue
+      norm="$(printf '%s' "$p" | tr 'A-Z' 'a-z' | tr ' ' '-')"
+      if [ "$norm" = "$tag" ]; then has=true; break; fi
+    done < "$pn"
+    jq -cn --arg t "$tag" --argjson f "$cnt" --argjson h "$has" '{tag:$t, files:$f, has_page:$h}'
+  done < "$tf" | emit_array
+  rm -f "$pn" "$tf"
+}
+
 jq -n \
   --argjson stale_people "$(stale_people)" \
   --argjson orphan_programs "$(orphan_programs)" \
@@ -243,4 +281,5 @@ jq -n \
   --argjson frontmatter_gaps "$(frontmatter_gaps)" \
   --argjson oversized_notes "$(oversized_notes)" \
   --argjson team_vocabulary "$(team_vocabulary)" \
-  '{stale_people:$stale_people, orphan_programs:$orphan_programs, stuck_items:$stuck_items, missing_links:$missing_links, empty_stubs:$empty_stubs, frontmatter_gaps:$frontmatter_gaps, oversized_notes:$oversized_notes, team_vocabulary:$team_vocabulary}'
+  --argjson recurring_tags "$(recurring_tags)" \
+  '{stale_people:$stale_people, orphan_programs:$orphan_programs, stuck_items:$stuck_items, missing_links:$missing_links, empty_stubs:$empty_stubs, frontmatter_gaps:$frontmatter_gaps, oversized_notes:$oversized_notes, team_vocabulary:$team_vocabulary, recurring_tags:$recurring_tags}'
