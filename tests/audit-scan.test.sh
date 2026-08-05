@@ -31,14 +31,26 @@ assert_eq "default 250: none oversized" "$(jq_ '.oversized_notes')" "[]"
 
 O11="$(WORKLOG_COMPACT_LINES=11 "$HELPER" "$FIX")"
 o11() { printf '%s' "$O11" | jq -c "$1"; }
-assert_eq "limit 11: three oversized"  "$(o11 '.oversized_notes | length')" "3"
+assert_eq "limit 11: five oversized"   "$(o11 '.oversized_notes | length')" "5"
 assert_eq "limit 11: Big One lines"    "$(o11 '.oversized_notes[] | select(.file=="People/Big One.md") | .lines')" "12"
 assert_eq "limit 11: Big One compacted null" \
   "$(o11 '.oversized_notes[] | select(.file=="People/Big One.md") | .compacted')" "null"
-assert_eq "limit 11: quoted compacted stripped" \
+assert_eq "limit 11: double-quoted compacted stripped" \
   "$(o11 '.oversized_notes[] | select(.file=="People/Big Compacted.md") | .compacted')" '"2026-07-01"'
+assert_eq "limit 11: single-quoted compacted stripped" \
+  "$(o11 '.oversized_notes[] | select(.file=="People/Big Compacted Single Quote.md") | .compacted')" '"2026-07-02"'
 assert_eq "limit 11: Programs covered" \
   "$(o11 '[.oversized_notes[].file] | index("Programs/Big Program.md") != null')" "true"
+assert_eq "limit 11: no-trailing-newline file counted by awk, not wc -l" \
+  "$(o11 '.oversized_notes[] | select(.file=="People/No Trailing Newline.md") | .lines')" "12"
+
+# --- exact-boundary exclusion: -gt semantics, not -ge ---
+O12="$(WORKLOG_COMPACT_LINES=12 "$HELPER" "$FIX")"
+o12() { printf '%s' "$O12" | jq -c "$1"; }
+assert_eq "limit 12: 12-line file excluded at the boundary" \
+  "$(o12 '[.oversized_notes[].file] | index("People/Big One.md")')" "null"
+assert_eq "limit 12: 13-line file still included" \
+  "$(o12 '[.oversized_notes[].file] | index("Programs/Big Program.md") != null')" "true"
 
 # --- team_vocabulary ---
 tv() { jq_ ".team_vocabulary[] | select(.value==\"$1\")"; }

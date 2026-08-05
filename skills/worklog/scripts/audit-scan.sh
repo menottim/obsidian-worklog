@@ -136,7 +136,7 @@ stuck_items(){
     i=0
     while [ "$i" -lt "$ARCH_LEN" ]; do
       a="${ARCH[$i]}"
-      roll="$(grep -oE 'rolled forward to [^(]*\(([^)]*)\)' "Archive/$a" 2>/dev/null | sed 's/.*(\(.*\))/\1/')"
+      roll="$(grep -oE 'rolled forward to [^(]*\(([^)]*)\)' "Archive/$a" 2>/dev/null | sed 's/.*(\(.*\))/\1/' || true)"
       if [ -n "$roll" ] && printf '%s' "$(norm "$roll")" | grep -qF "$prefix20"; then
         match_indices="${match_indices} $i"
         # earliest matching archive week (ascending sort => first match)
@@ -183,11 +183,14 @@ oversized_notes(){
   shopt -s nullglob
   limit="${WORKLOG_COMPACT_LINES:-250}"
   for f in People/*.md Programs/*.md; do
-    n="$(wc -l < "$f" | tr -d ' ')"
+    n="$(awk 'END{print NR}' "$f")"
     [ "$n" -gt "$limit" ] || continue
     c="$(awk 'BEGIN{fm=0}
               /^---[[:space:]]*$/{fm++; if(fm>=2) exit; next}
-              fm==1 && /^compacted:/{ s=$0; sub(/^compacted:[[:space:]]*/,"",s); gsub(/"/,"",s); print s; exit }' "$f")"
+              fm==1 && /^compacted:/{ s=$0; sub(/^compacted:[[:space:]]*/,"",s)
+                                      gsub(/[[:space:]]+$/,"",s)
+                                      gsub(/^["'\'']|["'\'']$/,"",s)
+                                      print s; exit }' "$f")"
     if [ -n "$c" ]; then
       jq -cn --arg file "$f" --argjson lines "$n" --arg compacted "$c" \
          '{file:$file, lines:$lines, compacted:$compacted}'
