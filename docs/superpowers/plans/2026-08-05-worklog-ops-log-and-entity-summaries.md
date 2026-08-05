@@ -818,32 +818,84 @@ In `### /worklog summary [period]`, in the `**Data collection:**` list, replace 
 ```markdown
 5. Collect all wiki-linked people and programs mentioned. For any entity that needs
    context in the synthesis, read its `summary` from
-   `cross-link-index.sh '__VAULT_PATH__' --with-summaries`. Do not read People or
-   Program bodies.
+   `__SKILL_INSTALL_PATH__/skills/worklog/scripts/cross-link-index.sh '__VAULT_PATH__' --with-summaries`.
+   Do not read People or Program bodies.
 ```
 
-- [ ] **Step 6: Replace the glob in the pull classify step**
+Every one of the three call sites in this step carries the full
+`__SKILL_INSTALL_PATH__/skills/worklog/scripts/` prefix. A bare script name has no
+directory to resolve against, which is the defect version 5.8.1 shipped.
 
-In `skills/worklog/references/pull-flow.md`, at the line found in step 1, replace the instruction to glob `People/*.md` with:
+- [ ] **Step 6a: Replace the Programs glob in the meeting-note build**
 
-```markdown
-Get known entities from
-`__SKILL_INSTALL_PATH__/skills/worklog/scripts/cross-link-index.sh '__VAULT_PATH__' --with-summaries`.
-Use `entities[].canonical` as link targets, `entities[].aliases` for partial and case
-forms, `entities[].summary` when you need to judge whether a message is about that
-person or program, and treat anything in `ambiguous` as resolve-from-context. Do not
-glob `People/*.md` and do not read note bodies.
+`references/pull-flow.md` has no `People/*.md` glob. The two places that do entity
+resolution by reading directories are the meeting-note build and the classification
+preamble, so this step is split in two.
+
+At `pull-flow.md:77-78`, replace:
+
 ```
+     - Resolve programs: glob `Programs/*.md` for known names; scan the
+       body for matches; wiki-link.
+```
+
+with, preserving the surrounding nesting exactly (8 spaces before the hyphen, 10 for
+continuations):
+
+```
+     - Resolve programs and people from the digest, not from a glob:
+       `__SKILL_INSTALL_PATH__/skills/worklog/scripts/cross-link-index.sh '__VAULT_PATH__' --with-summaries`.
+       Use `entities[].canonical` as link targets, `entities[].aliases` for
+       partial and case forms, and `entities[].summary` when you need to judge
+       whether the body is really about that entity. Treat anything in
+       `ambiguous` as resolve-from-context. Scan the body for matches;
+       wiki-link. Do not glob `Programs/*.md` and do not read note bodies.
+```
+
+- [ ] **Step 6b: Fix the classification preamble**
+
+At `pull-flow.md:151-152`, the __Three-way classification__ preamble tells the model to
+judge each unit against `People/`, `Programs/`, and `Teams/` directly, which is the
+O(vault) read the digest exists to remove. Replace it with:
+
+```
+__Three-way classification__ - judge each unit against the vault. Read the current
+week, Backlog, and `Archive/` directly. For person and program identity, use the digest:
+`__SKILL_INSTALL_PATH__/skills/worklog/scripts/cross-link-index.sh '__VAULT_PATH__' --with-summaries`,
+which gives every person and program with its aliases and a one-line summary. Do not
+glob `People/` or `Programs/`, and open one of those note bodies only when a unit
+plausibly concerns that entity and its summary is not enough to decide. The digest does
+NOT cover teams: read `Teams/` directly for team identity, which is cheap at the current
+16 notes:
+```
+
+Two things this wording gets right and an earlier draft got wrong. __The digest does not
+cover teams.__ `cross-link-index.sh` loops `for dir in People Programs`, emits only
+`type` values `person` and `program`, and reports only `people` and `programs` in `meta`.
+Claiming it covers teams while also banning `Teams/` globbing removes the only
+team-discovery path the model has. __The classification quality bar does not change__:
+units are still judged against the vault, only the source of entity identity moves.
+
+Keep the paragraph at 0-indent and keep its trailing colon, so the bullet list beneath
+it still reads as a continuation. This edit rewrites a line containing a pre-existing
+em-dash, which is the one authorized removal in this task.
 
 - [ ] **Step 7: Verify no stray real paths and that the glob is gone**
 
 ```bash
-grep -n '/Users/mminutillo' skills/worklog/SKILL.md skills/worklog/references/pull-flow.md
-grep -n "glob \`People/\*\.md\`\|Glob \`People/\*\.md\`" skills/worklog/references/pull-flow.md
+grep -c '/Users/' skills/worklog/SKILL.md skills/worklog/references/pull-flow.md
 grep -c 'with-summaries' skills/worklog/SKILL.md skills/worklog/references/pull-flow.md
+grep -n "cross-link-index.sh '__VAULT_PATH__'" skills/worklog/SKILL.md skills/worklog/references/pull-flow.md
+grep -n 'person, program, and team' skills/worklog/references/pull-flow.md
 ```
 
-Expected: the first two print nothing; the third reports 4 or more in `SKILL.md` and 1 in `pull-flow.md`.
+Expected: `0` for both files on the first; 4 or more in `SKILL.md` and 2 in
+`pull-flow.md` on the second; every match on the third preceded by
+`__SKILL_INSTALL_PATH__/skills/worklog/scripts/`; nothing on the fourth.
+
+Do not check for a leftover glob by grepping for the glob pattern itself. The corrected
+text contains the string "Do not glob `Programs/*.md`", so that grep matches its own
+negation clause and can never come back clean.
 
 - [ ] **Step 8: Commit**
 
