@@ -211,6 +211,10 @@ they appear in via backlinks.
   section with whatever is known
 - When creating people from Slack @ mentions, use `slack_search_users` to resolve
   full names and titles (if available; otherwise ask the user for the full name)
+- Write a one-line `summary:` in the frontmatter when you know enough to. When appending
+  substantive context to an existing note later, refresh `summary:` if the note's current
+  state changed. Skip the refresh for minor additions, the same judgment the frontmatter
+  regeneration rules already use.
 - This keeps the graph growing naturally as the worklog evolves
 
 **Linking discipline is critical.** Every unlinked mention is a missing edge in the
@@ -221,6 +225,7 @@ graph. When in doubt, link it. The graph's value comes from density of connectio
 ---
 type: person
 team: Backend Engineering
+summary: "Staff engineer on the auth rewrite; joined 2024"
 ---
 # Name
 ## Context
@@ -232,10 +237,17 @@ The optional `team` property links the person to a team note in `Teams/`. Set it
 when you're confident about the person's team. Use the team's short name (e.g.,
 `Backend Engineering`, `Platform Security`, `Frontend`).
 
+The optional `summary` property is a one-line answer to "who is this" for someone who
+has never read the note: present tense, current state, under about 120 characters, no
+wrapping. It is what `cross-link-index.sh --with-summaries` returns so a query can pick
+the right entity without opening the note. When absent, the helper derives a provisional
+summary from the note's first bullet, so the field is worth writing but never required.
+
 **Program note structure:**
 ```markdown
 ---
 type: program
+summary: "Consolidating three auth stacks onto one; targeting Q4"
 ---
 # Program Name
 ## Context
@@ -721,6 +733,10 @@ Read the current week file and backlog, show a summary of active work:
 3. Group by priority (P0 first, then P1, then P2)
 4. Present in a clean markdown table or list
 
+If the user's question needs entity context rather than just item titles, get it from
+`__SKILL_INSTALL_PATH__/skills/worklog/scripts/cross-link-index.sh '__VAULT_PATH__' --with-summaries`
+and read the `summary` field. Do not open People or Program bodies for this.
+
 ### `/worklog review`
 
 Monday morning workflow. Combines status review, updates, adds, and file updates
@@ -921,6 +937,13 @@ Search across Worklogs/, Archive/, People/, and Programs/ for items matching the
 term. Use Grep to search all `.md` files. Show matches with their week/file,
 priority, and status.
 
+When a match needs entity context to be intelligible, read it from the
+`--with-summaries` digest rather than opening the note:
+
+```bash
+__SKILL_INSTALL_PATH__/skills/worklog/scripts/cross-link-index.sh '__VAULT_PATH__' --with-summaries
+```
+
 ### `/worklog share`
 
 Generate a concise status summary for Slack. Copy to clipboard via `pbcopy`:
@@ -1049,7 +1072,10 @@ Arguments are case-insensitive.
 3. From archived files: extract completed items from the bullet list
 4. From the active week: extract items marked `✅ Done` plus notable in-progress
    milestones (items with dated sub-items showing meaningful progress)
-5. Collect all wiki-linked people and programs mentioned
+5. Collect all wiki-linked people and programs mentioned. For any entity that needs
+   context in the synthesis, read its `summary` from
+   `cross-link-index.sh '__VAULT_PATH__' --with-summaries`. Do not read People or
+   Program bodies.
 
 **Synthesis guidelines:**
 
