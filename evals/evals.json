@@ -52,8 +52,8 @@
     {
       "id": 9,
       "prompt": "/worklog pull (run a second time within seconds, no new Slack content)",
-      "expected_output": "Should be idempotent: no new Meetings/ files created, no existing files modified, no items added to current week file. Should advance Sources/<channel>.md last_scan_ts to current time. Summary should report 0 new threads, 0 updated, 0 items extracted.",
-      "issue_tested": "Idempotency - re-running pull with no new Slack content must not duplicate or rewrite anything"
+      "expected_output": "Should be idempotent apart from the log: no new Meetings/ files created, no existing Meetings/ files modified, no items added to the current week file. Should advance Sources/<channel>.md last_scan_ts to current time. Should append exactly one Logs/YYYY-MM.md entry with op `pull` recording 0 new threads and a complete sweep. Summary should report 0 new threads, 0 updated, 0 items extracted.",
+      "issue_tested": "Idempotency - re-running pull with no new Slack content must not duplicate or rewrite anything (log entry is the one permitted write on a zero-result pull)"
     },
     {
       "id": 10,

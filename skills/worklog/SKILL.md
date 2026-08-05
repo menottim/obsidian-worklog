@@ -52,6 +52,8 @@ __VAULT_PATH__/
     YYYY-MM-DD-<topic-slug>.md  # One note per ingested Slack thread
     ...                          # (top-of-thread = email body, replies in
                                  # discussion section)
+  Logs/
+    YYYY-MM.md           # Append-only operations log (one file per month)
   Archive/
     YYYY-WMM.md          # Completed weeks
     ...
@@ -105,6 +107,7 @@ Other key paths:
 - Preferences: `__VAULT_PATH__/Preferences/<Title>.md`
 - Sources: `__VAULT_PATH__/Sources/<channel-name>.md`
 - Meetings: `__VAULT_PATH__/Meetings/YYYY-MM-DD-<topic-slug>.md`
+- Logs: `__VAULT_PATH__/Logs/YYYY-MM.md`
 
 ## Weekly File Structure
 
@@ -666,6 +669,48 @@ doing it on every single sub-item addition in a batch.
 arrays using the same extraction rules. Summary files do not need `item-count` or
 `done-count` (their structure differs from weekly files).
 
+## Operations Log
+
+`Logs/YYYY-MM.md` is an append-only record of what this skill did and when. One file
+per month, which keeps it bounded without ever needing its own compaction.
+
+__The rule:__ log any operation that writes to the vault.
+
+That covers `pull`, `rollover`, `tidy`, `summary`, `viz`, `sync`, `compact`, filing an
+answer, and `audit` __only when fixes were applied__. It excludes `status`, `search`,
+`share`, and a read-only audit run, because none of those change the vault. Absence is
+informative too: no `pull` entries for three weeks answers "when did I last ingest"
+just as well as a positive entry would.
+
+__Always append through the helper__, never by editing the file directly:
+
+```bash
+__SKILL_INSTALL_PATH__/skills/worklog/scripts/log-append.sh '__VAULT_PATH__' \
+  <op> <target> 'first body line' 'second body line'
+```
+
+The helper creates the month file with frontmatter if absent and writes the entry as:
+
+```markdown
+## [2026-08-05] pull | #infrasec-leads
+- 24 messages swept, 4 folded, 2 dropped (sensitive)
+- last_scan_ts -> 2026-08-05T18:22:00Z (complete)
+```
+
+The `## [YYYY-MM-DD] <op> | <target>` prefix is a contract. Every reader greps for it,
+so a hand-written entry that misses the format silently disappears from every query.
+Use the helper and the format cannot drift.
+
+__Pull entries carry one extra requirement:__ record whether the sweep was complete or
+partial, and the resulting `last_scan_ts` per source. A partial sweep that looks
+complete in hindsight is the specific failure this log exists to prevent.
+
+__Reading the log__ needs no script:
+
+```bash
+cat '__VAULT_PATH__'/Logs/*.md | grep '^## \[' | tail -5
+```
+
 ## Commands
 
 ### `/worklog` or `/worklog status`
@@ -760,6 +805,10 @@ override, first-run registration, and body extraction live in
 `__SKILL_INSTALL_PATH__/skills/worklog/references/pull-flow.md`. __Before executing `/worklog pull`, you MUST
 read that reference and follow it__ (kept out of this file for size; behavior is unchanged).
 
+__Log it:__ after the pull completes, append one entry per source via `log-append.sh`
+with op `pull` and target `#<channel-name>`, recording counts and whether the sweep was
+complete or partial along with the resulting `last_scan_ts`. See `## Operations Log`.
+
 ### `/worklog rollover`
 
 __Nudge check (run first):__ Before doing anything else, glob
@@ -779,6 +828,9 @@ Quick rollover without item-by-item review:
 6. Move current week to Archive with summary
 
 Then ask if the user wants to add any new items.
+
+__Log it:__ append one entry with op `rollover`, target the new week label, recording
+items carried forward and items completed.
 
 ### `/worklog add <priority> <title>`
 
@@ -803,10 +855,24 @@ Read the current week file and suggest cleanup:
 
 Present as a checklist. Apply approved changes directly.
 
+__Log it:__ if any changes were applied, append one entry with op `tidy` and target the
+current week label. If nothing was applied, write no entry.
+
 ### `/worklog audit`
 
 __Nudge check (run first):__ Same as `/worklog rollover` above - check `Sources/*.md` and
 surface a stale-channel FYI before continuing.
+
+__Operational health (run second):__ read the last 10 log entries:
+
+```bash
+cat '__VAULT_PATH__'/Logs/*.md | grep '^## \[' | tail -10
+```
+
+Surface two conditions alongside the vault findings: a `pull` entry recorded as partial,
+and no `pull` entries at all in a window where the stale-source nudge is firing. Read
+before writing, so an audit run never reports on itself. If `Logs/` does not exist yet,
+skip this step silently.
 
 Scan the vault for quality issues and present a fix-it checklist. No arguments.
 
@@ -845,6 +911,9 @@ Frontmatter gaps:
 The user picks which fixes to apply. Apply approved fixes directly with Edit/Write; for
 frontmatter gaps, regenerate using the Frontmatter Auto-generation rules. The check
 definitions live in `scripts/audit-scan.sh` — do not re-derive them here.
+
+If the user approved and you applied any fixes, append one log entry naming what was
+fixed. If nothing was applied, write no entry.
 
 ### `/worklog search <term>`
 
@@ -1089,6 +1158,8 @@ Priority drift: P0 count grew X -> Y. Longest-running P0: item (N weeks).
 Trends: Heaviest category: X (N%). M programs, N people engaged. X% completion rate.
 ```
 
+__Log it:__ append one entry with op `summary` and target the period label.
+
 **Edge cases:**
 
 - If no weeks exist in the range, say so rather than producing empty output
@@ -1105,6 +1176,8 @@ Generate standalone HTML D3 charts for a period. __Before executing, you MUST re
 `__SKILL_INSTALL_PATH__/skills/worklog/references/viz.md` and follow it__ (full mechanics + template-fill
 live there to keep this file small).
 
+__Log it:__ append one entry with op `viz` and target the generated report path.
+
 ### `/worklog sync`
 
 Back up the vault and skill to the private repo. First copies the current skill
@@ -1119,7 +1192,7 @@ cp __SKILL_INSTALL_PATH__/.claude-plugin/plugin.json \
 
 # Commit and push
 cd "__VAULT_PATH__"
-git add Worklogs/ People/ Programs/ Teams/ Archive/ Summaries/ Reports/ References/ Templates/ Sources/ Meetings/ Preferences/ .skills/
+git add Worklogs/ People/ Programs/ Teams/ Archive/ Summaries/ Reports/ References/ Templates/ Sources/ Meetings/ Logs/ Preferences/ .skills/
 git -c user.name="__GIT_USER_NAME__" -c user.email="__GIT_USER_EMAIL__" \
     commit -m "worklog sync $(date +%Y-%m-%d)"
 git push
@@ -1128,8 +1201,8 @@ git push
 __The `git add` list must cover every directory in the Vault Layout above.__ It is an
 explicit allowlist, so a directory missing from it is silently never staged: existing
 tracked files there keep getting picked up by other commits, but any __new__ file is
-skipped without warning and never reaches the backup. `Teams/`, `References/`, and
-`Preferences/` have each been missed this way. After running the sync, if
+skipped without warning and never reaches the backup. `Teams/`, `References/`, and `Preferences/` have each been missed this way, and `Logs/`
+was added with this rule in mind. After running the sync, if
 `git status --porcelain` still reports untracked files under the vault root, a
 directory is missing from the list - add it here rather than staging it by hand.
 
@@ -1143,6 +1216,9 @@ create one to prevent committing sensitive or unnecessary files:
 *.swp
 .env
 ```
+
+__Log it:__ append one entry with op `sync` and target `vault`, recording the commit
+subject. Append it before staging so the entry is included in the same commit.
 
 Run this after any major update (review, rollover, batch adds). The user may also
 ask to sync manually at any time.
@@ -1233,6 +1309,10 @@ forward counts (with brief titles in parentheses). Only completed items as bulle
   routes through the one-by-one approval batch, and approved items are folded as genericized,
   workstream-level summaries with a Slack permalink. If the helper is missing/unauthorized
   (or DM-search consent is absent), the DM sweep is skipped and the channel pull is unaffected.
+- __Log what you write.__ Any operation that changes the vault appends one entry to
+  `Logs/YYYY-MM.md` via `__SKILL_INSTALL_PATH__/skills/worklog/scripts/log-append.sh`.
+  See `## Operations Log`. Read-only commands (`status`, `search`, `share`, an audit
+  that applied nothing) write no entry.
 
 ## Netflix-specific commands (this fork only)
 
