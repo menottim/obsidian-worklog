@@ -178,7 +178,7 @@
     {
       "id": 30,
       "prompt": "/worklog rollup",
-      "expected_output": "Should copy a Slack-mrkdwn version to the clipboard via pbcopy with no [[wiki-link]] syntax, AND write References/YYYY-WNN Rollup.md with type: reference, subtype: rollup, period, and source frontmatter. The filed copy must KEEP wiki-links so the rollup lands in the graph. The same include/filter content rules apply to both renderings: no performance commentary, no 1:1 specifics, no candidate names in either. Should append one Logs/ entry with op `file`.",
+      "expected_output": "Should copy a Slack-mrkdwn version to the clipboard via pbcopy with no [[wiki-link]] syntax, AND write References/YYYY-WNN Rollup.md with type: reference, subtype: rollup, period, and source frontmatter. The filed copy must KEEP wiki-links so the rollup lands in the graph. The same include/filter content rules apply to both renderings: no performance commentary, no 1:1 specifics, no candidate names in either. Should append one Logs/ entry with op `rollup`.",
       "issue_tested": "Filed answers compound - a rollup must survive as a vault artifact, and filing must not relax the audience filter"
     },
     {
