@@ -56,9 +56,12 @@ reads best when the user can sanity-check what got summarized.
 line count, no heuristic:
 
 - `WORKLOG_COMPACT_LINES` (default __250__) is the threshold.
-- At 250, five notes qualify today: Christine Chalmers (1536), Astha Singhal (852),
-  Brian Gaines (451), Rachel Taylor (335), Laura Haller (334). The other 309 People
-  notes and all 86 Programs notes are untouched.
+- At 250, six notes qualify today, measured by running the check: People/Christine
+  Chalmers (1536), People/Astha Singhal (852), People/Brian Gaines (451),
+  People/Rachel Taylor (335), People/Laura Haller (334), and Programs/GenAI Agent
+  Platform (314). The other 309 People notes and 85 Programs notes are untouched.
+  The check covers `Programs/` as well as `People/`; an earlier hand count of this
+  spec looked only at People and reported five.
 
 Env-var configuration follows the existing convention in `cross-link-index.sh`
 (`CROSSLINK_DOM_RATIO`, `CROSSLINK_DOM_ABS`).
@@ -180,8 +183,9 @@ files; 21 have no matching Programs note; of those, roughly 2 plausibly deserve 
 Programs notes. A 21-finding list at about 90% false positive is worse than no check.
 
 `team_vocabulary` as a findings check: of 86 distinct `team:` values across 314 People
-notes, __7 resolve exactly__ to one of the 16 `Teams/` notes and 20 resolve by substring.
-As a per-note dangling-reference list that is roughly 300 findings.
+notes, __7 resolve exactly__ to one of the 16 `Teams/` notes and 13 more resolve by
+substring, leaving 66 unresolvable. As a per-note dangling-reference list that is
+roughly 300 findings.
 
 So both emit a compact distribution instead: tens of rows, fully deterministic, no
 threshold tuning, and the judgment lands on the model with complete information rather
