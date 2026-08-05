@@ -183,6 +183,7 @@ Your Vault/
   Preferences/    One note per durable preference (voice, style, workflow, etc.)
   Sources/        Registered Slack channels for `/worklog pull`. One file per channel; frontmatter holds `type` (which selects the sweep behavior), `channel_id`, `last_scan_ts`, and nudge threshold.
   Meetings/       One file per ingested Slack thread (top-of-thread email + in-thread discussion). Linked into the knowledge graph via wiki-linked participants and programs.
+  Logs/           Append-only operations log (one file per month)
   Archive/        Completed weeks in compact summary format
   Summaries/      Weekly, monthly, quarterly summaries
   Reports/        D3 visualization HTML files
@@ -228,7 +229,8 @@ These fields enable [Dataview queries](docs/dataview-queries.md) for live dashbo
 | `/worklog audit` | Vault health check with fix-it checklist |
 | `/worklog search <term>` | Search across all vault files |
 | `/worklog share` | Slack-ready summary copied to clipboard |
-| `/worklog rollup` | IC-facing weekly context dump for a broad team channel |
+| `/worklog rollup` | IC-facing weekly context dump for a broad team channel; also filed to `References/` |
+| `/worklog file [title]` | File the answer you just produced into `References/` as a durable, cross-linked artifact |
 | `/worklog summary [period]` | Impact summary for reporting up (week/month/quarter) |
 | `/worklog viz [period]` | D3.js charts as standalone HTML |
 | `/worklog sync` | Git backup: commit and push |
@@ -249,7 +251,7 @@ These require Netflix-internal MCPs - see [`docs/SETUP-NETFLIX.md`](docs/SETUP-N
 
 **`/worklog summary [period]`** -- Generates an impact-oriented summary for reporting up. Accepts: `week`, `month`, `quarter`, or specific references like `W20`, `March`, `Q1`. Monthly and quarterly summaries include **Priority Drift** (how P0s shift over time) and **Trends** (time allocation, completion rates). Writes a wiki-linked vault file and copies a plain-text version to clipboard.
 
-**`/worklog rollup`** -- Generates an IC-appropriate context dump of the current week for posting to a broad team channel (e.g. `#eng-all`). Organized into two buckets: _Stuff you should probably know_ (program-level updates, structural decisions, paved-road changes, things ICs can act on) and _Context: everything else_ (FYI-grade one-liners). Filters out performance commentary, 1:1 specifics, hiring candidate details, and other leader-only context. Slack-mrkdwn formatted; copied to clipboard.
+**`/worklog rollup`** -- Generates an IC-appropriate context dump of the current week for posting to a broad team channel (e.g. `#eng-all`). Organized into two buckets: _Stuff you should probably know_ (program-level updates, structural decisions, paved-road changes, things ICs can act on) and _Context: everything else_ (FYI-grade one-liners). Filters out performance commentary, 1:1 specifics, hiring candidate details, and other leader-only context. Slack-mrkdwn formatted and copied to the clipboard with wiki-links stripped; also filed to `References/YYYY-WNN Rollup.md` with wiki-links kept so it lands in the graph.
 
 ![Monthly summary with enriched frontmatter, key outcomes, and priority drift](docs/images/monthly-summary.png)
 
