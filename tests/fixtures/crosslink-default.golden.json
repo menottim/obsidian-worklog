@@ -1,0 +1,102 @@
+{
+  "entities": [
+    {
+      "canonical": "Astha Singhal",
+      "type": "person",
+      "aliases": [
+        "Astha"
+      ]
+    },
+    {
+      "canonical": "Brian Gaines",
+      "type": "person",
+      "aliases": [
+        "Brian"
+      ],
+      "alias_notes": [
+        {
+          "alias": "Brian",
+          "alts": [
+            "Brian Lee"
+          ]
+        }
+      ]
+    },
+    {
+      "canonical": "Brian Lee",
+      "type": "person",
+      "aliases": []
+    },
+    {
+      "canonical": "Chris Park",
+      "type": "person",
+      "aliases": []
+    },
+    {
+      "canonical": "Chris Vincent",
+      "type": "person",
+      "aliases": []
+    },
+    {
+      "canonical": "Dana Wu",
+      "type": "person",
+      "aliases": [
+        "Dana"
+      ]
+    },
+    {
+      "canonical": "Declared Person",
+      "type": "person",
+      "aliases": [
+        "DP",
+        "Declared"
+      ]
+    },
+    {
+      "canonical": "Jonathan Looney",
+      "type": "person",
+      "aliases": [
+        "JTL",
+        "Jonathan"
+      ]
+    },
+    {
+      "canonical": "Madonna",
+      "type": "person",
+      "aliases": []
+    },
+    {
+      "canonical": "Pat Quinn",
+      "type": "person",
+      "aliases": [
+        "Pat"
+      ]
+    },
+    {
+      "canonical": "Pat Rogers",
+      "type": "person",
+      "aliases": []
+    },
+    {
+      "canonical": "Auth (v2)",
+      "type": "program",
+      "aliases": []
+    },
+    {
+      "canonical": "Cloud Security",
+      "type": "program",
+      "aliases": []
+    }
+  ],
+  "ambiguous": {
+    "Chris": [
+      "Chris Park",
+      "Chris Vincent"
+    ]
+  },
+  "meta": {
+    "people": 11,
+    "programs": 2,
+    "generated_for": "/Users/mminutillo/obsidian-worklog/tests/fixtures/crosslink-vault"
+  }
+}

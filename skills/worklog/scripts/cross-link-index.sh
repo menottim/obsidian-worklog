@@ -4,8 +4,17 @@
 # bash 3.2; jq/awk/sed/grep. Precedence: declared > observed > derived.
 set -euo pipefail
 
-[ "${1:-}" ] || { echo "usage: cross-link-index.sh <vault-path>" >&2; exit 2; }
-VAULT="$1"
+WITH_SUMMARIES=0
+VAULT=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --with-summaries) WITH_SUMMARIES=1 ;;
+    -*) echo "cross-link-index: unknown option: $1" >&2; exit 2 ;;
+    *)  [ -n "$VAULT" ] || VAULT="$1" ;;
+  esac
+  shift
+done
+[ -n "$VAULT" ] || { echo "usage: cross-link-index.sh <vault-path> [--with-summaries]" >&2; exit 2; }
 [ -d "$VAULT" ] || { echo "cross-link-index: vault dir not found: $VAULT" >&2; exit 2; }
 cd "$VAULT"
 
@@ -18,7 +27,25 @@ TUP="$TMP/tuples.tsv"     # surface \t canonical \t source(canonical|derived|dec
 OBS="$TMP/observed.tsv"   # surface \t canonical \t count
 NAMES="$TMP/names"        # one canonical per line
 : > "$ENTS"; : > "$TUP"; : > "$OBS"
+SUMS="$TMP/sums.tsv"      # canonical \t source \t summary
+: > "$SUMS"
 shopt -s nullglob
+
+# --- Summary extraction (only used with --with-summaries) ---
+# Declared: a frontmatter `summary:` line. Wins outright.
+summary_declared(){ # <file>
+  awk 'BEGIN{fm=0}
+       /^---[[:space:]]*$/{fm++; if(fm>=2) exit; next}
+       fm==1 && /^summary:/{ s=$0; sub(/^summary:[[:space:]]*/,"",s)
+                             gsub(/^["'\'']|["'\'']$/,"",s); print s; exit }' "$1"
+}
+# Derived: first body bullet after the frontmatter. Never reads frontmatter list items.
+summary_derived(){ # <file>
+  awk 'BEGIN{fm=0}
+       /^---[[:space:]]*$/{fm++; next}
+       (fm==0 || fm>=2) && /^[[:space:]]*-[[:space:]]+/{
+         s=$0; sub(/^[[:space:]]*-[[:space:]]+/,"",s); print s; exit }' "$1" | cut -c1-120
+}
 
 # --- Stage 1: entities (canonical + type) ---
 for dir in People Programs; do
@@ -28,6 +55,13 @@ for dir in People Programs; do
     type="$(sed -n 's/^type:[[:space:]]*//p' "$f" | head -1 | tr -d '"' | tr -d "'")"
     [ -n "$type" ] || { case "$dir" in People) type=person;; Programs) type=program;; esac; }
     printf '%s\t%s\n' "$name" "$type" >> "$ENTS"
+    if [ "$WITH_SUMMARIES" = "1" ]; then
+      s="$(summary_declared "$f")"; src="declared"
+      if [ -z "$s" ]; then s="$(summary_derived "$f")"; src="derived"; fi
+      [ -n "$s" ] || src="none"
+      s="$(printf '%s' "$s" | tr -d '\t')"     # protect the TSV separator
+      printf '%s\t%s\t%s\n' "$name" "$src" "$s" >> "$SUMS"
+    fi
   done
 done
 cut -f1 "$ENTS" | sort -u > "$NAMES"
@@ -131,6 +165,13 @@ ENTJSON="$(jq -R -s '
   split("\n") | map(select(length>0) | split("\t"))
   | map({canonical: .[0], type: .[1]})' "$ENTS")"
 
+SUMJSON='{}'
+if [ "$WITH_SUMMARIES" = "1" ]; then
+  SUMJSON="$(jq -R -s '
+    split("\n") | map(select(length>0) | split("\t"))
+    | reduce .[] as $r ({}; .[$r[0]] = {summary: ($r[2] // ""), summary_source: $r[1]})' "$SUMS")"
+fi
+
 PEOPLE="$(awk -F'\t' '$2=="person"{n++} END{print n+0}' "$ENTS")"
 PROGRAMS="$(awk -F'\t' '$2=="program"{n++} END{print n+0}' "$ENTS")"
 
@@ -140,13 +181,18 @@ jq -n \
   --argjson ambiguous "$AJSON" \
   --argjson people "$PEOPLE" \
   --argjson programs "$PROGRAMS" \
+  --argjson sums "$SUMJSON" \
+  --argjson withsum "$WITH_SUMMARIES" \
   --arg vault "$VAULT" '
   {
     entities: ($ents | map(. as $e
       | ($r | map(select(.canonical == $e.canonical))) as $mine
       | $e + { aliases: ($mine | map(.alias) | unique),
                alias_notes: ($mine | map(select(.dominant)) | map({alias, alts})) }
-      | if (.alias_notes | length) == 0 then del(.alias_notes) else . end)),
+      | if (.alias_notes | length) == 0 then del(.alias_notes) else . end
+      | if $withsum == 1
+        then . + ($sums[.canonical] // {summary: "", summary_source: "none"})
+        else . end)),
     ambiguous: $ambiguous,
     meta: { people: $people, programs: $programs, generated_for: $vault }
   }'

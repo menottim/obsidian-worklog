@@ -60,5 +60,45 @@ assert_eq "empty meta people"    "$(printf '%s' "$EOUT" | jq '.meta.people')"   
 assert_eq "empty meta programs" "$(printf '%s' "$EOUT" | jq '.meta.programs')" "0"
 rm -rf "$EMPTY"
 
+# --- default output is unchanged (hot-path regression guard) ---
+GOLDEN="$HERE/fixtures/crosslink-default.golden.json"
+assert_eq "default output matches golden" \
+  "$(printf '%s\n' "$OUT" | diff -q - "$GOLDEN" >/dev/null 2>&1 && echo same || echo differs)" "same"
+assert_eq "default has no summary key" "$(jq_ '[.entities[] | has("summary")] | any')" "false"
+
+# --- --with-summaries ---
+SFIX="$HERE/fixtures/summary-vault"
+SOUT="$("$HELPER" "$SFIX" --with-summaries)"
+sjq() { printf '%s' "$SOUT" | jq -c "$1"; }
+sel() { printf '.entities[] | select(.canonical=="%s")' "$1"; }
+
+assert_eq "sum: valid json"  "$(printf '%s' "$SOUT" | jq -e . >/dev/null 2>&1 && echo ok)" "ok"
+assert_eq "sum: declared wins" \
+  "$(sjq "$(sel 'Declared Sam') | .summary")" '"Director of Platform; joined 2024"'
+assert_eq "sum: declared source" \
+  "$(sjq "$(sel 'Declared Sam') | .summary_source")" '"declared"'
+assert_eq "sum: derived from first bullet" \
+  "$(sjq "$(sel 'Derived Dana') | .summary")" '"Staff engineer on the auth rewrite"'
+assert_eq "sum: derived source" \
+  "$(sjq "$(sel 'Derived Dana') | .summary_source")" '"derived"'
+assert_eq "sum: bare stub empty" \
+  "$(sjq "$(sel 'Bare Stub') | .summary")" '""'
+assert_eq "sum: bare stub source none" \
+  "$(sjq "$(sel 'Bare Stub') | .summary_source")" '"none"'
+assert_eq "sum: metachars survive json" \
+  "$(sjq "$(sel 'Quoted Program') | .summary")" '"Migration with \"quotes\", a colon: and a | pipe"'
+assert_eq "sum: every entity has a source" \
+  "$(sjq '[.entities[] | has("summary_source")] | all')" "true"
+
+# --- flag does not disturb the existing shape ---
+assert_eq "sum: aliases still present" "$(sjq "$(sel 'Derived Dana') | .aliases")" '["Derived"]'
+assert_eq "sum: meta still present"    "$(sjq '.meta.people')" "3"
+
+# --- unknown option rejected ---
+"$HELPER" "$FIX" --nonsense >/dev/null 2>&1; assert_eq "unknown flag exit 2" "$?" "2"
+# --- flag order does not matter ---
+assert_eq "flag before vault" \
+  "$("$HELPER" --with-summaries "$SFIX" | jq -c "$(sel 'Bare Stub') | .summary_source")" '"none"'
+
 if [ "$FAILS" -gt 0 ]; then printf '\n%d test(s) failed\n' "$FAILS"; exit 1; fi
 printf '\nAll tests passed\n'
