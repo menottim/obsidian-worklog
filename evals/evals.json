@@ -174,6 +174,18 @@
       "prompt": "/worklog viz quarter",
       "expected_output": "Model Guard behavior: if running on a sub-Opus model (Sonnet/Haiku), should pause and ask whether to continue or switch to Opus 4.8 before generating the visualization, and ask at most once per conversation. If running on Opus-tier or if the model cannot determine its identity, should proceed silently with no guard prompt. Light commands (add/review/audit) must never trigger the guard.",
       "issue_tested": "Model Guard fires on heavy commands under sub-Opus, fails open otherwise"
+    },
+    {
+      "id": 30,
+      "prompt": "/worklog rollup",
+      "expected_output": "Should copy a Slack-mrkdwn version to the clipboard via pbcopy with no [[wiki-link]] syntax, AND write References/YYYY-WNN Rollup.md with type: reference, subtype: rollup, period, and source frontmatter. The filed copy must KEEP wiki-links so the rollup lands in the graph. The same include/filter content rules apply to both renderings: no performance commentary, no 1:1 specifics, no candidate names in either. Should append one Logs/ entry with op `file`.",
+      "issue_tested": "Filed answers compound - a rollup must survive as a vault artifact, and filing must not relax the audience filter"
+    },
+    {
+      "id": 31,
+      "prompt": "/worklog share",
+      "expected_output": "Should copy a brief priority-grouped status blurb to the clipboard and write NO vault file. Filing a share is explicitly out of scope; 52 of these a year would be noise in References/. Should append no Logs/ entry.",
+      "issue_tested": "Not every output is worth filing - share and search stay ephemeral"
     }
   ]
 }

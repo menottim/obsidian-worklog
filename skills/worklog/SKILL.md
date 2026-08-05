@@ -957,6 +957,9 @@ Done: Team offsite travel booked
 
 Brief titles only, no sub-notes, no wiki-link syntax, grouped by priority.
 
+Clipboard only. Do not write a vault file - see `/worklog file` for what is worth
+filing and why this is not.
+
 ### `/worklog rollup`
 
 Generate an IC-appropriate weekly context dump for posting to a broad team
@@ -1031,9 +1034,36 @@ Next week: <one-liner, if relevant>
 
 **Output:**
 
-After generating the message, copy it to the clipboard via `pbcopy` and tell
-the user the message is ready to paste. Do not save it as a vault file - this
-is a one-shot, ephemeral message.
+After generating the message, copy it to the clipboard via `pbcopy` and tell the user the
+message is ready to paste.
+
+__Then file it.__ Write `References/YYYY-WNN Rollup.md`:
+
+```markdown
+---
+type: reference
+subtype: rollup
+period: 2026-W31
+source: /worklog rollup
+---
+
+# W31 Rollup (Jul 27-31)
+
+<the same content, with [[wiki-links]] kept>
+```
+
+Two renderings of one artifact. The clipboard version strips `[[wiki-links]]` because
+Slack cannot render them; the filed version keeps them, which is the entire reason
+filing is worth doing - the rollup then shows up in backlinks on every program it
+names, and the judgment that went into it compounds instead of evaporating.
+
+__Filing does not relax the filter.__ The include and exclude rules above apply to both
+renderings. `References/` is synced to the backup repo, so performance commentary, 1:1
+specifics, and candidate details stay out of the filed copy too.
+
+If a file already exists for the period, tell the user and ask whether to overwrite.
+
+__Log it:__ append one entry with op `file` and target the filed path.
 
 **Edge cases:**
 
@@ -1041,6 +1071,42 @@ is a one-shot, ephemeral message.
   frame items as "in flight" and still surface them if program-relevant.
 - If the user requests a different audience ("send this to leads" or "make it
   shorter"), adapt the filter/structure on the fly but keep the same split.
+
+### `/worklog file [title]`
+
+File the answer you just produced into the vault as a durable artifact. This is for
+substantive analysis - a comparison, an investigation, a synthesis you were asked for -
+not for routine command output.
+
+Write `References/<title>.md`:
+
+```markdown
+---
+type: reference
+source: <what produced this, e.g. "conversation 2026-08-05" or "/worklog search">
+---
+
+# <Title>
+
+<the answer, cross-linked per the Cross-Linking rules>
+```
+
+- Filename is the given title. With no title, derive `YYYY-MM-DD <Short Title>` from the
+  content.
+- Wiki-link every person and program per the Cross-Linking rules. An unlinked filed
+  answer is a page nothing points at, which is most of its value gone.
+- Create stub notes for any new entities, same as anywhere else.
+- If the file exists, tell the user and ask whether to overwrite or pick a new title.
+
+__Offer, do not assume.__ After producing a substantive analytical answer against the
+vault, offer once to file it. Do not file without confirmation. This mirrors how
+`Preferences/` capture works, and for the same reason: the user's confirmation is what
+keeps the vault from filling with artifacts they did not want.
+
+__Log it:__ append one entry with op `file` and target the filed path.
+
+__What not to file:__ `/worklog share` output, which is a three-line blurb, and
+`/worklog search` results, which are re-derivable by re-running the search.
 
 ### `/worklog summary [period]`
 
@@ -1339,6 +1405,10 @@ forward counts (with brief titles in parentheses). Only completed items as bulle
   `Logs/YYYY-MM.md` via `__SKILL_INSTALL_PATH__/skills/worklog/scripts/log-append.sh`.
   See `## Operations Log`. Read-only commands (`status`, `search`, `share`, an audit
   that applied nothing) write no entry.
+- __Good answers are artifacts.__ A rollup files itself to `References/`. For any other
+  substantive analysis you produce against the vault, offer once to file it with
+  `/worklog file`. Filed answers are cross-linked, so they compound in the graph the
+  same way ingested content does. Ephemeral by design: `share` and `search`.
 
 ## Netflix-specific commands (this fork only)
 
