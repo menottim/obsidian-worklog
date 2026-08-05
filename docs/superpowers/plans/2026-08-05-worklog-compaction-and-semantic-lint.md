@@ -982,11 +982,17 @@ git -c user.name="Menotti Minutillo" -c user.email="mminutillo@netflix.com" \
 /bin/bash ./tests/e2e-setup.sh
 ```
 
-Expected: all four succeed.
+Expected: all four succeed, and `e2e-setup.sh` reports the same assertion count the 5.11.0 branch recorded.
 
 - [ ] **Step 2: Bump the version and description**
 
-In `.claude-plugin/plugin.json`, change `"version": "5.11.0"` to `"version": "5.12.0"`, and append to the `description` string before its closing quote:
+Read the current value first:
+
+```bash
+grep '"version"' .claude-plugin/plugin.json
+```
+
+It should read `5.11.0`; anything else means the 5.11.0 plan has not landed and Task 5's references to `log-append.sh` and `summary:` will not resolve. Change it to `"version": "5.12.0"`, and append to the `description` string before its closing quote:
 
 ```
  Note compaction and semantic lint.

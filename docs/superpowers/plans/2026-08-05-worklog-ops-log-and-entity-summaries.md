@@ -10,6 +10,31 @@
 
 **Spec:** `docs/superpowers/specs/2026-08-05-worklog-ops-log-and-entity-summaries-design.md`
 
+## Prerequisites
+
+**PR #2 must be merged first.** `origin/worklog-sync-references` (PR #2, open since
+2026-07-30) carries the 5.10.1 bump and the fix that adds `References/` and `Teams/` to
+the `/worklog sync` allowlist. This plan edits the same `git add` line in Task 2 step 6,
+so merging after would conflict, and building on 5.10.0 would silently drop that fix.
+
+Verify before starting:
+
+```bash
+git fetch origin
+git show origin/main:.claude-plugin/plugin.json | grep '"version"'
+git show origin/main:skills/worklog/SKILL.md | grep -n 'git add Worklogs/'
+```
+
+Expected after the merge: version `5.10.1`, and the `git add` line already contains
+`References/` and `Teams/`. If version still reads `5.10.0`, PR #2 has not merged; stop
+and merge it.
+
+**Untracked strays.** The working clone carries `.superpowers/`, `presentation/index.html`,
+`presentation/media/*`, and `docs/superpowers/specs/2026-04-14-presentation-design.md`
+untracked. Decide once, before starting: commit them or add them to `.gitignore`. Carrying
+them through two version branches means every `git status` is noisy and every `git add -A`
+is a hazard.
+
 ## Global Constraints
 
 - **bash 3.2 only.** macOS ships bash 3.2.57 and the helpers must run under it. No `mapfile`/`readarray`, no associative arrays (`declare -A`), no `${var^^}`/`${var,,}`, no `&>>`. Use `while IFS= read -r` loops instead of `mapfile`. Existing helpers already follow this; match them.
@@ -1002,11 +1027,17 @@ git -c user.name="Menotti Minutillo" -c user.email="mminutillo@netflix.com" \
 /bin/bash ./tests/e2e-setup.sh
 ```
 
-Expected: all three report success. `e2e-setup.sh` previously passed 45/45; if the count changed, read the diff before assuming it is fine.
+Expected: all three report success. Record the `e2e-setup.sh` assertion count in the commit message for this task, so the next branch has a baseline to compare against.
 
 - [ ] **Step 2: Bump the version**
 
-In `.claude-plugin/plugin.json`, change `"version": "5.10.1"` to `"version": "5.11.0"`.
+Read the current value first rather than assuming it:
+
+```bash
+grep '"version"' .claude-plugin/plugin.json
+```
+
+It should read `5.10.1` (see Prerequisites; `5.10.0` means PR #2 never merged). Change it to `"version": "5.11.0"`.
 
 - [ ] **Step 3: Update the plugin description**
 
