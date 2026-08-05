@@ -61,6 +61,9 @@ __VAULT_PATH__/
     YYYY-QN.md           # Quarterly summary
   Reports/
     YYYY-Month-viz.html  # D3 visualization (open in browser)
+  References/
+    <Topic>.md           # Durable reference artifacts (handover docs, leveling
+    ...                  # frameworks, passdowns) - not per-week, not per-person
   Templates/
     Weekly.md            # Templater template for new weeks
 ```
@@ -1116,11 +1119,19 @@ cp __SKILL_INSTALL_PATH__/.claude-plugin/plugin.json \
 
 # Commit and push
 cd "__VAULT_PATH__"
-git add Worklogs/ People/ Programs/ Archive/ Summaries/ Reports/ Templates/ Sources/ Meetings/ Preferences/ .skills/
+git add Worklogs/ People/ Programs/ Teams/ Archive/ Summaries/ Reports/ References/ Templates/ Sources/ Meetings/ Preferences/ .skills/
 git -c user.name="__GIT_USER_NAME__" -c user.email="__GIT_USER_EMAIL__" \
     commit -m "worklog sync $(date +%Y-%m-%d)"
 git push
 ```
+
+__The `git add` list must cover every directory in the Vault Layout above.__ It is an
+explicit allowlist, so a directory missing from it is silently never staged: existing
+tracked files there keep getting picked up by other commits, but any __new__ file is
+skipped without warning and never reaches the backup. `Teams/`, `References/`, and
+`Preferences/` have each been missed this way. After running the sync, if
+`git status --porcelain` still reports untracked files under the vault root, a
+directory is missing from the list - add it here rather than staging it by hand.
 
 Before the first sync, check if a `.gitignore` exists in the vault root. If not,
 create one to prevent committing sensitive or unnecessary files:
