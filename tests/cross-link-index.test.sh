@@ -48,6 +48,8 @@ assert_eq "Pat not ambiguous"  "$(jq_ '.ambiguous | has("Pat")')" 'false'
 
 # --- Task 5: error handling + edge cases ---
 "$HELPER" >/dev/null 2>&1; assert_eq "no-arg exit 2"     "$?" "2"
+assert_eq "no-arg usage message is prefixed" \
+  "$("$HELPER" 2>&1 >/dev/null | head -1 | cut -d: -f1)" "cross-link-index"
 "$HELPER" /no/such/vault >/dev/null 2>&1; assert_eq "bad-vault exit 2" "$?" "2"
 # metachar canonical survives fixed-string matching (already in fixture as "Auth (v2)"):
 assert_eq "metachar canonical" "$(jq_ '[.entities[].canonical] | index("Auth (v2)") != null')" "true"

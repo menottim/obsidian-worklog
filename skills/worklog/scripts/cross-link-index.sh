@@ -14,7 +14,7 @@ while [ "$#" -gt 0 ]; do
   esac
   shift
 done
-[ -n "$VAULT" ] || { echo "usage: cross-link-index.sh <vault-path> [--with-summaries]" >&2; exit 2; }
+[ -n "$VAULT" ] || { echo "cross-link-index: usage: <vault-path> [--with-summaries]" >&2; exit 2; }
 [ -d "$VAULT" ] || { echo "cross-link-index: vault dir not found: $VAULT" >&2; exit 2; }
 cd "$VAULT"
 
