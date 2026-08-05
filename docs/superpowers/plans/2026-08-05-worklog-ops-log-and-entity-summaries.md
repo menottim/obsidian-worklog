@@ -443,12 +443,15 @@ git -c user.name="Menotti Minutillo" -c user.email="mminutillo@netflix.com" \
 - [ ] **Step 1: Capture the golden default output before touching the script**
 
 ```bash
-./skills/worklog/scripts/cross-link-index.sh tests/fixtures/crosslink-vault \
-  > tests/fixtures/crosslink-default.golden.json
+./skills/worklog/scripts/cross-link-index.sh "$(cd tests/fixtures/crosslink-vault && pwd)" \
+  | jq 'del(.meta.generated_for)' > tests/fixtures/crosslink-default.golden.json
 wc -c tests/fixtures/crosslink-default.golden.json
+grep -c '/Users/' tests/fixtures/crosslink-default.golden.json
 ```
 
-Expected: a non-empty byte count. This file is the regression guard for the hot path, so it must be captured from the unmodified script.
+Expected: a non-empty byte count, and `0` absolute paths. This file is the regression guard for the hot path, so it must be captured from the unmodified script.
+
+`meta.generated_for` echoes back whatever vault path was passed, so leaving it in the golden would bake this machine's absolute path into a committed test artifact and the comparison would fail on every other clone. It is deleted here and covered by its own assertion in step 3 instead.
 
 - [ ] **Step 2: Create the summary fixture vault**
 
@@ -519,7 +522,8 @@ Append to `tests/cross-link-index.test.sh`, immediately before the final `if [ "
 # --- default output is unchanged (hot-path regression guard) ---
 GOLDEN="$HERE/fixtures/crosslink-default.golden.json"
 assert_eq "default output matches golden" \
-  "$(printf '%s\n' "$OUT" | diff -q - "$GOLDEN" >/dev/null 2>&1 && echo same || echo differs)" "same"
+  "$(printf '%s\n' "$OUT" | jq 'del(.meta.generated_for)' | diff -q - "$GOLDEN" >/dev/null 2>&1 && echo same || echo differs)" "same"
+assert_eq "default meta.generated_for is the vault arg" "$(jq_ '.meta.generated_for')" "\"$FIX\""
 assert_eq "default has no summary key" "$(jq_ '[.entities[] | has("summary")] | any')" "false"
 
 # --- --with-summaries ---
@@ -687,10 +691,12 @@ Expected: `All tests passed` under both, including `default output matches golde
 V="/Users/mminutillo/Documents/Obsidian Vault"
 ./skills/worklog/scripts/cross-link-index.sh "$V" | jq '.meta'
 ./skills/worklog/scripts/cross-link-index.sh "$V" --with-summaries \
-  | jq -c '[.entities[] | select(.summary_source=="declared")] | length,
-           ([.entities[] | select(.summary_source=="derived")] | length),
-           ([.entities[] | select(.summary_source=="none")] | length)'
+  | jq -c '([.entities[] | select(.summary_source=="declared")] | length),
+           ([.entities[] | select(.summary_source=="derived")]  | length),
+           ([.entities[] | select(.summary_source=="none")]     | length)'
 ```
+
+Every clause needs its own parentheses. In jq, `|` binds looser than `,`, so `[...] | length, (...)` parses as `[...] | (length, ...)` and the later clauses get applied to the array instead of the input, which throws a type error.
 
 Expected: `meta` reports about 314 people and 86 programs; the second command prints three counts. `declared` should be 0 at this point (no note has the field yet), with the rest split between `derived` and `none`. A non-zero `declared` count means a stray field already exists and is worth a look, not a failure.
 
