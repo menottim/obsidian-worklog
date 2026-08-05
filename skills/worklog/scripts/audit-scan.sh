@@ -209,7 +209,10 @@ team_vocabulary(){
   tn="$(mktemp)"
   { ls Teams 2>/dev/null || true; } | sed 's/\.md$//' | sort > "$tn"
   TAB="$(printf '\t')"
-  grep -h '^team:' People/*.md 2>/dev/null \
+  # A possibly-empty glob under nullglob leaves grep with NO file operands, and grep
+  # with no operands reads stdin and blocks. </dev/null makes the zero-notes case
+  # return instead of hanging. Harmless when files exist: grep ignores stdin then.
+  grep -h '^team:' People/*.md 2>/dev/null </dev/null \
     | sed -e 's/^team:[[:space:]]*//' -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'\$//" -e 's/[[:space:]]*$//' \
     | grep -v '^$' \
     | awk '{c[$0]++} END{for(k in c) printf "%d\t%s\n", c[k], k}' \

@@ -91,6 +91,19 @@ assert_eq "empty: team_vocab []" "$(printf '%s' "$EOUT" | jq -c '.team_vocabular
 assert_eq "empty: tags []"       "$(printf '%s' "$EOUT" | jq -c '.recurring_tags')"  "[]"
 rm -rf "$EMPTY"
 
+# --- empty vault must not block on stdin (a possibly-empty glob leaves grep reading it) ---
+HT="$(mktemp -d)"; mkdir -p "$HT/People" "$HT/Programs"; mkfifo "$HT/f"
+sleep 10 > "$HT/f" &            # writer holds the fifo open and never writes
+HTW=$!
+"$HELPER" "$HT" < "$HT/f" > "$HT/out" 2>/dev/null &
+HTS=$!
+hti=0
+while [ "$hti" -lt 5 ]; do kill -0 "$HTS" 2>/dev/null || break; sleep 1; hti=$((hti+1)); done
+if kill -0 "$HTS" 2>/dev/null; then kill -9 "$HTS" 2>/dev/null; HTR="hung"; else HTR="returned"; fi
+kill -9 "$HTW" 2>/dev/null
+assert_eq "empty vault does not block on stdin" "$HTR" "returned"
+rm -rf "$HT"
+
 "$HELPER" >/dev/null 2>&1;                assert_eq "no-arg nonzero" "$([ $? -ne 0 ] && echo nonzero)" "nonzero"
 "$HELPER" /no/such/vault >/dev/null 2>&1; assert_eq "bad-vault exit 2" "$?" "2"
 
