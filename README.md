@@ -30,7 +30,7 @@ It's built for anyone juggling work across a lot of projects and people. You pas
 - **Knowledge graph** that auto-links people, programs, and teams across every note
 - **Periodic summaries** (week/month/quarter) with priority drift analysis and trend detection
 - **D3.js visualizations** of time allocation, program activity, and completion rates
-- **Vault health checks** that find stale notes, stuck items, and missing links
+- **Vault health checks** that find stale notes, stuck items, missing links, oversized notes, and drift in your team vocabulary and recurring topics
 - **Preferences as first-class citizens** -- the skill maintains a `Preferences/` directory as its general-purpose memory layer: voice, style, workflow, tooling, decision rules, vault conventions, anything durable about how you work, captured once and applied automatically across sessions
 - **Slack inbox** -- register Slack channels as sources and let `/worklog pull` sweep them into your current week. Three kinds of source are supported: forwarded-email meeting notes (one `Meetings/` note per thread), busy discussion channels (swept and folded in place, no per-thread files), and your own DMs (opt-in, never folded without your approval). Auto-fetch for email bodies needs a one-time Slack token (see [`docs/SETUP-SLACK.md`](docs/SETUP-SLACK.md)); the [FAQ](#faq) covers the rest
 - **Operations log** -- an append-only `Logs/YYYY-MM.md` record of what the skill did and when (pulls, rollovers, tidies, syncs), so "was the last pull complete" is answered by grep, not memory
@@ -259,7 +259,9 @@ These require Netflix-internal MCPs - see [`docs/SETUP-NETFLIX.md`](docs/SETUP-N
 
 ![Monthly summary with enriched frontmatter, key outcomes, and priority drift](docs/images/monthly-summary.png)
 
-**`/worklog audit`** -- Scans the vault for stale people notes (not mentioned in 4+ weeks), orphan programs, stuck items (3+ weeks without progress), missing wiki-links, empty stubs, and frontmatter gaps. Presents a checklist -- you pick which fixes to apply.
+**`/worklog audit`** -- Scans the vault for stale people notes (not mentioned in 4+ weeks), orphan programs, stuck items (3+ weeks without progress), missing wiki-links, empty stubs, and frontmatter gaps, plus three wider reports: notes that have grown past the compaction threshold, the distribution of `team:` values against your `Teams/` notes, and tags that recur across weeks without a page of their own. The first six are findings you pick fixes from. The last three are tables to read and judge, not to-do lists.
+
+**`/worklog compact [note]`** -- Folds an oversized note's old history into a `## History` summary so it stops growing without bound. Refuses outright on a vault that isn't a clean git working tree -- there's no undo for a lossy fold otherwise. Shows you the proposed fold and waits for approval before writing anything, and will not drop a `[[wiki-link]]` target without calling it out and getting explicit confirmation first. If a note is still over the threshold afterward, says so rather than marking it done.
 
 **`/worklog viz [period]`** -- Generates a standalone HTML file with four D3.js charts: time allocation pie, program activity heatmap, P0 trend line, and completion rate bars. Open in any browser. Dark theme, responsive layout.
 
