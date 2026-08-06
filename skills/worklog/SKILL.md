@@ -977,6 +977,112 @@ definitions live in `scripts/audit-scan.sh` — do not re-derive them here.
 If the user approved and you applied any fixes, append one log entry naming what was
 fixed. If nothing was applied, write no entry.
 
+### `/worklog compact [note]`
+
+Fold a note's old history into a summary so the note stops growing without bound. Lossy
+by design and explicit by design: you run it on one note at a time and the user sees what
+was folded.
+
+With no argument, run the scanner, read `oversized_notes`, and offer the candidates one
+at a time with explicit options (largest first). Do not batch them.
+
+__Precondition: the vault git state must be clean.__
+
+```bash
+git -C '__VAULT_PATH__' status --porcelain
+```
+
+If that prints anything, offer to run `/worklog sync` first and wait. Git history is the
+only undo for a lossy fold, so an uncommitted vault means an unrecoverable rewrite. If
+the user declines to sync, do not compact.
+
+__Read the whole note.__ This is the one operation that legitimately loads a full note
+body, and it is why contradiction detection rides along here rather than as its own pass.
+
+__Target shape:__
+
+```markdown
+---
+type: person
+team: Infrasec
+summary: "Director WISSE; departed Netflix Jun 24 2026"
+compacted: 2026-08-05
+---
+
+# Astha Singhal
+
+## Role
+<current state, verbatim>
+
+## Recent
+
+### Jun 22, 2026 - org restructure
+<verbatim>
+
+## History
+
+- Mar-May 2026: SPA "blocking innovation" narrative, team health, [[Cloud Security EM Hiring|CloudSec EM]] loop (5 1:1s folded)
+- 2025: <folded>
+```
+
+__Fold rules:__
+
+1. A __foldable entry__ is a section whose heading contains a date, at any heading level.
+   Real notes use `## May 29, 2026 - 1:1 (substantive, multi-topic)` with `###`
+   subsections beneath, so do not assume a fixed level.
+2. __Never fold a section whose heading has no date.__ One rule instead of a list of
+   protected names, and it covers `## Role`, `## Context`, `## 1:1 Doc`, `## Members`,
+   and anything similar added later. Undated sections carry current state, which is the
+   answer to "who or what is this" and the reason the note exists at all.
+3. Dated sections newer than `WORKLOG_COMPACT_KEEP_DAYS` (default 90) move under
+   `## Recent`, verbatim, in chronological order.
+4. Older dated sections fold into `## History`. Preserve dates, decisions, status
+   changes, facts that changed, and every `[[wiki-link]]`. Drop verbatim quotes, meeting
+   play-by-play, and detail that only supported a conclusion already stated.
+5. `## History` granularity is one bullet per month, or per coherent theme where a theme
+   spans months. Prefer themes; they read better and compress harder.
+6. If the note already has `compacted:` set, do not re-fold anything already in
+   `## History`, and treat the retention window as relative to today, not to the previous
+   compaction.
+
+__Link preservation is a hard gate, not a warning.__ A fold that drops `[[wiki-links]]`
+deletes graph edges, and nothing else in the vault will notice: the `missing_links` audit
+check only finds unlinked mentions in recent weekly files, not edges that vanished from a
+People note. Before writing, capture the canonical link targets:
+
+```bash
+grep -o '\[\[[^]]*\]\]' "<note>" | sed -e 's/^\[\[//' -e 's/\]\]$//' -e 's/|.*$//' | sort -u
+```
+
+Run the same command on your proposed content and compare. Normalizing to the canonical
+target by stripping everything after `|` is deliberate: rewording an alias while keeping
+the target is not a lost edge. Any target present before and absent after must be
+reported and explicitly confirmed by the user before the write happens. If they do not
+confirm, do not write.
+
+__Outputs:__
+
+1. The rewritten note.
+2. A real `summary:` in frontmatter, authored not derived. Compaction always writes one.
+3. `compacted:` set to today's date.
+4. __A contradiction report.__ While holding the whole note, flag internal contradictions
+   and claims that newer entries supersede. Report them; do not auto-fix. Frontmatter
+   that disagrees with the body is the most common case and the most consequential.
+5. A dropped-link report, empty in the normal case.
+6. One log entry:
+
+```markdown
+## [2026-08-05] compact | People/Astha Singhal.md
+- 852 -> 210 lines; 9 dated entries folded to ## History
+- contradiction: frontmatter team says "Security, Privacy & Assurance"; body records rename to Infrastructure & Security
+- links preserved: 34/34
+```
+
+__What this does not do:__ cross-note contradiction detection. Comparing claims across
+all 400 notes means reading all 400 notes, which is the exact cost the scanners exist to
+avoid. A note that contradicts itself is both the common case and the consequential one,
+and that is what this catches. Say so plainly rather than implying broader coverage.
+
 ### `/worklog search <term>`
 
 Search across Worklogs/, Archive/, People/, and Programs/ for items matching the
@@ -1475,6 +1581,10 @@ forward counts (with brief titles in parentheses). Only completed items as bulle
   claiming each row is a problem; it is handing you the full picture cheaply so you can
   say which rows matter. Never present a distribution row as a defect without saying why
   it is one.
+- __Compaction is lossy and git is the undo.__ `/worklog compact` never runs on a dirty
+  vault, never folds an undated section, and never writes when a `[[wiki-link]]` target
+  would disappear without the user confirming. Suggest it when `/worklog audit` reports
+  `oversized_notes`, one note at a time, never in a batch.
 
 ## Netflix-specific commands (this fork only)
 
