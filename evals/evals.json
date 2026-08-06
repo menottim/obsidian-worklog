@@ -186,6 +186,42 @@
       "prompt": "/worklog share",
       "expected_output": "Should copy a brief priority-grouped status blurb to the clipboard and write NO vault file. Filing a share is explicitly out of scope; 52 of these a year would be noise in References/. Should append no Logs/ entry.",
       "issue_tested": "Not every output is worth filing - share and search stay ephemeral"
+    },
+    {
+      "id": 32,
+      "prompt": "/worklog compact \"People/Astha Singhal.md\" (vault git state clean; note has ## Role (Pandora, confirmed 2026-07-30), ## 1:1 Doc, eight dated ## entries spanning 14 months, and one of those dated entries contains a nested ### Current Status subsection)",
+      "expected_output": "## Role (Pandora, confirmed 2026-07-30) and ## 1:1 Doc must come out byte-identical, at their original heading level and order, because they state what is true now, not because their headings lack a date - the same pattern as the real People/LaRae Hakes.md:19 heading, which is current state precisely because it carries a confirmed-date stamp. A protection test keyed to 'heading has no date' would wrongly treat ## Role as foldable. The nested ### Current Status subsection must NOT get that same protection: because it sits beneath a dated entry, it is part of that entry and travels with it into ## Recent or ## History whole, rather than being promoted out as an independent current-state section.",
+      "issue_tested": "Current-state protection turns on what a section is for, not on whether its heading carries a date, and only applies to top-level sections - a current-state section nested inside a dated entry is not independently protected"
+    },
+    {
+      "id": 33,
+      "prompt": "/worklog compact \"People/Christine Chalmers.md\" (1536 lines, never compacted; roughly 60 unique [[wiki-link]] targets across its dated entries; a (vault-only) entry has a nested (ULTRA-CONFIDENTIAL) child heading; most of its dated entries currently sit inside the WORKLOG_COMPACT_KEEP_DAYS window)",
+      "expected_output": "Should capture canonical link targets before and after by materializing the proposal to a temp file and running the identical stripped-alias grep pipeline on both, not comparing by eye; any target present before and absent after must be named and explicitly confirmed before writing, never written-then-warned. Wherever the (vault-only) entry with the nested (ULTRA-CONFIDENTIAL) child becomes a fold candidate, its handling-marker set is the union of both headings' markers - {vault-only, ULTRA-CONFIDENTIAL} - so it can only share a History bullet with another entry carrying that exact same two-marker set, never with a plain (vault-only) entry that lacks the confidential child, even though {vault-only} is a subset. Because most of this note's bulk currently falls inside the keep window and moves to ## Recent unchanged rather than folding, the pass is likely to leave the note still over WORKLOG_COMPACT_LINES; if so, the summary and log entry must state that explicitly with before/after line counts and the threshold and recommend a shorter WORKLOG_COMPACT_KEEP_DAYS - compacted: still updates to today, recording that a pass happened, not that the note is now small.",
+      "issue_tested": "Link preservation is a hard gate on a materialized proposal, not a warning; a handling-marker set is the union across an entry's nested headings and gates which entries may share a bullet; and a partial fold on an oversized note must report its shortfall rather than claim success"
+    },
+    {
+      "id": 34,
+      "prompt": "/worklog compact \"People/Astha Singhal.md\" (frontmatter says team: Security, Privacy & Assurance and summary: \"Director, WISSE\"; the ## Role section records that WISSE was dissolved and SPA renamed Infrastructure & Security)",
+      "expected_output": "Should report both contradictions - team: versus the rename, and the existing summary: versus the dissolution - and NOT auto-fix either, even though the body is clearly newer and more complete. The user decides. A correct run still produces its own outputs (compacted: today, the History fold) but leaves team: and the stale summary: untouched pending the user's call; silently rewriting either field, or silently replacing the stale summary with a corrected one, is a failure - the deliverable is the report, not the fix.",
+      "issue_tested": "Contradiction detection reports and never auto-fixes, and that rule extends to a self-contradicting existing summary:, not just a frontmatter/body mismatch"
+    },
+    {
+      "id": 35,
+      "prompt": "/worklog compact (no argument; the scanner's oversized_notes returns six candidates: People/Christine Chalmers.md, People/Astha Singhal.md, People/Brian Gaines.md, People/Rachel Taylor.md, People/Laura Haller.md, Programs/GenAI Agent Platform.md)",
+      "expected_output": "Should run the scanner, read oversized_notes, and offer the six candidates one at a time with explicit options, largest first - Christine Chalmers.md first, GenAI Agent Platform.md last. Must not present all six as a single free-text checklist and must not move to a second note without a per-note decision on the one before it. A reply that tries to cover multiple notes at once is not a valid response to a one-at-a-time offer.",
+      "issue_tested": "No-argument compact offers oversized candidates one at a time in size order, not as a batch checklist"
+    },
+    {
+      "id": 36,
+      "prompt": "/worklog compact \"People/Brian Gaines.md\" - run once when the vault has uncommitted changes, and once when the vault directory is not a git repository at all",
+      "expected_output": "Both cases must end in a refusal to write the fold, but they are not the same refusal. Dirty case: git status --porcelain prints output, so offer to run /worklog sync; afterward, re-run the check rather than assuming the sync cleaned everything, since sync's git add list is an explicit allowlist that can leave files unstaged; if the user declines or the re-check still reports dirty, name the outstanding files and stop without compacting. Not-a-repo case: git rev-parse --is-inside-work-tree fails, there is no undo available at all, and the correct response is an unconditional refusal - not a dirty-state warning, not an offer to sync, and not a proceed-anyway option.",
+      "issue_tested": "The git-clean precondition is a refusal, not a warning, and 'not a repo at all' is a distinct refusal path from 'dirty' - neither is satisfied by an unverified sync"
+    },
+    {
+      "id": 37,
+      "prompt": "/worklog compact \"People/Rachel Taylor.md\" (already has compacted: 2026-06-01 and a populated ## History whose newest bullet covers an Apr 2026 theme; several ## Recent entries from around that same June compaction have since aged past WORKLOG_COMPACT_KEEP_DAYS)",
+      "expected_output": "Existing ## History bullets must come out byte-identical - they are immutable once written, never re-folded or re-summarized even when a newly-aged entry continues the same theme. Entries that have aged past the keep window since June must move from ## Recent into ## History now, added as new bullets of their own rather than merged into or used to rewrite an existing bullet on that theme, since re-summarizing already-summarized text is exactly what immutability forbids. The retention window is measured from today, not from the 2026-06-01 compaction date. Frontmatter compacted: updates to today's date.",
+      "issue_tested": "Repeat compaction treats existing History as immutable and measures the retention window from today, not from the last compaction date - a themed continuation must still land as its own bullet, never merged into the old one"
     }
   ]
 }
