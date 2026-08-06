@@ -1026,7 +1026,7 @@ compacted: 2026-08-05
 
 ## Recent
 
-### Jun 22, 2026 - org restructure
+## Jun 22, 2026 - org restructure
 <verbatim>
 
 ## History
@@ -1035,65 +1035,82 @@ compacted: 2026-08-05
 - 2025: <folded>
 ```
 
-__Fold rules:__
+__Definitions.__ Three terms, used precisely below.
 
-1. A __foldable entry__ is a section whose heading contains a date, at any heading level.
-   Real notes use `## May 29, 2026 - 1:1 (substantive, multi-topic)` with `###`
-   subsections beneath, so do not assume a fixed level.
-2. __Never fold a section whose heading is not itself about a date.__ The test is whether
-   the date is the section's subject. `## May 29, 2026 - 1:1` is an entry about a day and
-   is foldable. `## Role (Pandora, confirmed 2026-07-30)` is current state carrying a
-   provenance date and is not: a parenthetical confirmation, verification, or "as of"
-   date does not make a section foldable. This single rule replaces a list of protected
-   section names and covers `## Role`, `## Context`, `## 1:1 Doc`, `## Members`,
-   `## OOO`, and anything similar added later. Undated sections carry current state,
-   which is the answer to "who or what is this" and the reason the note exists at all.
-3. __A dated section folds together with everything nested beneath it__, whatever those
-   child headings look like. Rule 2 applies only to sections that are not contained in a
-   section that is foldable after rule 2, so an undated `### Coaching implication` under
-   a dated `## May 29, 2026 - 1:1` folds with its parent rather than being protected.
-   Do not promote a dated child out of a dated parent: a `### 1:1 (Jun 30)` under a
-   `## Jun 2026` parent stays with the parent, because lifting it out severs the context
-   that made it intelligible.
-4. Dated sections newer than `WORKLOG_COMPACT_KEEP_DAYS` (default 90) move under
-   `## Recent`, verbatim, newest first.
+- A __dated entry__ is a section whose heading's subject is a date: an account of what
+  happened on a day or in a period. `## May 29, 2026 - 1:1` is one.
+- A __current-state section__ is anything else, including a section whose heading merely
+  contains a date as provenance. `## Role (Pandora, confirmed 2026-07-30)`,
+  `## Org position as of Jul 2026`, `## Context`, `## 1:1 Doc`, `## Members`, and
+  `## OOO` are all current state. A confirmation, verification, "as of", or timestamp
+  date does not make a section a dated entry.
+- A __handling marker__ is an explicit restriction or release label on a heading:
+  `🔒`, `vault-only`, `confidential`, `ultra-confidential`, `confidence-bound`,
+  `HIGH SENSITIVITY`, `sensitive`, `surfaceable`, `shareable`. Nothing else in a
+  parenthetical is a marker. A date, a time, an attribution, or an editorial aside such
+  as `(significant)` or `(per X's recap)` is not a marker and does not affect fold
+  structure.
+
+__Precedence.__ When two rules below disagree, the earlier one wins.
+
+1. __Current-state sections are never moved and never folded.__ They stay exactly where
+   they are, in their original position and at their original heading level. They are
+   the answer to "who or what is this" and the reason the note exists.
+2. __A dated entry travels whole.__ Everything nested beneath it moves or folds with it,
+   whatever the child headings look like and whatever markers they carry. Never promote
+   a dated child out of a dated parent: it severs the context that made it intelligible.
+3. __Handling markers split History bullets__, but never override 1 or 2.
+
+__Fold rules.__
+
+1. Classify every section as a dated entry or current state, per the definitions. When a
+   heading's date cannot be resolved confidently, treat the section as current state and
+   leave it alone.
 
    __Resolving imprecise dates, biased toward keeping.__ A heading with no year inherits
-   the year from the nearest surrounding dated heading that carries a year, or the
-   note's most recent dated context if there is none. A heading with month precision is
-   treated as the last day of that month. A heading whose date cannot be resolved
-   confidently is treated as undated and left alone. Every one of these leans toward
-   keeping content verbatim, which is the safe direction for a lossy operation.
-5. Older dated sections fold into `## History`. __What a fold preserves:__ dates,
-   decisions, status changes, facts that changed, every `[[wiki-link]]`, and every
-   sensitivity or handling marker (`🔒`, `vault-only`, `confidential`, or similar)
-   together with any stated confidence boundary. __What a fold drops:__ verbatim quotes,
-   meeting play-by-play, and detail that only supported a conclusion already stated.
-6. `## History` granularity is one bullet per month, or per coherent theme where a theme
-   spans months. Prefer themes; they read better and compress harder. The marker rule
-   below wins where it conflicts with this one: never build a theme bullet across a
-   marker boundary.
-7. If the note already has `compacted:` set, do not re-fold anything already in
-   `## History`, and treat the retention window as relative to today, not to the previous
-   compaction. Existing `## History` bullets are __immutable__. A new fold is added as
-   its own bullet even when it continues a theme an existing bullet already covers,
-   because re-summarizing summarized text degrades it a little more on every pass.
-   Newest bullets go at the top, so `## History` reads most recent first, matching
-   `## Recent`.
+   the year from the nearest surrounding dated heading that carries a year, in either
+   direction, or from the note's most recent dated context if there is none. A heading
+   with month precision is treated as the last day of that month. Every one of these
+   leans toward keeping content verbatim, which is the safe direction for a lossy
+   operation.
 
-__Markers propagate as a union, and they bound the fold.__ Do not fold sections carrying
-different markers into the same bullet: split at marker boundaries even when that means
-two bullets where one theme would read better, because a bullet cannot be both
-`surfaceable` and `ultra-confidential`. When sections sharing a marker fold together, the
-bullet carries every marker present on any of them rather than a single "most
-restrictive" one, since there is no defined ordering over `🔒`, `vault-only`,
-`confidential`, `confidence-bound`, and the compound forms real notes use. Carrying the
-union is decidable and always at least as safe.
+2. Dated entries newer than `WORKLOG_COMPACT_KEEP_DAYS` (default 90) move under
+   `## Recent`, newest first, with their heading text and heading level unchanged and
+   their nested children intact. Do not demote or renumber headings: a `##` entry stays
+   a `##` entry under `## Recent`.
 
-Losing a handling marker is not compression, it is a disclosure risk. The marker is the
-only record in the note that the content is restricted, and `/worklog search` reads
-People notes directly, as does anyone opening the vault. Once it is gone nothing
-downstream can know the content was ever marked.
+3. Dated entries older than the window fold into `## History` bullets, newest first.
+
+   __What a fold preserves:__ dates, decisions, status changes, facts that changed,
+   every `[[wiki-link]]`, and every handling marker together with any stated confidence
+   boundary. __What a fold drops:__ verbatim quotes, meeting play-by-play, and detail
+   that only supported a conclusion already stated.
+
+   __Group by theme, split by marker.__ Prefer grouping several entries into one
+   thematic bullet; themes read better and compress harder. But only entries whose
+   handling-marker sets are __identical__ may share a bullet, and that bullet carries
+   exactly that set. An entry marked `(vault-only)` and one marked `(vault-only, HIGH
+   SENSITIVITY)` do not share a bullet even though one set contains the other, and an
+   unmarked entry never shares a bullet with a marked one. Splitting costs a little
+   readability; merging would relabel content its author deliberately marked, and this
+   note's author marked four entries `surfaceable` precisely so they could leave the
+   vault.
+
+   Losing a handling marker is not compression, it is a disclosure risk. The marker is
+   the only record in the note that the content is restricted, and `/worklog search`
+   reads People notes directly, as does anyone opening the vault. Once it is gone
+   nothing downstream can know the content was ever marked.
+
+4. `## Recent` and `## History` go at the end of the note, after the last current-state
+   section, in that order.
+
+5. If the note already has `compacted:` set, existing `## History` bullets are
+   __immutable__: do not re-fold or re-summarize them. A new fold is added as its own
+   bullet even when it continues a theme an existing bullet already covers, because
+   re-summarizing summarized text degrades it a little more on every pass. The
+   retention window is relative to today, not to the previous compaction, so entries
+   that have aged past it since the last pass move from `## Recent` into `## History`
+   now.
 
 __Show the fold before writing it.__ Present the proposed `## History` bullets verbatim,
 since those are what replaces content, plus a plain list of the headings moving to
@@ -1101,8 +1118,10 @@ since those are what replaces content, plus a plain list of the headings moving 
 nothing there is being given up, it is moving unchanged. Do not substitute a summary for
 the History bullets, which are exactly the thing the user needs to see before agreeing to
 lose the detail behind them. Wait for approval before touching the file. If the link gate
-then finds a dropped target and you revise the proposal, show the revised History bullets
-again.
+then finds a dropped target, revise the proposal, show the revised History bullets
+again, and wait for approval again. Re-run the link-comparison pipeline against the
+revised proposal and repeat this loop until the gate finds nothing, only then write
+the file.
 
 __Link preservation is a hard gate, not a warning.__ A fold that drops `[[wiki-links]]`
 deletes graph edges, and nothing else in the vault will notice: the `missing_links` audit
@@ -1134,7 +1153,13 @@ __Outputs:__
    and claims that newer entries supersede. Report them; do not auto-fix. Frontmatter
    that disagrees with the body is the most common case and the most consequential.
 5. A dropped-link report, empty in the normal case.
-6. One log entry, via the helper:
+6. One log entry, via the helper shown below.
+7. If the fold does not bring the note under `WORKLOG_COMPACT_LINES`, say so explicitly
+   in your summary and in the log entry, with the before and after line counts and the
+   threshold. Recommend a shorter `WORKLOG_COMPACT_KEEP_DAYS` for that note and ask
+   whether to re-run with it. A note that is still oversized after compaction must not be
+   reported as done: `compacted:` records that a pass happened, not that the note is now
+   small.
 
 ```bash
 __SKILL_INSTALL_PATH__/skills/worklog/scripts/log-append.sh '__VAULT_PATH__' compact '<note path>' \
@@ -1151,13 +1176,6 @@ which renders as:
 - contradiction: frontmatter team says "Security, Privacy & Assurance"; body records rename to Infrastructure & Security
 - links preserved: 34/34
 ```
-
-7. If the fold does not bring the note under `WORKLOG_COMPACT_LINES`, say so explicitly
-   in your summary and in the log entry, with the before and after line counts and the
-   threshold. Recommend a shorter `WORKLOG_COMPACT_KEEP_DAYS` for that note and ask
-   whether to re-run with it. A note that is still oversized after compaction must not be
-   reported as done: `compacted:` records that a pass happened, not that the note is now
-   small.
 
 __What this does not do:__ cross-note contradiction detection. Comparing claims across
 all 400 notes means reading all 400 notes, which is the exact cost the scanners exist to
