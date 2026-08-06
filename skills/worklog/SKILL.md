@@ -1076,8 +1076,9 @@ __Precedence.__ When two rules below disagree, the earlier one wins.
 __Fold rules.__
 
 1. Classify every section as a dated entry or current state, per the definitions. When a
-   heading's date cannot be resolved confidently, treat the section as current state and
-   leave it alone.
+   heading's date cannot be resolved confidently, or when you cannot confidently tell
+   whether a section records a moment or states a present fact, treat the section as
+   current state and leave it alone.
 
    __Resolving imprecise dates, biased toward keeping.__ A heading with no year inherits
    the year from the nearest surrounding dated entry that carries a year, in either
@@ -1108,8 +1109,8 @@ __Fold rules.__
    `(vault-only)` and one marked `(vault-only, HIGH SENSITIVITY)` do not share a bullet
    even though one set contains the other, and an unmarked entry never shares a bullet
    with a marked one. Splitting costs a little readability; merging would relabel
-   content its author deliberately marked, and this note's author marks entries
-   `surfaceable` precisely so they can leave the vault.
+   content its author deliberately marked, and this note's author marks an entry
+   `surfaceable` precisely so it can leave the vault.
 
    Losing a handling marker is not compression, it is a disclosure risk. The marker is
    the only record in the note that the content is restricted, and `/worklog search`
@@ -1133,11 +1134,12 @@ since those are what replaces content, plus a plain list of the headings moving 
 nothing there is being given up, it is moving unchanged. Do not substitute a summary for
 the History bullets, which are exactly the thing the user needs to see before agreeing to
 lose the detail behind them. Wait for approval before touching the file. If the link
-gate then finds a dropped target, revise the proposal and show the revised History
-bullets again. Re-run the link comparison against the revised proposal. Repeat until
-either the comparison is clean or the user has explicitly confirmed the specific
-targets that will be lost, then write. Silence is not confirmation, and a target
-dropped without being named to the user is never acceptable.
+gate then finds a dropped target, revise the proposal, show the revised History
+bullets again, and wait for approval again. Re-run the link comparison against
+the revised proposal. Repeat until the user has approved the bullets they are actually
+getting and either the comparison is clean or they have explicitly confirmed the
+specific targets that will be lost, then write. Silence is not confirmation, and a
+target dropped without being named to the user is never acceptable.
 
 __Link preservation is a hard gate, not a warning.__ A fold that drops `[[wiki-links]]`
 deletes graph edges, and nothing else in the vault will notice: the `missing_links` audit
@@ -1699,7 +1701,7 @@ forward counts (with brief titles in parentheses). Only completed items as bulle
 - __Compaction is lossy and git is the undo.__ `/worklog compact` never runs on a vault
   that is dirty or not under git, never touches a top-level current-state section,
   never writes before the user has approved the fold, and never loses a
-  `[[wiki-link]]` target without naming it to the user first. Suggest it when
+  `[[wiki-link]]` target without the user confirming it. Suggest it when
   `/worklog audit` reports `oversized_notes`, one note at a time, never in a batch.
 
 ## Netflix-specific commands (this fork only)
