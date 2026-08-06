@@ -1265,31 +1265,42 @@ Compacting more than one note in a session: run `/worklog sync` between them. Ea
 fold should land as its own recoverable commit before the next compaction starts, or
 the next note's precondition check finds this one's uncommitted dirt and stalls.
 
-`People/Astha Singhal.md` is 852 lines. Its dated headings run Apr 22 through May 29;
-only the three Apr 22 entries fall outside the default 90-day window, so only those
-fold, and the other 26 relocate unchanged under `## Recent`:
+__A worked example of the cliff, measured 2026-08-06.__ `People/Astha Singhal.md` is 853
+lines and every one of its 29 dated headings falls between Apr 22 and May 29. At the old
+90-day default only the three Apr 22 entries were outside the window: 44 lines folded and
+the note stayed at 809, barely touched. At the 60-day default the cutoff crosses the whole
+block at once and all 29 fold, 814 lines, leaving about 39. There is no setting between
+those that folds a moderate amount, because the content is not spread across the window,
+it is one month sitting on one side of it.
+
+That is the check to run before compacting, not after: see what a window actually folds.
+Nothing and almost-everything are both real answers, and the second one deserves saying
+out loud before the write, because 814 lines becoming a handful of bullets is the largest
+single act of summarization this command can perform on that note.
+
+Log it either way:
 
 ```bash
 __SKILL_INSTALL_PATH__/skills/worklog/scripts/log-append.sh '__VAULT_PATH__' compact '<note path>' \
-  '852 -> 815 lines, still over the 250 threshold; 3 dated entries folded to ## History' \
+  '853 -> 809 lines, still over the 250 threshold; 3 dated entries folded to ## History' \
   'contradiction: frontmatter team says "Security, Privacy & Assurance"; body records rename to Infrastructure & Security' \
-  'recommend re-running with WORKLOG_COMPACT_KEEP_DAYS=30' \
+  'at KEEP_DAYS=60 all 29 dated entries fold instead (814 lines); confirm before re-running' \
   'links preserved: 76/76; headings accounted for: 3 folded, 0 unexplained'
 ```
 
 which renders as:
 
 ```markdown
-## [2026-08-05] compact | People/Astha Singhal.md
-- 852 -> 815 lines, still over the 250 threshold; 3 dated entries folded to ## History
+## [2026-08-06] compact | People/Astha Singhal.md
+- 853 -> 809 lines, still over the 250 threshold; 3 dated entries folded to ## History
 - contradiction: frontmatter team says "Security, Privacy & Assurance"; body records rename to Infrastructure & Security
-- recommend re-running with WORKLOG_COMPACT_KEEP_DAYS=30
+- at KEEP_DAYS=60 all 29 dated entries fold instead (814 lines); confirm before re-running
 - links preserved: 76/76; headings accounted for: 3 folded, 0 unexplained
 ```
 
-The three Apr 22 entries are a near-worst case for this rule: their content folds to a
-handful of `## History` bullets, so the count above must not read as done at 815 lines.
-Rule 7 requires exactly this recommendation rather than letting the pass close quietly.
+A note still over the threshold must not read as done, which is what rule 7 requires. But
+the recommendation to shorten the window is a question to ask, not an instruction to
+follow: on this note it is the difference between touching nothing and folding 95% of it.
 
 __What this does not do:__ cross-note contradiction detection. Comparing claims across
 all 400 notes means reading all 400 notes, which is the exact cost the scanners exist to
