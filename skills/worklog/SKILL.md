@@ -990,9 +990,11 @@ at a time with explicit options (largest first). Do not batch them.
 __Precondition: the vault git state must be clean.__
 
 ```bash
-git -C '__VAULT_PATH__' rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
-  echo "vault is not a git repository: refusing to compact"; }
-git -C '__VAULT_PATH__' status --porcelain
+if ! git -C '__VAULT_PATH__' rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  echo "vault is not a git repository: refusing to compact"
+else
+  git -C '__VAULT_PATH__' status --porcelain
+fi
 ```
 
 If the first command fails, the vault is not under git and there is no undo. __Do not
@@ -1000,7 +1002,9 @@ compact.__ Tell the user and stop. If the second prints anything, the vault is d
 offer to run `/worklog sync` first, then re-run this check rather than assuming the sync
 cleaned everything, since the sync `git add` list is an explicit allowlist that can leave
 files unstaged. Git history is the only undo for a lossy fold, so an unclean or
-un-versioned vault means an unrecoverable rewrite.
+un-versioned vault means an unrecoverable rewrite. If the user declines to sync, or if
+the re-run still reports the vault dirty, __do not compact.__ Say which files are
+outstanding and stop.
 
 __Read the whole note.__ This is the one operation that legitimately loads a full note
 body, and it is why contradiction detection rides along here rather than as its own pass.
@@ -1046,27 +1050,29 @@ __Fold rules:__
    which is the answer to "who or what is this" and the reason the note exists at all.
 3. __A dated section folds together with everything nested beneath it__, whatever those
    child headings look like. Rule 2 applies only to sections that are not contained in a
-   foldable one, so an undated `### Coaching implication` under a dated
-   `## May 29, 2026 - 1:1` folds with its parent rather than being protected. Do not
-   promote a dated child out of a dated parent: a `### 1:1 (Jun 30)` under a
+   section that is foldable after rule 2, so an undated `### Coaching implication` under
+   a dated `## May 29, 2026 - 1:1` folds with its parent rather than being protected.
+   Do not promote a dated child out of a dated parent: a `### 1:1 (Jun 30)` under a
    `## Jun 2026` parent stays with the parent, because lifting it out severs the context
    that made it intelligible.
 4. Dated sections newer than `WORKLOG_COMPACT_KEEP_DAYS` (default 90) move under
    `## Recent`, verbatim, newest first.
 
    __Resolving imprecise dates, biased toward keeping.__ A heading with no year inherits
-   the year from the nearest surrounding dated heading, or the note's most recent dated
-   context if there is none. A heading with month precision is treated as the last day of
-   that month. A heading whose date cannot be resolved confidently is treated as undated
-   and left alone. Every one of these leans toward keeping content verbatim, which is the
-   safe direction for a lossy operation.
+   the year from the nearest surrounding dated heading that carries a year, or the
+   note's most recent dated context if there is none. A heading with month precision is
+   treated as the last day of that month. A heading whose date cannot be resolved
+   confidently is treated as undated and left alone. Every one of these leans toward
+   keeping content verbatim, which is the safe direction for a lossy operation.
 5. Older dated sections fold into `## History`. __What a fold preserves:__ dates,
    decisions, status changes, facts that changed, every `[[wiki-link]]`, and every
    sensitivity or handling marker (`🔒`, `vault-only`, `confidential`, or similar)
    together with any stated confidence boundary. __What a fold drops:__ verbatim quotes,
    meeting play-by-play, and detail that only supported a conclusion already stated.
 6. `## History` granularity is one bullet per month, or per coherent theme where a theme
-   spans months. Prefer themes; they read better and compress harder.
+   spans months. Prefer themes; they read better and compress harder. The marker rule
+   below wins where it conflicts with this one: never build a theme bullet across a
+   marker boundary.
 7. If the note already has `compacted:` set, do not re-fold anything already in
    `## History`, and treat the retention window as relative to today, not to the previous
    compaction. Existing `## History` bullets are __immutable__. A new fold is added as
@@ -1075,17 +1081,28 @@ __Fold rules:__
    Newest bullets go at the top, so `## History` reads most recent first, matching
    `## Recent`.
 
-__Markers propagate upward.__ A `## History` bullet that folds one or more marked
-sections carries the marker of the most restrictive one it folds. Losing a handling
-marker is not compression, it is a disclosure risk: `/worklog rollup` filters on exactly
-these markers, so an unmarked bullet is one a later rollup has no reason to hold back.
+__Markers propagate as a union, and they bound the fold.__ Do not fold sections carrying
+different markers into the same bullet: split at marker boundaries even when that means
+two bullets where one theme would read better, because a bullet cannot be both
+`surfaceable` and `ultra-confidential`. When sections sharing a marker fold together, the
+bullet carries every marker present on any of them rather than a single "most
+restrictive" one, since there is no defined ordering over `🔒`, `vault-only`,
+`confidential`, `confidence-bound`, and the compound forms real notes use. Carrying the
+union is decidable and always at least as safe.
 
-__Show the fold before writing it.__ Present the proposed `## Recent` and `## History`
-content and wait for approval before touching the file. Not a summary of what you intend
-to do: the actual bullets that will replace the folded sections, so the user can see what
-is being given up. If they do not approve, do not write. This is the same standard
-`/worklog audit` applies to its own non-destructive fixes, and this command destroys
-information.
+Losing a handling marker is not compression, it is a disclosure risk. The marker is the
+only record in the note that the content is restricted, and `/worklog search` reads
+People notes directly, as does anyone opening the vault. Once it is gone nothing
+downstream can know the content was ever marked.
+
+__Show the fold before writing it.__ Present the proposed `## History` bullets verbatim,
+since those are what replaces content, plus a plain list of the headings moving to
+`## Recent` and the headings staying put. Do not paste the `## Recent` content itself:
+nothing there is being given up, it is moving unchanged. Do not substitute a summary for
+the History bullets, which are exactly the thing the user needs to see before agreeing to
+lose the detail behind them. Wait for approval before touching the file. If the link gate
+then finds a dropped target and you revise the proposal, show the revised History bullets
+again.
 
 __Link preservation is a hard gate, not a warning.__ A fold that drops `[[wiki-links]]`
 deletes graph edges, and nothing else in the vault will notice: the `missing_links` audit
@@ -1134,6 +1151,13 @@ which renders as:
 - contradiction: frontmatter team says "Security, Privacy & Assurance"; body records rename to Infrastructure & Security
 - links preserved: 34/34
 ```
+
+7. If the fold does not bring the note under `WORKLOG_COMPACT_LINES`, say so explicitly
+   in your summary and in the log entry, with the before and after line counts and the
+   threshold. Recommend a shorter `WORKLOG_COMPACT_KEEP_DAYS` for that note and ask
+   whether to re-run with it. A note that is still oversized after compaction must not be
+   reported as done: `compacted:` records that a pass happened, not that the note is now
+   small.
 
 __What this does not do:__ cross-note contradiction detection. Comparing claims across
 all 400 notes means reading all 400 notes, which is the exact cost the scanners exist to
@@ -1638,10 +1662,12 @@ forward counts (with brief titles in parentheses). Only completed items as bulle
   claiming each row is a problem; it is handing you the full picture cheaply so you can
   say which rows matter. Never present a distribution row as a defect without saying why
   it is one.
-- __Compaction is lossy and git is the undo.__ `/worklog compact` never runs on a dirty
-  vault, never folds an undated section, and never writes when a `[[wiki-link]]` target
-  would disappear without the user confirming. Suggest it when `/worklog audit` reports
-  `oversized_notes`, one note at a time, never in a batch.
+- __Compaction is lossy and git is the undo.__ `/worklog compact` never runs on a vault
+  that is dirty or not under git, never folds a section that is not itself about a date
+  unless it is nested under one that is, never writes before the user has approved the
+  fold, and never writes when a `[[wiki-link]]` target would disappear without the user
+  confirming. Suggest it when `/worklog audit` reports `oversized_notes`, one note at a
+  time, never in a batch.
 
 ## Netflix-specific commands (this fork only)
 
