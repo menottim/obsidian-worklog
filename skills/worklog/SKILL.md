@@ -1014,7 +1014,7 @@ __Target shape:__
 ```markdown
 ---
 type: person
-team: Infrasec
+team: Security, Privacy & Assurance
 summary: "Director WISSE; departed Netflix Jun 24 2026"
 compacted: 2026-08-05
 ---
@@ -1140,22 +1140,33 @@ since those are what replaces content, plus a plain list of the headings moving 
 `## Recent` and the headings staying put. Do not paste the `## Recent` content itself:
 nothing there is being given up, it is moving unchanged. Do not substitute a summary for
 the History bullets, which are exactly the thing the user needs to see before agreeing to
-lose the detail behind them. Wait for approval before touching the file. If the link
-gate then finds a dropped target, revise the proposal, show the revised History
-bullets again, and wait for approval again. Re-run the link comparison against
-the revised proposal. Repeat until the user has approved the bullets they are actually
-getting and either the comparison is clean or they have explicitly confirmed the
-specific targets that will be lost, then write. Silence is not confirmation, and a
-target dropped without being named to the user is never acceptable.
+lose the detail behind them. Wait for approval before touching the file. If either gate
+then finds a problem, a dropped link target or an unexplained vanished heading, revise
+the proposal, show the revised History bullets again, and wait for approval again.
+Re-run both comparisons against the revised proposal. Repeat until the user has approved
+the bullets they are actually getting, the heading comparison is clean, and either the
+link comparison is clean or they have explicitly confirmed the specific link targets that
+will be lost, then write. Silence is not confirmation, and a target or heading dropped
+without being named to the user is never acceptable.
 
 __Link preservation is a hard gate, not a warning.__ A fold that drops `[[wiki-links]]`
 deletes graph edges, and nothing else in the vault will notice: the `missing_links` audit
 check only finds unlinked mentions in recent weekly files, not edges that vanished from a
-People note. Before writing, capture the canonical link targets:
+People note. Before writing, capture the canonical link targets. Both the link gate and
+the heading gate below run against the same materialized proposal, so create it first and
+note its path:
 
 ```bash
-PROPOSED="$(mktemp)"
-# write the proposed full note body to $PROPOSED, then run both gates below on it.
+PROPOSED="$(mktemp)"; echo "$PROPOSED"
+```
+
+Write the proposed full note body to the literal path this prints before running either
+gate, and delete it only after both have run. Shell variables set in one command do not
+survive into the next, so substitute that literal path everywhere `$PROPOSED` appears
+below, in both the link comparison and the heading comparison, rather than trusting the
+variable to still be set:
+
+```bash
 LB="$(mktemp)"; LA="$(mktemp)"
 grep -o '\[\[[^]]*\]\]' "<note>" | sed -e 's/^\[\[//' -e 's/\]\]$//' -e 's/|.*$//' \
   | sort -u > "$LB"
@@ -1177,7 +1188,8 @@ vanish clean, as long as its links happen to still be present elsewhere in the n
 a note where the default window puts most of the note in `## Recent`, such as the
 1,536-line `Christine Chalmers.md`, the model is re-emitting roughly 1,380 lines
 verbatim, and a silently truncated rewrite is exactly what the link gate cannot see. Run
-the same comparison shape against headings, right after the link gate:
+the same comparison shape against headings, right after the link gate, against that same
+materialized path:
 
 ```bash
 HB="$(mktemp)"; HA="$(mktemp)"
@@ -1212,7 +1224,10 @@ __Outputs:__
    for, verbatim content vanished that no fold covers, and that is a failed compaction
    regardless of whether the result now lands under `WORKLOG_COMPACT_LINES`: do not
    report `compacted:` as done, say so in your summary and the log entry instead, and
-   treat it the same as a heading-gate failure. If the drop is fully accounted for but
+   treat it the same as a heading-gate failure. Unlike a heading-gate failure, this check
+   runs after the write, so the note is already on disk: tell the user it can be restored
+   with `git -C '__VAULT_PATH__' checkout -- <note>`, which is exactly why the git-clean
+   precondition exists. If the drop is fully accounted for but
    the note is still over the threshold, say so explicitly in your summary and in the
    log entry, with the before and after line counts and the threshold. Recommend a
    shorter `WORKLOG_COMPACT_KEEP_DAYS` for that note and ask whether to re-run with it.
@@ -1238,7 +1253,7 @@ __SKILL_INSTALL_PATH__/skills/worklog/scripts/log-append.sh '__VAULT_PATH__' com
 which renders as:
 
 ```markdown
-## [2026-08-06] compact | People/Astha Singhal.md
+## [2026-08-05] compact | People/Astha Singhal.md
 - 852 -> 815 lines, still over the 250 threshold; 3 dated entries folded to ## History
 - contradiction: frontmatter team says "Security, Privacy & Assurance"; body records rename to Infrastructure & Security
 - recommend re-running with WORKLOG_COMPACT_KEEP_DAYS=30
