@@ -237,6 +237,13 @@ The optional `team` property links the person to a team note in `Teams/`. Set it
 when you're confident about the person's team. Use the team's short name (e.g.,
 `Backend Engineering`, `Platform Security`, `Frontend`).
 
+__`team:` is a controlled vocabulary.__ A value must either match a `Teams/` note name
+exactly, or be one of the reserved values `External`, `Former Netflix`, or `Unknown`.
+Free text defeats the whole point of the property: the Teams dimension of the graph only
+works if `team:` resolves to a note. When you do not know someone's team, write
+`Unknown` rather than inventing a label or leaving a placeholder. If a real team has no
+note yet, create the `Teams/` note first, then reference it.
+
 The optional `summary` property is a one-line answer to "who is this" for someone who
 has never read the note: present tense, current state, under about 120 characters, no
 wrapping. It is what `cross-link-index.sh --with-summaries` returns so a query can pick
@@ -899,17 +906,37 @@ skip this step silently.
 
 Scan the vault for quality issues and present a fix-it checklist. No arguments.
 
-__Run the scanner__ — it computes all six checks in bash so no `People`/`Programs` bodies
-load into context:
+__Run the scanner__ - it computes all nine checks in bash so no `People`/`Programs`
+bodies load into context:
 
 ```bash
 __SKILL_INSTALL_PATH__/skills/worklog/scripts/audit-scan.sh '__VAULT_PATH__'
 ```
 
-It prints JSON with six arrays: `stale_people`, `orphan_programs`, `stuck_items`,
-`missing_links`, `empty_stubs`, `frontmatter_gaps`. Read __only__ this output — do not glob
-or read `People`/`Programs` bodies yourself. The `stuck_items` and `missing_links` checks are
-heuristic; review each and drop obvious misfires before presenting.
+It prints JSON with nine keys. Six are __findings__, each entry an item to fix:
+`stale_people`, `orphan_programs`, `stuck_items`, `missing_links`, `empty_stubs`,
+`frontmatter_gaps`. Read __only__ this output - do not glob or read `People`/`Programs`
+bodies yourself. The `stuck_items` and `missing_links` checks are heuristic; review each
+and drop obvious misfires before presenting.
+
+Three are __distributions__, not findings. Each is a compact table where the judgment is
+yours, not the scanner's, because correctness is not decidable in bash:
+
+- `oversized_notes` - findings-shaped, actually: `{file, lines, compacted}` for every
+  note over `WORKLOG_COMPACT_LINES` (default 250). `compacted` is the note's frontmatter
+  value or null, so a note that was compacted and has grown again is distinguishable from
+  one never compacted. Offer `/worklog compact <file>` for each.
+- `team_vocabulary` - `{value, notes, resolves, candidate?}` for every distinct `team:`
+  value on People notes. `resolves` is `exact`, `substring`, or `none` against the
+  `Teams/` note names. Propose merge groups from this and let the user approve them one
+  at a time; do not rewrite `team:` values unasked. A value resolving `none` is not
+  automatically wrong: `External`, `Former Netflix`, and `Unknown` are reserved and
+  correct.
+- `recurring_tags` - `{tag, files, has_page}` for tags appearing in 3 or more weekly or
+  archive files. Judge which recurring themes deserve a `Programs/` or `References/`
+  page. Most do not: `strategy`, `growth`, `leadership`, and `team-health` are themes,
+  not programs. Suggest a page only where the tag names a specific effort with an owner
+  or an end state.
 
 Present the findings grouped by check type, each with a suggested action, e.g.:
 
@@ -929,6 +956,18 @@ Missing links:
 
 Frontmatter gaps:
 - Archive/2026-W11.md: missing programs, people
+
+Oversized notes (over 250 lines):
+- People/Christine Chalmers.md - 1536 lines, never compacted
+  Suggested: /worklog compact "People/Christine Chalmers.md"
+
+Team vocabulary (86 values, 7 resolve exactly):
+- "Security, Privacy & Assurance" (7 notes) and "SPA" (2 notes) look like one org
+  Suggested: merge both into a Teams/ note, or map to the reserved set
+
+Recurring tags without a page:
+- spa-leadership-transition (6 weeks) - names a specific effort, page looks warranted
+- strategy (16 weeks) - a theme, no page needed
 ```
 
 The user picks which fixes to apply. Apply approved fixes directly with Edit/Write; for
@@ -1431,6 +1470,11 @@ forward counts (with brief titles in parentheses). Only completed items as bulle
   substantive analysis you produce against the vault, offer once to file it with
   `/worklog file`. Filed answers are cross-linked, so they compound in the graph the
   same way ingested content does. Ephemeral by design: `share` and `search`.
+- __Distributions are yours to judge.__ Three audit outputs (`oversized_notes`,
+  `team_vocabulary`, `recurring_tags`) are tables, not to-do lists. The scanner is not
+  claiming each row is a problem; it is handing you the full picture cheaply so you can
+  say which rows matter. Never present a distribution row as a defect without saying why
+  it is one.
 
 ## Netflix-specific commands (this fork only)
 
