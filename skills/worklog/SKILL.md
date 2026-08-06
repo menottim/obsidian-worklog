@@ -238,12 +238,21 @@ The optional `team` property links the person to a team note in `Teams/`. Set it
 when you're confident about the person's team. Use the team's short name (e.g.,
 `Backend Engineering`, `Platform Security`, `Frontend`).
 
-__`team:` is a controlled vocabulary.__ A value must either match a `Teams/` note name
-exactly, or be one of the reserved values `External`, `Former Netflix`, or `Unknown`.
-Free text defeats the whole point of the property: the Teams dimension of the graph only
-works if `team:` resolves to a note. When you do not know someone's team, write
-`Unknown` rather than inventing a label or leaving a placeholder. If a real team has no
-note yet, create the `Teams/` note first, then reference it.
+__`team:` is a controlled vocabulary for teams in __USER_NAME__'s own org.__ A value must
+either match a `Teams/` note name exactly, or be one of the reserved values `External`,
+`Former Netflix`, `Unknown`, or `Partner`. Free text defeats the point of the property
+for the org you actually track: the Teams dimension of the graph only works if `team:`
+resolves to a note. When you do not know someone's team, write `Unknown` rather than
+inventing a label or leaving a placeholder. If a real team in the org has no note yet,
+create the `Teams/` note first, then reference it.
+
+__Teams outside the org are different.__ Most people in the vault work elsewhere at the
+company, and creating a `Teams/` note for every partner org would be more upkeep than the
+graph is worth. For them, keep the real team name in `team:` even though it will not
+resolve, because `Infra Product Design` tells you more than `Partner` does. Use `Partner`
+only when you know someone is outside the org but not which team. A value that does not
+resolve is drift worth fixing only when it names a team the org owns; otherwise it is
+just an outside team recorded by name.
 
 The optional `summary` property is a one-line answer to "who is this" for someone who
 has never read the note: present tense, current state, under about 120 characters, no
@@ -930,9 +939,11 @@ yours, not the scanner's, because correctness is not decidable in bash:
 - `team_vocabulary` - `{value, notes, resolves, candidate?}` for every distinct `team:`
   value on People notes. `resolves` is `exact`, `substring`, or `none` against the
   `Teams/` note names. Propose merge groups from this and let the user approve them one
-  at a time; do not rewrite `team:` values unasked. A value resolving `none` is not
-  automatically wrong: `External`, `Former Netflix`, and `Unknown` are reserved and
-  correct.
+  at a time; do not rewrite `team:` values unasked. A value resolving `none` is often
+  correct: `External`, `Former Netflix`, `Unknown`, and `Partner` are reserved, and a team
+  outside the org is recorded by name on purpose, since a `Teams/` note for every partner
+  org would be more upkeep than the graph is worth. Treat `none` as drift only when the
+  value names a team the org owns, which is what merge groups are for.
 - `recurring_tags` - `{tag, files, has_page}` for tags appearing in 3 or more weekly or
   archive files. Judge which recurring themes deserve a `Programs/` or `References/`
   page. Most do not: `strategy`, `growth`, `leadership`, and `team-health` are themes,
