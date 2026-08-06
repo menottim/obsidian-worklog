@@ -5,6 +5,7 @@ description: >
   "worklog", "weekly rollover", "what's on my plate", "my priorities", "add to my worklog",
   "tidy my worklog", "what am I working on", "summarize my week", "monthly summary",
   "quarterly summary", "what did I accomplish", "audit my vault", "vault health check",
+  "compact my notes", "these notes are too long",
   "visualize my work", "worklog charts", or anything about managing weekly work priorities.
   Also trigger when the user asks about P0/P1/P2 items, wants a status update for Slack,
   or asks about priority drift, trends, or time allocation.
@@ -697,8 +698,8 @@ per month, which keeps it bounded without ever needing its own compaction.
 
 __The rule:__ log any operation that writes to the vault.
 
-That covers `add`, `pull`, `review`, `rollover`, `tidy`, `summary`, `viz`, `sync`,
-`preference` capture, filing an answer, and `audit` __only when fixes were applied__.
+That covers `add`, `pull`, `review`, `rollover`, `tidy`, `compact`, `summary`, `viz`,
+`sync`, `preference` capture, filing an answer, and `audit` __only when fixes were applied__.
 It excludes `status`, `search`, `share`, and a read-only audit run, because none of
 those change the vault. Absence is informative too: no `pull` entries for three weeks
 answers "when did I last ingest" just as well as a positive entry would.
@@ -989,12 +990,17 @@ at a time with explicit options (largest first). Do not batch them.
 __Precondition: the vault git state must be clean.__
 
 ```bash
+git -C '__VAULT_PATH__' rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
+  echo "vault is not a git repository: refusing to compact"; }
 git -C '__VAULT_PATH__' status --porcelain
 ```
 
-If that prints anything, offer to run `/worklog sync` first and wait. Git history is the
-only undo for a lossy fold, so an uncommitted vault means an unrecoverable rewrite. If
-the user declines to sync, do not compact.
+If the first command fails, the vault is not under git and there is no undo. __Do not
+compact.__ Tell the user and stop. If the second prints anything, the vault is dirty:
+offer to run `/worklog sync` first, then re-run this check rather than assuming the sync
+cleaned everything, since the sync `git add` list is an explicit allowlist that can leave
+files unstaged. Git history is the only undo for a lossy fold, so an unclean or
+un-versioned vault means an unrecoverable rewrite.
 
 __Read the whole note.__ This is the one operation that legitimately loads a full note
 body, and it is why contradiction detection rides along here rather than as its own pass.
@@ -1030,20 +1036,56 @@ __Fold rules:__
 1. A __foldable entry__ is a section whose heading contains a date, at any heading level.
    Real notes use `## May 29, 2026 - 1:1 (substantive, multi-topic)` with `###`
    subsections beneath, so do not assume a fixed level.
-2. __Never fold a section whose heading has no date.__ One rule instead of a list of
-   protected names, and it covers `## Role`, `## Context`, `## 1:1 Doc`, `## Members`,
-   and anything similar added later. Undated sections carry current state, which is the
-   answer to "who or what is this" and the reason the note exists at all.
-3. Dated sections newer than `WORKLOG_COMPACT_KEEP_DAYS` (default 90) move under
-   `## Recent`, verbatim, in chronological order.
-4. Older dated sections fold into `## History`. Preserve dates, decisions, status
-   changes, facts that changed, and every `[[wiki-link]]`. Drop verbatim quotes, meeting
-   play-by-play, and detail that only supported a conclusion already stated.
-5. `## History` granularity is one bullet per month, or per coherent theme where a theme
+2. __Never fold a section whose heading is not itself about a date.__ The test is whether
+   the date is the section's subject. `## May 29, 2026 - 1:1` is an entry about a day and
+   is foldable. `## Role (Pandora, confirmed 2026-07-30)` is current state carrying a
+   provenance date and is not: a parenthetical confirmation, verification, or "as of"
+   date does not make a section foldable. This single rule replaces a list of protected
+   section names and covers `## Role`, `## Context`, `## 1:1 Doc`, `## Members`,
+   `## OOO`, and anything similar added later. Undated sections carry current state,
+   which is the answer to "who or what is this" and the reason the note exists at all.
+3. __A dated section folds together with everything nested beneath it__, whatever those
+   child headings look like. Rule 2 applies only to sections that are not contained in a
+   foldable one, so an undated `### Coaching implication` under a dated
+   `## May 29, 2026 - 1:1` folds with its parent rather than being protected. Do not
+   promote a dated child out of a dated parent: a `### 1:1 (Jun 30)` under a
+   `## Jun 2026` parent stays with the parent, because lifting it out severs the context
+   that made it intelligible.
+4. Dated sections newer than `WORKLOG_COMPACT_KEEP_DAYS` (default 90) move under
+   `## Recent`, verbatim, newest first.
+
+   __Resolving imprecise dates, biased toward keeping.__ A heading with no year inherits
+   the year from the nearest surrounding dated heading, or the note's most recent dated
+   context if there is none. A heading with month precision is treated as the last day of
+   that month. A heading whose date cannot be resolved confidently is treated as undated
+   and left alone. Every one of these leans toward keeping content verbatim, which is the
+   safe direction for a lossy operation.
+5. Older dated sections fold into `## History`. __What a fold preserves:__ dates,
+   decisions, status changes, facts that changed, every `[[wiki-link]]`, and every
+   sensitivity or handling marker (`🔒`, `vault-only`, `confidential`, or similar)
+   together with any stated confidence boundary. __What a fold drops:__ verbatim quotes,
+   meeting play-by-play, and detail that only supported a conclusion already stated.
+6. `## History` granularity is one bullet per month, or per coherent theme where a theme
    spans months. Prefer themes; they read better and compress harder.
-6. If the note already has `compacted:` set, do not re-fold anything already in
+7. If the note already has `compacted:` set, do not re-fold anything already in
    `## History`, and treat the retention window as relative to today, not to the previous
-   compaction.
+   compaction. Existing `## History` bullets are __immutable__. A new fold is added as
+   its own bullet even when it continues a theme an existing bullet already covers,
+   because re-summarizing summarized text degrades it a little more on every pass.
+   Newest bullets go at the top, so `## History` reads most recent first, matching
+   `## Recent`.
+
+__Markers propagate upward.__ A `## History` bullet that folds one or more marked
+sections carries the marker of the most restrictive one it folds. Losing a handling
+marker is not compression, it is a disclosure risk: `/worklog rollup` filters on exactly
+these markers, so an unmarked bullet is one a later rollup has no reason to hold back.
+
+__Show the fold before writing it.__ Present the proposed `## Recent` and `## History`
+content and wait for approval before touching the file. Not a summary of what you intend
+to do: the actual bullets that will replace the folded sections, so the user can see what
+is being given up. If they do not approve, do not write. This is the same standard
+`/worklog audit` applies to its own non-destructive fixes, and this command destroys
+information.
 
 __Link preservation is a hard gate, not a warning.__ A fold that drops `[[wiki-links]]`
 deletes graph edges, and nothing else in the vault will notice: the `missing_links` audit
@@ -1051,25 +1093,40 @@ check only finds unlinked mentions in recent weekly files, not edges that vanish
 People note. Before writing, capture the canonical link targets:
 
 ```bash
-grep -o '\[\[[^]]*\]\]' "<note>" | sed -e 's/^\[\[//' -e 's/\]\]$//' -e 's/|.*$//' | sort -u
+# before
+grep -o '\[\[[^]]*\]\]' "<note>" | sed -e 's/^\[\[//' -e 's/\]\]$//' -e 's/|.*$//' | sort -u > /tmp/links-before.txt
+# write the proposed full note body to a temp file, then
+grep -o '\[\[[^]]*\]\]' /tmp/proposed.md | sed -e 's/^\[\[//' -e 's/\]\]$//' -e 's/|.*$//' | sort -u > /tmp/links-after.txt
+comm -23 /tmp/links-before.txt /tmp/links-after.txt   # any output = targets that would be lost
 ```
 
-Run the same command on your proposed content and compare. Normalizing to the canonical
-target by stripping everything after `|` is deliberate: rewording an alias while keeping
-the target is not a lost edge. Any target present before and absent after must be
-reported and explicitly confirmed by the user before the write happens. If they do not
-confirm, do not write.
+The gate requires materializing the proposal to a temp file and running the identical
+pipeline on it, never comparing by eye. Normalizing to the canonical target by stripping
+everything after `|` is deliberate: rewording an alias while keeping the target is not a
+lost edge. Any target present before and absent after must be reported and explicitly
+confirmed by the user before the write happens. If they do not confirm, do not write.
 
 __Outputs:__
 
 1. The rewritten note.
-2. A real `summary:` in frontmatter, authored not derived. Compaction always writes one.
+2. A real `summary:` in frontmatter, authored not derived. Compaction always writes one,
+   unless the existing `summary:` itself contradicts the body, in which case report that
+   alongside the other contradictions rather than silently replacing it.
 3. `compacted:` set to today's date.
 4. __A contradiction report.__ While holding the whole note, flag internal contradictions
    and claims that newer entries supersede. Report them; do not auto-fix. Frontmatter
    that disagrees with the body is the most common case and the most consequential.
 5. A dropped-link report, empty in the normal case.
-6. One log entry:
+6. One log entry, via the helper:
+
+```bash
+__SKILL_INSTALL_PATH__/skills/worklog/scripts/log-append.sh '__VAULT_PATH__' compact '<note path>' \
+  '852 -> 210 lines; 9 dated entries folded to ## History' \
+  'contradiction: frontmatter team says "Security, Privacy & Assurance"; body records rename to Infrastructure & Security' \
+  'links preserved: 34/34'
+```
+
+which renders as:
 
 ```markdown
 ## [2026-08-05] compact | People/Astha Singhal.md

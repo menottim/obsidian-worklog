@@ -230,6 +230,7 @@ These fields enable [Dataview queries](docs/dataview-queries.md) for live dashbo
 | `/worklog pull` | Sweep registered Slack channels and fold new context into the current week. Email-notes channels become per-thread `Meetings/` notes; context channels fold in place. On first run with no `Sources/`, walks you through registering one. |
 | `/worklog tidy` | Cleanup suggestions: move done items, flag stuck items, dedup |
 | `/worklog audit` | Vault health check with fix-it checklist |
+| `/worklog compact [note]` | Fold an oversized note's old history into a summary, one note at a time |
 | `/worklog search <term>` | Search across all vault files |
 | `/worklog share` | Slack-ready summary copied to clipboard |
 | `/worklog rollup` | IC-facing weekly context dump for a broad team channel; also filed to `References/` |
