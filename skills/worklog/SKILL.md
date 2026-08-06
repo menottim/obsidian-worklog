@@ -1105,10 +1105,26 @@ __Fold rules.__
    leans toward keeping content verbatim, which is the safe direction for a lossy
    operation.
 
-2. Dated entries newer than `WORKLOG_COMPACT_KEEP_DAYS` (default 90) move under
+2. Dated entries newer than `WORKLOG_COMPACT_KEEP_DAYS` (default 60) move under
    `## Recent`, newest first, with their heading text and heading level unchanged and
    their nested children intact. Do not demote or renumber headings: a `##` entry stays
    a `##` entry under `## Recent`.
+
+   __Why 60 and not 90.__ Measured against the three largest People notes on 2026-08-06,
+   a 90-day window did almost nothing, because this vault's mass sits in the last three
+   months: it folded 0 sections on a 335-line note, 5 on another 335-line note, and 6 of
+   49 dated sections on a 1,536-line note. The 60-day boundary is where the previous
+   month's content becomes foldable on all three. Treat the default as a starting point
+   rather than a rule: a note whose content is concentrated in one dense month has a
+   cliff rather than a gradient, so check what a window actually folds before running it,
+   and say so if the answer is nothing.
+
+   __A shorter window is more aggressive, not just more effective.__ This is a lossy
+   operation, and content two months old can still be live: an entry describing a
+   conversation that has been deferred is not history yet. When the note is about an
+   unresolved situation rather than closed work, lengthen the window or leave it alone.
+   The threshold check is `WORKLOG_COMPACT_LINES`, not this one; a note being large is
+   not evidence that its content is old.
 
 3. Dated entries older than the window fold into `## History` bullets, newest first.
 
