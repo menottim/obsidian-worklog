@@ -1035,6 +1035,10 @@ compacted: 2026-08-05
 - 2025: <folded>
 ```
 
+Every frontmatter key already present is preserved verbatim. Compaction only adds
+`summary:` and `compacted:`; it never removes or rewrites another key, including when
+one of them is the claim your contradiction report is about.
+
 __Definitions.__ Three terms, used precisely below, plus a scoping note for the two
 headings this operation writes itself.
 
@@ -1065,7 +1069,10 @@ __Precedence.__ When two rules below disagree, the earlier one wins.
    their original relative order and at their original heading level. They are the
    answer to "who or what is this" and the reason the note exists. This protects a
    current-state section that stands on its own; a current-state section nested inside
-   a dated entry is part of that entry and travels with it under rule 2.
+   a dated entry is part of that entry and travels with it under rule 2. A dated entry
+   nested inside a top-level current-state section stays with its parent: the parent's
+   protection covers its whole subtree. Compaction never reaches into a current-state
+   container to fold its children.
 2. __A dated entry travels whole.__ Everything nested beneath it moves or folds with
    it, including any current-state sections nested beneath it, which are part of the
    entry rather than independent, whatever the child headings look like and whatever
@@ -1147,11 +1154,15 @@ check only finds unlinked mentions in recent weekly files, not edges that vanish
 People note. Before writing, capture the canonical link targets:
 
 ```bash
-# before
-grep -o '\[\[[^]]*\]\]' "<note>" | sed -e 's/^\[\[//' -e 's/\]\]$//' -e 's/|.*$//' | sort -u > /tmp/links-before.txt
-# write the proposed full note body to a temp file, then
-grep -o '\[\[[^]]*\]\]' /tmp/proposed.md | sed -e 's/^\[\[//' -e 's/\]\]$//' -e 's/|.*$//' | sort -u > /tmp/links-after.txt
-comm -23 /tmp/links-before.txt /tmp/links-after.txt   # any output = targets that would be lost
+PROPOSED="$(mktemp)"
+# write the proposed full note body to $PROPOSED, then run both gates below on it.
+LB="$(mktemp)"; LA="$(mktemp)"
+grep -o '\[\[[^]]*\]\]' "<note>" | sed -e 's/^\[\[//' -e 's/\]\]$//' -e 's/|.*$//' \
+  | sort -u > "$LB"
+grep -o '\[\[[^]]*\]\]' "$PROPOSED" | sed -e 's/^\[\[//' -e 's/\]\]$//' -e 's/|.*$//' \
+  | sort -u > "$LA"
+comm -23 "$LB" "$LA"   # any output = targets that would be lost
+rm -f "$LB" "$LA"
 ```
 
 The gate requires materializing the proposal to a temp file and running the identical
@@ -1159,6 +1170,28 @@ pipeline on it, never comparing by eye. Normalizing to the canonical target by s
 everything after `|` is deliberate: rewording an alias while keeping the target is not a
 lost edge. Any target present before and absent after must be reported and explicitly
 confirmed by the user before the write happens. If they do not confirm, do not write.
+
+__Every heading must survive too, unless you can name the bullet it moved into.__ The
+link gate compares `sort -u`'d targets, so a whole section, its heading included, can
+vanish clean, as long as its links happen to still be present elsewhere in the note. On
+a note where the default window puts most of the note in `## Recent`, such as the
+1,536-line `Christine Chalmers.md`, the model is re-emitting roughly 1,380 lines
+verbatim, and a silently truncated rewrite is exactly what the link gate cannot see. Run
+the same comparison shape against headings, right after the link gate:
+
+```bash
+HB="$(mktemp)"; HA="$(mktemp)"
+grep -oE '^#{1,6} .*' "<note>" | sort > "$HB"
+grep -oE '^#{1,6} .*' "$PROPOSED" | sort > "$HA"
+comm -23 "$HB" "$HA"   # any output = a heading that would vanish
+rm -f "$HB" "$HA" "$PROPOSED"
+```
+
+Every heading this prints must be one you deliberately folded into a named `## History`
+bullet, and you must be able to say which bullet. Any other missing heading is
+unexplained loss: content vanished that nobody chose to give up, unlike a dropped link,
+so there is no confirmation path here. Fix the proposal and re-run both comparisons
+before writing.
 
 __Outputs:__
 
@@ -1172,28 +1205,49 @@ __Outputs:__
    that disagrees with the body is the most common case and the most consequential.
 5. A dropped-link report, empty in the normal case.
 6. One log entry, via the helper shown below.
-7. If the fold does not bring the note under `WORKLOG_COMPACT_LINES`, say so explicitly
-   in your summary and in the log entry, with the before and after line counts and the
-   threshold. Recommend a shorter `WORKLOG_COMPACT_KEEP_DAYS` for that note and ask
-   whether to re-run with it. A note that is still oversized after compaction must not be
-   reported as done: `compacted:` records that a pass happened, not that the note is now
-   small.
+7. __Reconcile the line-count drop against what was folded before calling it done.__ A
+   shrinking note is not by itself success: sum the pre-fold line counts of the
+   sections that moved into `## History`, and the note's total drop must not exceed
+   what those sections explain. If it drops by more than the folded sections account
+   for, verbatim content vanished that no fold covers, and that is a failed compaction
+   regardless of whether the result now lands under `WORKLOG_COMPACT_LINES`: do not
+   report `compacted:` as done, say so in your summary and the log entry instead, and
+   treat it the same as a heading-gate failure. If the drop is fully accounted for but
+   the note is still over the threshold, say so explicitly in your summary and in the
+   log entry, with the before and after line counts and the threshold. Recommend a
+   shorter `WORKLOG_COMPACT_KEEP_DAYS` for that note and ask whether to re-run with it.
+   A note that is still oversized after compaction must not be reported as done:
+   `compacted:` records that a pass happened, not that the note is now small.
+
+Compacting more than one note in a session: run `/worklog sync` between them. Each
+fold should land as its own recoverable commit before the next compaction starts, or
+the next note's precondition check finds this one's uncommitted dirt and stalls.
+
+`People/Astha Singhal.md` is 852 lines. Its dated headings run Apr 22 through May 29;
+only the three Apr 22 entries fall outside the default 90-day window, so only those
+fold, and the other 26 relocate unchanged under `## Recent`:
 
 ```bash
 __SKILL_INSTALL_PATH__/skills/worklog/scripts/log-append.sh '__VAULT_PATH__' compact '<note path>' \
-  '852 -> 210 lines; 9 dated entries folded to ## History' \
+  '852 -> 815 lines, still over the 250 threshold; 3 dated entries folded to ## History' \
   'contradiction: frontmatter team says "Security, Privacy & Assurance"; body records rename to Infrastructure & Security' \
-  'links preserved: 34/34'
+  'recommend re-running with WORKLOG_COMPACT_KEEP_DAYS=30' \
+  'links preserved: 76/76; headings accounted for: 3 folded, 0 unexplained'
 ```
 
 which renders as:
 
 ```markdown
-## [2026-08-05] compact | People/Astha Singhal.md
-- 852 -> 210 lines; 9 dated entries folded to ## History
+## [2026-08-06] compact | People/Astha Singhal.md
+- 852 -> 815 lines, still over the 250 threshold; 3 dated entries folded to ## History
 - contradiction: frontmatter team says "Security, Privacy & Assurance"; body records rename to Infrastructure & Security
-- links preserved: 34/34
+- recommend re-running with WORKLOG_COMPACT_KEEP_DAYS=30
+- links preserved: 76/76; headings accounted for: 3 folded, 0 unexplained
 ```
+
+The three Apr 22 entries are a near-worst case for this rule: their content folds to a
+handful of `## History` bullets, so the count above must not read as done at 815 lines.
+Rule 7 requires exactly this recommendation rather than letting the pass close quietly.
 
 __What this does not do:__ cross-note contradiction detection. Comparing claims across
 all 400 notes means reading all 400 notes, which is the exact cost the scanners exist to

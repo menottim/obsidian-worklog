@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# audit-scan.sh <vault> - compute the six /worklog audit checks; emit JSON findings to stdout.
+# audit-scan.sh <vault> - compute the nine /worklog audit checks; emit JSON findings to stdout.
 # Read-only. Scans the vault in bash so the model never loads People/Programs bodies.
 # Checks mirror the definitions in SKILL.md's `/worklog audit` section exactly.
 set -euo pipefail
