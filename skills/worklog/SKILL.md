@@ -1035,30 +1035,42 @@ compacted: 2026-08-05
 - 2025: <folded>
 ```
 
-__Definitions.__ Three terms, used precisely below.
+__Definitions.__ Three terms, used precisely below, plus a scoping note for the two
+headings this operation writes itself.
 
-- A __dated entry__ is a section whose heading's subject is a date: an account of what
-  happened on a day or in a period. `## May 29, 2026 - 1:1` is one.
-- A __current-state section__ is anything else, including a section whose heading merely
-  contains a date as provenance. `## Role (Pandora, confirmed 2026-07-30)`,
-  `## Org position as of Jul 2026`, `## Context`, `## 1:1 Doc`, `## Members`, and
-  `## OOO` are all current state. A confirmation, verification, "as of", or timestamp
-  date does not make a section a dated entry.
-- A __handling marker__ is an explicit restriction or release label on a heading:
-  `🔒`, `vault-only`, `confidential`, `ultra-confidential`, `confidence-bound`,
-  `HIGH SENSITIVITY`, `sensitive`, `surfaceable`, `shareable`. Nothing else in a
-  parenthetical is a marker. A date, a time, an attribution, or an editorial aside such
-  as `(significant)` or `(per X's recap)` is not a marker and does not affect fold
+- A __dated entry__ records what happened at a particular time: a meeting, a message,
+  an event, a decision as it was taken. `## May 29, 2026 - 1:1`,
+  `## Christine's Direct Response (Apr 22)`, and `## ✅ Feedback DM sent (May 15)` are
+  all dated entries, whether the date leads the heading, trails it, or sits in the
+  middle.
+- A __current-state section__ states what is true now, even when its heading carries a
+  date recording when that was last checked. `## Role (Pandora, confirmed 2026-07-30)`,
+  `## Org position as of Jul 2026`, `## Security review state (as of Jul 28 2026)`,
+  `## Context`, `## 1:1 Doc`, `## Members`, and `## OOO` are all current state. The test
+  is what the section is for, not where the date sits: an account of a moment is a
+  dated entry, a statement of the present with a provenance stamp is not.
+- A __handling marker__ is an explicit restriction or release label appearing anywhere
+  in a heading, matched case-insensitively: `🔒`, `vault-only`, `confidential`,
+  `ultra-confidential`, `confidence-bound`, `HIGH SENSITIVITY`, `sensitive`,
+  `surfaceable`, `shareable`. It counts whether it sits in a parenthetical or in the
+  heading's descriptive title. A date, a time, an attribution, or an editorial aside
+  such as `(significant)` or `(per X's recap)` is not a marker and does not affect fold
   structure.
+- `## Recent` and `## History` are structural headings this operation creates and
+  manages; they are neither dated entries nor current-state sections.
 
 __Precedence.__ When two rules below disagree, the earlier one wins.
 
-1. __Current-state sections are never moved and never folded.__ They stay exactly where
-   they are, in their original position and at their original heading level. They are
-   the answer to "who or what is this" and the reason the note exists.
-2. __A dated entry travels whole.__ Everything nested beneath it moves or folds with it,
-   whatever the child headings look like and whatever markers they carry. Never promote
-   a dated child out of a dated parent: it severs the context that made it intelligible.
+1. __Top-level current-state sections are never moved and never folded.__ They stay in
+   their original relative order and at their original heading level. They are the
+   answer to "who or what is this" and the reason the note exists. This protects a
+   current-state section that stands on its own; a current-state section nested inside
+   a dated entry is part of that entry and travels with it under rule 2.
+2. __A dated entry travels whole.__ Everything nested beneath it moves or folds with
+   it, including any current-state sections nested beneath it, which are part of the
+   entry rather than independent, whatever the child headings look like and whatever
+   markers they carry. Never promote a dated child out of a dated parent: it severs
+   the context that made it intelligible.
 3. __Handling markers split History bullets__, but never override 1 or 2.
 
 __Fold rules.__
@@ -1068,8 +1080,8 @@ __Fold rules.__
    leave it alone.
 
    __Resolving imprecise dates, biased toward keeping.__ A heading with no year inherits
-   the year from the nearest surrounding dated heading that carries a year, in either
-   direction, or from the note's most recent dated context if there is none. A heading
+   the year from the nearest surrounding dated entry that carries a year, in either
+   direction, or from the note's most recent dated entry if there is none. A heading
    with month precision is treated as the last day of that month. Every one of these
    leans toward keeping content verbatim, which is the safe direction for a lossy
    operation.
@@ -1087,14 +1099,17 @@ __Fold rules.__
    that only supported a conclusion already stated.
 
    __Group by theme, split by marker.__ Prefer grouping several entries into one
-   thematic bullet; themes read better and compress harder. But only entries whose
-   handling-marker sets are __identical__ may share a bullet, and that bullet carries
-   exactly that set. An entry marked `(vault-only)` and one marked `(vault-only, HIGH
-   SENSITIVITY)` do not share a bullet even though one set contains the other, and an
-   unmarked entry never shares a bullet with a marked one. Splitting costs a little
-   readability; merging would relabel content its author deliberately marked, and this
-   note's author marked four entries `surfaceable` precisely so they could leave the
-   vault.
+   thematic bullet; themes read better and compress harder. An entry's handling-marker
+   set is the union of the markers on its own heading and on every heading nested
+   beneath it. A `(vault-only)` entry containing an `(ULTRA-CONFIDENTIAL)` child has
+   the set `{vault-only, ULTRA-CONFIDENTIAL}` and cannot share a bullet with a plain
+   `(vault-only)` entry. Only entries whose handling-marker sets are __identical__ may
+   share a bullet, and that bullet carries exactly that set. An entry marked
+   `(vault-only)` and one marked `(vault-only, HIGH SENSITIVITY)` do not share a bullet
+   even though one set contains the other, and an unmarked entry never shares a bullet
+   with a marked one. Splitting costs a little readability; merging would relabel
+   content its author deliberately marked, and this note's author marks entries
+   `surfaceable` precisely so they can leave the vault.
 
    Losing a handling marker is not compression, it is a disclosure risk. The marker is
    the only record in the note that the content is restricted, and `/worklog search`
@@ -1117,11 +1132,12 @@ since those are what replaces content, plus a plain list of the headings moving 
 `## Recent` and the headings staying put. Do not paste the `## Recent` content itself:
 nothing there is being given up, it is moving unchanged. Do not substitute a summary for
 the History bullets, which are exactly the thing the user needs to see before agreeing to
-lose the detail behind them. Wait for approval before touching the file. If the link gate
-then finds a dropped target, revise the proposal, show the revised History bullets
-again, and wait for approval again. Re-run the link-comparison pipeline against the
-revised proposal and repeat this loop until the gate finds nothing, only then write
-the file.
+lose the detail behind them. Wait for approval before touching the file. If the link
+gate then finds a dropped target, revise the proposal and show the revised History
+bullets again. Re-run the link comparison against the revised proposal. Repeat until
+either the comparison is clean or the user has explicitly confirmed the specific
+targets that will be lost, then write. Silence is not confirmation, and a target
+dropped without being named to the user is never acceptable.
 
 __Link preservation is a hard gate, not a warning.__ A fold that drops `[[wiki-links]]`
 deletes graph edges, and nothing else in the vault will notice: the `missing_links` audit
@@ -1681,11 +1697,10 @@ forward counts (with brief titles in parentheses). Only completed items as bulle
   say which rows matter. Never present a distribution row as a defect without saying why
   it is one.
 - __Compaction is lossy and git is the undo.__ `/worklog compact` never runs on a vault
-  that is dirty or not under git, never folds a section that is not itself about a date
-  unless it is nested under one that is, never writes before the user has approved the
-  fold, and never writes when a `[[wiki-link]]` target would disappear without the user
-  confirming. Suggest it when `/worklog audit` reports `oversized_notes`, one note at a
-  time, never in a batch.
+  that is dirty or not under git, never touches a top-level current-state section,
+  never writes before the user has approved the fold, and never loses a
+  `[[wiki-link]]` target without naming it to the user first. Suggest it when
+  `/worklog audit` reports `oversized_notes`, one note at a time, never in a batch.
 
 ## Netflix-specific commands (this fork only)
 
