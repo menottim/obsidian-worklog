@@ -100,6 +100,14 @@ cp -r . ~/.claude/plugins/marketplaces/personal/plugins/obsidian-worklog
 # 4. Restart Claude Code, then try it
 ```
 
+> __Upgrading an existing install: bump the version first.__ Claude Code caches the plugin
+> under `~/.claude/plugins/cache/<marketplace>/obsidian-worklog/<version>/`, keyed by the
+> `version` in `.claude-plugin/plugin.json`. Copying new files over an unchanged version
+> number leaves the old build running, and nothing warns you. So on every upgrade: bump
+> `version`, copy, then restart Claude Code. To confirm what is actually running, read
+> `~/.claude/plugins/installed_plugins.json` and check the `version` and `installPath` for
+> `obsidian-worklog` rather than trusting the repo.
+
 ```
 /worklog status
 ```
@@ -173,6 +181,10 @@ Calendar sidebar -> click week number -> Periodic Notes creates the file -> Temp
 
 This is a Claude Code skill: a markdown file ([SKILL.md](skills/worklog/SKILL.md)) that Claude reads as instructions. There is no runtime, no server, no API. Claude reads your vault files directly, follows the instructions to structure and link content, and writes the results back. The skill defines the file formats, linking conventions, and command behaviors. To keep token cost low, `/worklog audit` and preference application use bundled read-only scanner scripts in `skills/worklog/scripts/`, and less-common command detail (viz, the Netflix commands, the full pull flow) is loaded on demand from `skills/worklog/references/` rather than included in every invocation.
 
+### The model guard
+
+A few commands are heavy single-shot synthesis over a large vault: `/worklog pull`, `/worklog tidy`, `/worklog viz`, a quarterly `/worklog summary`, and processing a full transcript. Before running one of those on a sub-Opus model, the skill pauses once per session and asks whether to continue or switch, because smaller models truncate or lose fidelity on large worklog inputs. It is advisory rather than a hard gate: it never blocks on its own, it never fires for `add`, `review`, `audit`, `rollover`, single-item edits or a monthly summary, and it remembers your answer for the rest of the session.
+
 ## Vault Structure
 
 The skill organizes your vault into these directories:
@@ -189,6 +201,7 @@ Your Vault/
   Logs/           Append-only operations log (one file per month)
   Archive/        Completed weeks in compact summary format
   Summaries/      Weekly, monthly, quarterly summaries
+  References/     Durable filed artifacts: weekly rollups, handover docs, filed answers
   Reports/        D3 visualization HTML files
   Templates/      Templater weekly template
 ```
@@ -196,6 +209,13 @@ Your Vault/
 `Teams/` adds a third dimension to the knowledge graph beyond People and Programs.
 Set `team:` in a person's frontmatter to associate them, and `parent:` in a team's
 frontmatter to link sub-teams under a larger org.
+
+`team:` is a __controlled vocabulary__, not free text. A value must either match a
+`Teams/` note name exactly or be one of four reserved values: `External`,
+`Former Netflix`, `Unknown`, or `Partner`. Free text defeats the point of the property,
+since the Teams dimension only works when `team:` resolves to a note. Write `Unknown`
+rather than inventing a label. `/worklog audit` reports the distribution of `team:`
+values against your `Teams/` notes so drift is visible.
 
 `Preferences/` is the skill's general-purpose memory layer. Anything durable the
 skill discovers about how you work goes here - voice and communication patterns,
@@ -261,7 +281,16 @@ These require Netflix-internal MCPs - see [`docs/SETUP-NETFLIX.md`](docs/SETUP-N
 
 **`/worklog audit`** -- Scans the vault for stale people notes (not mentioned in 4+ weeks), orphan programs, stuck items (3+ weeks without progress), missing wiki-links, empty stubs, and frontmatter gaps, plus three wider reports: notes that have grown past the compaction threshold, the distribution of `team:` values against your `Teams/` notes, and tags that recur across weeks without a page of their own. The first six are findings you pick fixes from. The last three are tables to read and judge, not to-do lists.
 
-**`/worklog compact [note]`** -- Folds an oversized note's old history into a `## History` summary so it stops growing without bound. Refuses outright on a vault that isn't a clean git working tree -- there's no undo for a lossy fold otherwise. Shows you the proposed fold and waits for approval before writing anything, and will not drop a `[[wiki-link]]` target without calling it out and getting explicit confirmation first. If a note is still over the threshold afterward, says so rather than marking it done.
+**`/worklog compact [note]`** -- Folds an oversized note's old history into a `## History` summary so it stops growing without bound. Refuses outright on a vault that isn't a clean git working tree -- there's no undo for a lossy fold otherwise. Shows you the proposed fold and waits for approval before writing anything. Three checks run against the proposal before it lands: a __link gate__ (no `[[wiki-link]]` target disappears without being named to you and explicitly confirmed), a __heading gate__ (every heading that vanishes must be one you can point at a named `## History` bullet for -- this catches a silently truncated rewrite that the link gate cannot see), and a __line-count reconciliation__ after the write (the note's total drop must not exceed what the folded sections account for). If a note is still over the threshold afterward, says so rather than marking it done.
+
+Two environment variables tune it:
+
+| Variable | Default | What it does |
+|----------|---------|--------------|
+| `WORKLOG_COMPACT_KEEP_DAYS` | `60` | Dated entries newer than this move to `## Recent` unchanged; older ones fold into `## History` bullets |
+| `WORKLOG_COMPACT_LINES` | `250` | The line count above which `/worklog audit` reports a note as oversized |
+
+The 60-day default is deliberate. On a vault whose mass sits in the last three months, a 90-day window folds almost nothing, so the pass reports "still oversized" and you run it twice. Raise it if your notes accumulate more evenly.
 
 **`/worklog viz [period]`** -- Generates a standalone HTML file with four D3.js charts: time allocation pie, program activity heatmap, P0 trend line, and completion rate bars. Open in any browser. Dark theme, responsive layout.
 
@@ -398,8 +427,8 @@ The next `/worklog pull` will re-ingest it (auto-fetch path) or re-prompt you to
 **What if I edit a meeting note?**
 Your edits are preserved. Subsequent pulls only append new thread replies under `## Discussion` and update `slack_last_reply_ts` in the frontmatter. The `## Notes` section and anything else you add is never overwritten.
 
-**What's the difference between the two Slack source types?**
-`meeting-notes-via-email` treats one forwarded-email thread as one meeting and saves a `Meetings/` note per thread. `context-channel` sweeps a busy discussion channel since the last pull, auto-folds high-confidence matches into the items they relate to (with a Slack permalink), asks before adding anything new or uncertain, and drops noise, with no per-thread files.
+**What's the difference between the three Slack source types?**
+`meeting-notes-via-email` treats one forwarded-email thread as one meeting and saves a `Meetings/` note per thread. `context-channel` sweeps a busy discussion channel since the last pull, auto-folds high-confidence matches into the items they relate to (with a Slack permalink), asks before adding anything new or uncertain, and drops noise, with no per-thread files. `dm-sweep` is a single `Sources/_dms.md` covering all your 1:1 and group DMs at once (they are searched, not enumerated, so there is no per-conversation state); nothing it finds is ever auto-folded, and approved items are written as genericized summaries. Every uncertain or new candidate from context channels and DMs lands in one approval batch at the end of the pull, presented one item at a time.
 
 **Does the pull read my DMs?**
 Only if you opt in with `Sources/_dms.md` and install the `slack-search-dms` helper (plus the search scopes and DM-search consent). Even then, no DM content is ever written without your explicit approval, and approved items are genericized (no verbatim quotes) with a private Slack permalink.

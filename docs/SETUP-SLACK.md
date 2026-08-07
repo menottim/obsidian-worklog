@@ -290,6 +290,43 @@ Test it (3-day window): `~/.config/obsidian-worklog/bin/slack-search-dms "$(date
 prints JSON result lines then a `{"next_cursor":...}` line. A non-zero exit (missing scope,
 bad token, network) makes `/worklog pull` skip the DM sweep gracefully.
 
+### 3. Opt in with `Sources/_dms.md`
+
+The helper alone does nothing. The DM sweep only runs when this file exists in your vault
+and is `enabled: true`. Unlike channel sources there is one file for the whole sweep, since
+DMs are searched rather than enumerated, so there is no per-conversation state to keep:
+
+```yaml
+---
+type: dm-sweep
+enabled: true
+include_1on1: true              # search im conversations
+include_groups: true            # search mpim (group DM) conversations
+last_scan_ts: null              # global baseline; first run = now - first_scan_lookback_days
+first_scan_lookback_days: 3
+nudge_threshold_days: 5
+query: ""                       # optional salience override; empty uses the built-in
+max_results: 100                # pagination cap and volume-guardrail threshold
+exclude_users: []               # user IDs whose 1:1 DMs are dropped from results
+exclude_conversations: []       # conversation IDs (im/mpim) dropped from results
+---
+
+# Direct Messages
+
+Notes to yourself about what this sweep is for.
+```
+
+Delete the file, or set `enabled: false`, and `/worklog pull` stops reading DMs entirely.
+Use `exclude_users` and `exclude_conversations` to carve out specific people or threads
+while leaving the rest of the sweep on.
+
+Two behaviors worth knowing before you enable it. Nothing found in a DM is ever auto-folded
+the way a context-channel match is: every relevant unit goes through the end-of-pull
+approval batch, and what gets written on approval is a genericized, workstream-level
+summary with a permalink, not a verbatim quote. And if pagination is still returning a
+cursor after `max_results` results, the pull stops and asks rather than silently
+truncating.
+
 ### Deprecation: `slack-list-dms`
 
 The earlier `slack-list-dms` enumeration helper and the `im:read` / `mpim:read` scopes are no

@@ -118,6 +118,27 @@ Pulls WISSE-1234, adds it under the right subgroup as a P1 In-Progress item with
 ```
 Same but forces P0 priority regardless of Jira priority.
 
+## Argument auto-routing
+
+You do not have to name the subcommand. When the first argument to `/worklog` is not a
+known subcommand, the skill classifies it and routes deterministically:
+
+| You type | Routes to |
+|----------|-----------|
+| `/worklog https://netflix.enterprise.slack.com/archives/...` | `ingest` (also Coda, Google Docs, Confluence) |
+| `/worklog WISSE-1234` | `jira` (matches `^[A-Z][A-Z0-9_]+-\d+$`) |
+| `/worklog https://netflix.atlassian.net/browse/WISSE-1234` | `jira`, with the key extracted |
+| `/worklog first.last@netflix.com` | `whois` |
+| `/worklog <any other URL>` | Stops and tells you the pattern is unsupported, rather than guessing |
+| `/worklog <anything else>` | Treated as raw worklog input and processed into the current week |
+
+Rows are ordered most-specific first and the first match wins, so a Jira URL routes to
+`jira` rather than to the general-URL rule.
+
+__Bare names never auto-route to `whois`.__ "Sarah Chen" could equally be a lookup target
+or a worklog item description, so only an email-formatted argument triggers it. For a
+name, type `/worklog whois Sarah Chen` explicitly.
+
 ## Interaction with existing commands
 
 The Netflix commands are __additive__. They don't change existing behavior:
