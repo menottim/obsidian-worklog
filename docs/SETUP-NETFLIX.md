@@ -14,10 +14,11 @@ If you're a Netflix engineer, this walkthrough adds the internal integrations: S
 
 | Worklog function | Without Netflix MCPs | With Netflix MCPs |
 |------------------|---------------------|-------------------|
-| `/worklog pull` (Slack thread ingest) | Personal Slack OAuth app + `xoxp-` token + custom Bash helper | Slack thread fetching via Core Tools MCP, no personal app needed |
-| Ingesting meeting notes | Paste body inline each time | `/worklog ingest <coda-or-confluence-url>`, body fetched via Netflix Search Data |
-| Creating People notes | Name only, you fill in context manually | `/worklog whois <name>`, title, manager, team auto-populated from Pandora |
-| Finding past discussions | Manual Slack search | Slack RAG via Netflix Search API can surface past threads on a topic |
+| One-off Slack thread ingest | Paste the thread body inline | Host-specific Core Tools thread fetcher |
+| Incremental `/worklog pull` | Slack connector; optional personal Slack helper for email bodies | Same connector requirement; Core Tools RAG is not an exhaustive replacement |
+| Ingesting meeting notes | Paste body inline each time | `worklog ingest <coda-or-confluence-url>`, body fetched through the host's document-reader binding |
+| Creating People notes | Name only, you fill in context manually | `worklog whois <name>`, title, manager, and team populated from the employee directory |
+| Finding past discussions | Manual Slack search | The host's Slack search capability can surface past threads on a topic |
 | Tracking Jira-tracked work | Paste ticket details inline | `/worklog jira <KEY>`, pulls status, title, owner |
 | Looking up Netflix internals | Web search Manuals manually | Manuals RAG via Core Tools surfaces authoritative answers |
 
@@ -38,7 +39,10 @@ newt --app-type=dev-profiles join --profile=genai-core-tools
 
 If the join fails, `setup.sh` aborts before declaring "Setup complete!", so the script never leaves you with a partial install. If you're already joined (verified via `newt --app-type=dev-profiles resolve`), the script skips the join step.
 
-This installs (or makes available via `/mcp` in Claude Code) the canonical Netflix-internal MCP server `core-tools`, which exposes these exact tool IDs that the worklog skill pins to:
+This installs the canonical Netflix-internal Core Tools profile. Tool IDs differ by host,
+so the worklog keeps separate bindings while sharing command behavior.
+
+__Claude Code bindings (unchanged):__
 
 | Tool ID | Purpose | Used by |
 |---------|---------|---------|
@@ -48,7 +52,20 @@ This installs (or makes available via `/mcp` in Claude Code) the canonical Netfl
 | `mcp__core-tools__manuals_get_page_content` | Fetch a single Manuals page | Available; not currently pinned to a worklog command |
 | `mcp__core-tools__rag-manuals-prod` / `rag-slack-prod` / `dgw_rag_generic` | RAG search variants | Available; not currently pinned |
 
-After `setup.sh` exits 0, restart Claude Code once. The MCPs load on session start, not mid-session.
+__Codex bindings:__
+
+| Tool ID | Purpose | Used by |
+|---------|---------|---------|
+| `mcp__core_tools__fetch_slack_thread` | Fetch one known Slack thread permalink | `$worklog ingest` |
+| `mcp__core_tools__nusdgs_read_knowledge_base_content` | Read a known internal document URL | `$worklog ingest` |
+| `mcp__core_tools__nusdgs_search_knowledge_base` | Employee/Whitepages search | `$worklog whois` and people resolution |
+| `mcp__atlassian_rovo__getAccessibleAtlassianResources` | Resolve an Atlassian cloud ID when needed | `$worklog jira` |
+| `mcp__atlassian_rovo__getJiraIssue` | Read a Jira issue | `$worklog jira` |
+
+The executable call shapes live in
+[`skills/worklog/references/netflix-tools-codex.md`](../skills/worklog/references/netflix-tools-codex.md).
+After setup exits, restart the selected host once. MCPs load on session start, not
+mid-session.
 
 ## Step 2: verify additional MCPs (recommended)
 
@@ -83,11 +100,12 @@ If you ran `setup.sh` before this Netflix block existed, re-run it on a clean ch
 
 ## Step 4: how Pandora identity flows into People notes
 
-When `/worklog whois <name>` is invoked, the skill:
+When `worklog whois <name>` is invoked, the skill:
 
-1. Announces: `Using mcp__core-tools__netflix_search_api to resolve <input> against Pandora`
-2. Calls that exact tool with the input as the query
-3. Filters results for Pandora source entries; surfaces a numbered list if multiple, asks you to pick if disambiguation is needed, errors out if zero matches
+1. Announces the exact employee-search tool selected for the current host
+2. Calls the host binding with the input as the query; Codex restricts NUS search to the
+   `employee` source
+3. Uses Pandora entries in Claude Code or employee-source entries in Codex; surfaces a numbered list if multiple, asks you to pick if disambiguation is needed, errors out if zero matches
 4. Updates frontmatter of `People/<Full Name>.md` with email, title, team, manager (wiki-linked), pandora_id, status
 5. Body content is preserved on merge (your accumulated context bullets are never overwritten)
 
@@ -102,10 +120,13 @@ The "announce-which-tool" pattern applies to every Netflix command. You'll alway
 - Google Docs (`https://docs.google.com/document/d/...`)
 - Slack thread permalinks (`https://*.slack.com/archives/.../p...`)
 
-The skill routes by URL pattern (deterministic, no fallback chains):
-- Slack permalinks -> `mcp__core-tools__fetch-slack-thread` -> treat as Meeting note
-- Coda / Confluence (confluence.netflix.com) / Google Docs -> `mcp__core-tools__netflix_search_data`
-- `netflix.atlassian.net/wiki/` Confluence pages -> `mcp__plugin_atlassian_atlassian__getConfluencePage`
+The skill routes by URL pattern deterministically:
+
+- In Claude Code, Slack uses `mcp__core-tools__fetch-slack-thread`; Coda, Google Docs,
+  and `confluence.netflix.com` use `netflix_search_data`; Atlassian Confluence uses the
+  existing Atlassian plugin binding.
+- In Codex, Slack uses `mcp__core_tools__fetch_slack_thread`; supported document URLs use
+  `mcp__core_tools__nusdgs_read_knowledge_base_content` directly.
 - Anything else -> error with a hint to paste body inline; no implicit fallback to a different MCP
 
 The fetched body flows through the same "raw input" extraction logic the skill already uses for pasted content: extract items, link people/programs, add to current week, create a `Meetings/` note if it's meeting-shaped.
@@ -122,8 +143,8 @@ If you want full `/worklog pull` automation, the personal-app path is still the 
 
 ## Troubleshooting
 
-__`/mcp` shows no core-tools server after `newt join`__
-- Restart Claude Code (MCP servers load on session start)
+__`/mcp` shows no Core Tools server after `newt join`__
+- Restart the selected host (MCP servers load on session start)
 - Verify membership: `newt --app-type=dev-profiles list` should show `genai-core-tools`
 
 __`/worklog whois` returns no match__
@@ -132,8 +153,11 @@ __`/worklog whois` returns no match__
 
 __`/worklog ingest` fails with "no access" on a Confluence URL__
 - You may need to be added to the space; check with the page owner
-- Verify by opening the URL in a browser first. If you can read it there, Netflix Search Data should also reach it
+- Verify by opening the URL in a browser first. If you can read it there, confirm the selected host's document-reader MCP is loaded and can access the same source
 
 __`/worklog pull` falls back to manual paste even after Slack setup__
 - Likely the Bash allowlist issue documented in `SETUP-SLACK.md` step 8
 - In `/focus` mode the helper-script invocation is silently denied; add `Bash(~/.config/obsidian-worklog/bin/slack-fetch-file:*)` to your `~/.claude/settings.json` allowlist
+- In Codex, check the workspace, command, and network permissions described in
+  [`SETUP-CODEX.md`](SETUP-CODEX.md). Incremental pull also requires a Slack connector
+  with channel-listing, thread-reading, channel-resolution, and user-resolution tools.

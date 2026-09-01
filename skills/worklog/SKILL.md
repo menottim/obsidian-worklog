@@ -88,16 +88,25 @@ The vault is backed up to `__BACKUP_REPO_URL__` (private).
 
 Some worklog commands are heavy, single-shot synthesis and are more reliable on a more capable model. Before running one of those commands (each such section says "run the Model Guard first"), do this check:
 
-1. Determine which model you are running as, from your own context. Claude Code states this in your system prompt (for example, "You are powered by the model named ...").
-2. If you are Opus-tier (Opus 4.x): proceed silently. No guard.
-3. If you cannot determine your model with confidence: proceed silently. Do not guess and do not ask.
-4. If you are sub-Opus (Sonnet or Haiku tier) AND you have not already asked about this earlier in the current conversation: pause, ask the user, and wait for their answer:
+1. Determine the current host from your system context.
+2. If the host is Codex: proceed silently on the configured model and reasoning effort.
+   Do not present the Claude-specific model choices below. If the result actually
+   truncates or loses fidelity, explain that and suggest retrying with a more capable
+   model or higher reasoning effort.
+3. If the host is Claude Code, preserve the existing guard behavior:
+   - Determine which model you are running as from your own context. Claude Code states
+     this in your system prompt (for example, "You are powered by the model named ...").
+   - If you are Opus-tier (Opus 4.x): proceed silently. No guard.
+   - If you cannot determine your model with confidence: proceed silently. Do not guess
+     and do not ask.
+   - If you are sub-Opus (Sonnet or Haiku tier) AND you have not already asked about this
+     earlier in the current conversation: pause, ask the user, and wait for their answer:
 
-   > This is a heavy synthesis task and you're running on `<your model>`. In testing, Opus 4.8 was the most reliable on large worklog inputs; smaller models can truncate or lose fidelity. Want me to continue on `<your model>`, or pause so you can switch (`/model` to Opus 4.8, ideally at high or xhigh effort) and re-run?
+     > This is a heavy synthesis task and you're running on `<your model>`. In testing, Opus 4.8 was the most reliable on large worklog inputs; smaller models can truncate or lose fidelity. Want me to continue on `<your model>`, or pause so you can switch (`/model` to Opus 4.8, ideally at high or xhigh effort) and re-run?
 
-   - If the user says continue: proceed normally.
-   - If the user says switch: tell them to run `/model` and pick Opus 4.8, then re-invoke the command, and stop.
-   - Remember the user's choice for the rest of this conversation and do not ask again this session.
+     - If the user says continue: proceed normally.
+     - If the user says switch: tell them to run `/model` and pick Opus 4.8, then re-invoke the command, and stop.
+     - Remember the user's choice for the rest of this conversation and do not ask again this session.
 
 This is advisory, not a hard gate. It never blocks work on its own, and it never fires for `add`, `review`, `audit`, `rollover`, single-item edits, or a monthly summary.
 
@@ -827,7 +836,7 @@ asks to add it to the worklog, follow this pattern:
    cues in the raw content. Default to P1 if unclear.
 5. Add dated annotations using the date from the raw content (Slack timestamps,
    meeting date), not today's date
-6. Update the current week file using the Edit tool
+6. Update the current week file using the host's available file-editing tool
 7. Update relevant people/program notes with substantive new context
 8. Regenerate enriched frontmatter
 
@@ -884,7 +893,8 @@ items carried forward and items completed.
 ### `/worklog add <priority> <title>`
 
 Add a new item to the current week file. Check for overlaps with existing items
-and flag potential merges. Use the Edit tool to insert into the appropriate subgroup
+and flag potential merges. Use the host's available file-editing tool to insert into the
+appropriate subgroup
 (or create a new subgroup if needed). Wiki-link any people or programs. Create stub
 notes for new entities.
 
@@ -1669,6 +1679,11 @@ cp __SKILL_INSTALL_PATH__/skills/worklog/SKILL.md \
    "__VAULT_PATH__/.skills/worklog/SKILL.md"
 cp __SKILL_INSTALL_PATH__/.claude-plugin/plugin.json \
    "__VAULT_PATH__/.skills/worklog/plugin.json"
+# Keep the Codex manifest when this dual-host bundle contains one.
+if [ -f __SKILL_INSTALL_PATH__/.codex-plugin/plugin.json ]; then
+  cp __SKILL_INSTALL_PATH__/.codex-plugin/plugin.json \
+     "__VAULT_PATH__/.skills/worklog/codex-plugin.json"
+fi
 
 cd "__VAULT_PATH__"
 

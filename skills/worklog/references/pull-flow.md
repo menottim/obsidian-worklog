@@ -2,6 +2,16 @@
 
 (Loaded on demand by SKILL.md.)
 
+__Codex capability preflight:__ Before reading or writing pull state, confirm that the
+current Codex host exposes tools that can perform all four Slack operations used below:
+list channel messages over a time window, read a complete thread, resolve a channel by
+name, and resolve a user by ID or handle. Tool names may be namespaced by the installed
+Slack connector. If any operation is unavailable, stop without advancing `last_scan_ts`
+and name the missing capability. Offer `$worklog ingest <slack-permalink>` for one-off
+thread ingestion. Do not substitute semantic/RAG Slack search for incremental channel
+enumeration: it is not exhaustive and would make the cursor state unsafe. Claude Code
+keeps its existing Slack tool flow unchanged.
+
 __Pull flow:__
 
 1. Glob `__VAULT_PATH__/Sources/*.md`. If empty, walk the user through registering
@@ -104,7 +114,7 @@ __Pull flow:__
         - Stop the pull and print whatever summary is available so far.
    4. __Existing thread, new replies__ (match found, replies after
       `slack_last_reply_ts`):
-      - Open the matched `Meetings/*.md` with the Edit tool.
+      - Open the matched `Meetings/*.md` with the host's available file-editing tool.
       - For each reply with `ts > slack_last_reply_ts`, append a
         `### YYYY-MM-DD HH:MM — [[Author]]` subheading to the end of the
         `## Discussion` section, followed by the reply text.
@@ -200,8 +210,10 @@ __Approval batch (human-in-the-loop)__ — after every source is swept (email +
 context), collect all uncertain/new candidates and present them __one at a time, each
 with its own explicit options__. This is the user's default for any multi-item input
 request: do NOT dump a single consolidated free-text checklist and ask for a bulk
-reply. Use a per-item options prompt (`AskUserQuestion`), up to 4 items per prompt,
-iterating in additional prompts if there are more than 4.
+reply. Use the host's available structured-choice interaction when one exists. In
+Claude Code this may be `AskUserQuestion`; in Codex, use a concise plain-text question
+and wait when no structured-choice tool is available. Never depend on one host's tool
+name. Iterate until every candidate has its own decision.
 
 Each item shows its source channel, date, a one-line summary, and the Slack permalink,
 with a small set of routing options — for example:

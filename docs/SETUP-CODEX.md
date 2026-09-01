@@ -79,11 +79,17 @@ Netflix MCP servers are configured for the Codex host separately from the skill.
 CLI, the IDE extension, and the desktop app share the same Codex MCP configuration.
 Follow [SETUP-NETFLIX.md](SETUP-NETFLIX.md) for the internal prerequisites.
 
-Core file-based commands work without Netflix MCPs. Netflix ingest, people lookup, Jira,
-and Slack pull additionally require their named capabilities. If a required capability is
-not available, the skill stops and identifies what is missing instead of silently choosing
-an unrelated tool. Full incremental `pull` requires a Slack connector that can list channel
-messages, read threads, find channels, and resolve users.
+Core file-based commands work without Netflix MCPs. The Codex adapter maps one-off Slack
+ingest, internal-doc ingest, employee lookup, and Jira to the current Core Tools and
+Atlassian Rovo schemas; see
+[`netflix-tools-codex.md`](../skills/worklog/references/netflix-tools-codex.md). If a
+required capability is not available, the skill stops and identifies what is missing
+instead of silently choosing an unrelated tool.
+
+Full incremental `pull` additionally requires a Slack connector that can list channel
+messages, read threads, find channels, and resolve users. Core Tools' one-thread fetcher
+and Slack RAG search do not provide an exhaustive replacement, so the Codex pull preflight
+refuses to advance source cursors when those connector operations are absent.
 
 ## Upgrade
 

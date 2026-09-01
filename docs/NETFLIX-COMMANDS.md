@@ -2,6 +2,11 @@
 
 These commands exist only in the Netflix fork (`github.netflix.net/mminutillo/obsidian-worklog`). They depend on Netflix-internal MCPs; see [SETUP-NETFLIX.md](SETUP-NETFLIX.md) for installation.
 
+Examples use Claude Code's `/worklog` spelling. In Codex, use `$worklog` with the same
+subcommand and arguments. Claude's existing tool IDs remain unchanged; Codex call schemas
+are defined in
+[`netflix-tools-codex.md`](../skills/worklog/references/netflix-tools-codex.md).
+
 ## `/worklog ingest <url>`
 
 Fetches the body of a Netflix-internal document and processes it as raw input to the current week.
@@ -12,15 +17,12 @@ __Accepts:__
 - Google Docs: `https://docs.google.com/document/d/...`
 - Slack thread permalink: `https://*.slack.com/archives/.../p...`
 
-__Routing (pinned tool IDs, no fallbacks):__
-| URL pattern | Exact MCP tool ID |
-|-------------|---------------------|
-| `*.slack.com/archives/.../p*` | `mcp__core-tools__fetch-slack-thread` |
-| `coda.io` | `mcp__core-tools__netflix_search_data` |
-| `coda.netflix.net` | `mcp__core-tools__netflix_search_data` |
-| `confluence.netflix.com` | `mcp__core-tools__netflix_search_data` |
-| `netflix.atlassian.net/wiki/` | `mcp__plugin_atlassian_atlassian__getConfluencePage` |
-| `docs.google.com/document/` | `mcp__core-tools__netflix_search_data` |
+__Routing (pinned per host, no unrelated fallbacks):__
+
+| URL pattern | Claude Code | Codex |
+|-------------|-------------|-------|
+| `*.slack.com/archives/.../p*` | `mcp__core-tools__fetch-slack-thread` | `mcp__core_tools__fetch_slack_thread` |
+| Coda / Google Docs / Confluence | `mcp__core-tools__netflix_search_data` or the existing Atlassian Confluence binding | `mcp__core_tools__nusdgs_read_knowledge_base_content` |
 
 Before each call, the skill announces `Using <tool-id> to fetch <url>` so you can see which path was taken.
 
@@ -44,7 +46,8 @@ Pulls the Confluence page, extracts the action items, links attendees as People,
 
 ## `/worklog whois <name-or-email>`
 
-Resolves a person via Pandora (Netflix's identity directory) and creates or enriches their People/ note with org metadata.
+Resolves a person via Netflix's employee directory (Pandora in the Claude binding,
+Whitepages/employee search in Codex) and creates or enriches their People/ note with org metadata.
 
 __Accepts:__
 - Full name: `Jane Smith`
@@ -53,8 +56,9 @@ __Accepts:__
 - Pandora username: `jsmith`
 
 __Behavior:__
-1. Announces: `Using mcp__core-tools__netflix_search_api to resolve <input> against Pandora`
-2. Invokes that exact tool with query=`<input>`; filters results for Pandora source entries
+1. Announces the exact employee-search tool selected for the current host
+2. Invokes the host binding with query=`<input>`; Claude filters Pandora results and Codex
+   restricts NUS search to the `employee` source
 3. If multiple matches, surfaces a numbered list with title and team for each, prompts you to pick
 4. Creates or updates `People/<Full Name>.md` with frontmatter:
    ```yaml
@@ -67,10 +71,11 @@ __Behavior:__
    (Note: `manager_chain` is intentionally not populated. SKILL.md instructs "do not recurse on the manager chain" - you can `/worklog whois <manager-name>` to walk up one level at a time.)
 4. If a People note already exists, merge: update frontmatter, preserve all body content (your accumulated context bullets)
 5. Wiki-link the manager, creating a stub `People/<Manager Name>.md` if missing
-6. Append a context bullet: `- _[YYYY-MM-DD]_ Org metadata refreshed from Pandora`
+6. Append a context bullet naming the host's directory source, for example
+   `- _[YYYY-MM-DD]_ Org metadata refreshed from Pandora` or `... from Whitepages`
 
 __Errors:__
-- No match: "No Pandora match for '<input>'. Check spelling or try `firstname.lastname@netflix.com`."
+- No match: "No employee-directory match for '<input>'. Check spelling or try `firstname.lastname@netflix.com`."
 - Stale identity (person no longer at Netflix): mark frontmatter `status: former` and add bullet noting end date if available
 
 __Example:__
@@ -88,8 +93,9 @@ __Accepts:__
 - Full URL: `https://netflix.atlassian.net/browse/WISSE-123`
 
 __Behavior:__
-1. Announces: `Using mcp__plugin_atlassian_atlassian__getJiraIssue to pull <KEY>`
-2. Invokes that exact tool, reading title, status, assignee, priority, labels, parent/epic link
+1. Announces the exact Jira tool selected for the current host
+2. Invokes that host binding, reading title, status, assignee, priority, labels, and the
+   parent/epic link. Codex supplies the Atlassian cloud ID as described in its adapter.
 3. Determines worklog priority deterministically:
    - Command flag `-p0` / `-p1` / `-p2` always wins if present
    - Otherwise: Jira priority `Highest` -> __P0__, `High` -> __P1__, anything else -> __P2__

@@ -32,7 +32,7 @@ It's built for anyone juggling work across a lot of projects and people. You pas
 - **D3.js visualizations** of time allocation, program activity, and completion rates
 - **Vault health checks** that find stale notes, stuck items, missing links, oversized notes, and drift in your team vocabulary and recurring topics
 - **Preferences as first-class citizens** -- the skill maintains a `Preferences/` directory as its general-purpose memory layer: voice, style, workflow, tooling, decision rules, vault conventions, anything durable about how you work, captured once and applied automatically across sessions
-- **Slack inbox** -- register Slack channels as sources and let `/worklog pull` sweep them into your current week. Three kinds of source are supported: forwarded-email meeting notes (one `Meetings/` note per thread), busy discussion channels (swept and folded in place, no per-thread files), and your own DMs (opt-in, never folded without your approval). Auto-fetch for email bodies needs a one-time Slack token (see [`docs/SETUP-SLACK.md`](docs/SETUP-SLACK.md)); the [FAQ](#faq) covers the rest
+- **Slack inbox** -- register Slack channels as sources and let `/worklog pull` sweep them into your current week. Three kinds of source are supported: forwarded-email meeting notes (one `Meetings/` note per thread), busy discussion channels (swept and folded in place, no per-thread files), and your own DMs (opt-in, never folded without your approval). Incremental pull requires a Slack connector that can enumerate channels and threads; auto-fetch for email bodies needs a one-time Slack token (see [`docs/SETUP-SLACK.md`](docs/SETUP-SLACK.md)); the [FAQ](#faq) covers the rest
 - **Operations log** -- an append-only `Logs/YYYY-MM.md` record of what the skill did and when (pulls, rollovers, tidies, syncs), so "was the last pull complete" is answered by grep, not memory
 - **Entity summaries** -- People and Program notes carry a one-line `summary` (authored or derived), so the cross-link digest can tell you who or what something is without opening the note
 - **Filed answers** -- substantive analysis and weekly rollups can be filed to `References/` as durable, cross-linked vault artifacts instead of evaporating as a one-off chat reply or Slack paste
@@ -300,9 +300,22 @@ These require Netflix-internal MCPs - see [`docs/SETUP-NETFLIX.md`](docs/SETUP-N
 
 | Command | What it does |
 |---------|--------------|
-| `/worklog ingest <url>` | Fetch a Coda / Confluence / Google Doc / Slack-thread URL via Netflix Search Data (or Core Tools `Fetch Slack Thread`), process its body as raw worklog input |
-| `/worklog whois <name>` | Resolve a person via Pandora (Netflix's identity directory), create/enrich their `People/` note with title, manager, team |
+| `/worklog ingest <url>` | Fetch a Coda / Confluence / Google Doc / Slack-thread URL through the current host's Netflix MCP binding, then process its body as raw worklog input |
+| `/worklog whois <name>` | Resolve a person via Netflix's employee directory, then create/enrich their `People/` note with title, manager, and team |
 | `/worklog jira <key>` | Pull a Jira ticket's current state via the Atlassian MCP, add it as a worklog item under the right subgroup |
+
+Host support for the Netflix integrations is additive:
+
+| Capability | Claude Code | Codex |
+|------------|-------------|-------|
+| Core file-based worklog commands | Supported | Supported |
+| One-off Slack, internal-doc, employee, and Jira ingestion | Existing Claude MCP bindings | Codex Core Tools and Atlassian Rovo adapter |
+| Incremental Slack channel pull | Requires the existing Slack connector | Requires a connector that can list channel messages, read threads, resolve channels, and resolve users |
+
+Codex will not substitute Slack semantic/RAG search for incremental enumeration because
+RAG results are not exhaustive enough to advance a source cursor safely. It stops without
+changing pull state and offers one-off `$worklog ingest <slack-permalink>` instead. See
+[`docs/SETUP-CODEX.md`](docs/SETUP-CODEX.md) for details.
 
 ### Key commands in detail
 
@@ -448,7 +461,7 @@ Nothing breaks. Run `/worklog rollover` whenever you're ready. The old week stay
 Each week adds ~2-5 KB. After a year: 52 weekly files + 50-100 people + 20-30 programs = a few hundred KB total.
 
 **How do I add a new Slack channel to monitor?**
-Run `/worklog pull`. If `Sources/` is empty, the skill walks you through registering the channel: it asks for the channel name, resolves the channel ID via Slack search, writes a `Sources/<channel>.md` config file, and runs the first pull. To add another channel later, just say "register `#another-channel` as a source" (a raw channel ID works too).
+Run `/worklog pull` (or `$worklog pull` in Codex). If `Sources/` is empty, the skill walks you through registering the channel: it asks for the channel name, resolves the channel ID via Slack search, writes a `Sources/<channel>.md` config file, and runs the first pull. To add another channel later, just say "register `#another-channel` as a source" (a raw channel ID works too). The active host must expose channel-listing, thread-reading, channel-resolution, and user-resolution capabilities; Codex reports any missing capability without changing the source cursor.
 
 **How do I set up auto-fetch for email bodies?**
 See [`docs/SETUP-SLACK.md`](docs/SETUP-SLACK.md) for a 5-minute walkthrough: register a personal Slack app at `api.slack.com/apps` with `files:read` scope, install it to your workspace, store the `xoxp-` user token at `~/.config/obsidian-worklog/slack-token` (chmod 600), and drop in a small `slack-fetch-file` helper script. After that, `/worklog pull` ingests email bodies automatically. If your workspace requires admin approval for new apps, the manual-paste fallback keeps the feature working while you wait.
