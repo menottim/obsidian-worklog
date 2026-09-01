@@ -1,6 +1,6 @@
 {
   "name": "obsidian-worklog",
-  "version": "5.13.0",
+  "version": "5.14.0",
   "description": "Obsidian worklog manager - weekly planning, knowledge graph (people, programs, teams), priority tracking, D3 visualizations, AI summaries, IC-facing weekly rollups, durable preferences, and Slack ingestion with three source types: forwarded-email meeting notes (auto-fetch via files:read OAuth helper with manual-paste fallback) and a context-channel relevance sweep that folds discussion into existing worklog items with an approval gate for new items; plus an approval-only search-based DM sweep of your 1:1 + group DMs (never auto-folded). Cost-optimized: audit/preferences via bundled scanners, command detail loaded on demand. Operations log, entity summaries, and filed answers. Note compaction and semantic lint.",
   "author": {
     "name": "Menotti Minutillo",

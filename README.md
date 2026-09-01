@@ -2,9 +2,9 @@
 
 > __Netflix-internal fork.__ This is the Netflix variant of [`menottim/obsidian-worklog`](https://github.com/menottim/obsidian-worklog). It adds Netflix-specific MCP integrations and three new commands (`/worklog ingest`, `/worklog whois`, `/worklog jira`) on top of the public skill. If you're at Netflix, start with [`docs/SETUP-NETFLIX.md`](docs/SETUP-NETFLIX.md) after the standard setup below.
 
-A [Claude Code](https://claude.ai/claude-code) skill that turns your Obsidian vault into a structured worklog with weekly planning, a people and program knowledge graph, priority tracking, D3 visualizations, and AI-powered summaries.
+A skill for [Claude Code](https://claude.ai/claude-code) and [Codex](https://learn.chatgpt.com/docs) that turns your Obsidian vault into a structured worklog with weekly planning, a people and program knowledge graph, priority tracking, D3 visualizations, and AI-powered summaries.
 
-It's built for anyone juggling work across a lot of projects and people. You paste in the raw stuff (meeting notes, Slack threads, transcripts) and Claude pulls out the action items, links the people and programs involved, and files everything under the right week. Do that for a few months and the vault becomes a searchable record of what you worked on and who you worked with.
+It's built for anyone juggling work across a lot of projects and people. You paste in the raw stuff (meeting notes, Slack threads, transcripts) and your coding agent pulls out the action items, links the people and programs involved, and files everything under the right week. Do that for a few months and the vault becomes a searchable record of what you worked on and who you worked with.
 
 ## Table of Contents
 
@@ -47,7 +47,7 @@ It works as a loop: you put raw input in, structured notes come out, and each ne
 graph LR
     A["Paste raw input
     meeting notes, Slack,
-    transcripts"] --> B["Claude structures it
+    transcripts"] --> B["Your agent structures it
     extracts items, links
     people & programs"]
     B --> C["Vault grows
@@ -68,14 +68,14 @@ graph LR
     style E fill:#cba6f7,color:#1e1e2e
 ```
 
-**Monday:** `/worklog rollover` starts a new week, carries forward unfinished items.
-**During the week:** Paste meeting notes, Slack messages, transcripts. Claude extracts items, links people and programs, dates everything.
-**Anytime:** `/worklog summary` or `/worklog viz` to see where your time went.
+**Monday:** `worklog rollover` starts a new week, carries forward unfinished items.
+**During the week:** Paste meeting notes, Slack messages, transcripts. The agent extracts items, links people and programs, dates everything.
+**Anytime:** `worklog summary` or `worklog viz` shows where your time went.
 **The graph grows:** Every person and program gets a note. Backlinks connect everything. Click any person to see every week they appeared in.
 
 ## Prerequisites
 
-- [Claude Code](https://claude.ai/claude-code) (CLI, desktop, or IDE extension)
+- [Claude Code](https://claude.ai/claude-code) or [Codex](https://learn.chatgpt.com/docs)
 - [Obsidian](https://obsidian.md/) (any recent version)
 - An Obsidian vault (existing or new -- `setup.sh` can create the structure for you)
 - Recommended Obsidian plugins (install from Community Plugins):
@@ -86,9 +86,18 @@ graph LR
 
 ## Quick Start
 
+The workflow is shared across both hosts. Invocation syntax differs:
+
+| Host | Explicit invocation | Example |
+|------|---------------------|---------|
+| Claude Code | `/worklog` | `/worklog status` |
+| Codex CLI / IDE | `$worklog` | `$worklog status` |
+
+### Claude Code
+
 ```bash
 # 1. Clone the repo
-git clone https://github.com/menottim/obsidian-worklog.git
+git clone https://git.netflix.net/mminutillo/obsidian-worklog.git
 cd obsidian-worklog
 
 # 2. Run the interactive setup (configures paths, name, git identity)
@@ -113,6 +122,29 @@ cp -r . ~/.claude/plugins/marketplaces/personal/plugins/obsidian-worklog
 ```
 
 If no current week file exists, Claude will tell you. Run `/worklog rollover` to create your first week.
+
+### Codex
+
+```bash
+# 1. Clone the repo
+git clone https://git.netflix.net/mminutillo/obsidian-worklog.git
+cd obsidian-worklog
+
+# 2. Render a Codex bundle and expose its skill through ~/.agents/skills
+./setup-codex.sh
+
+# 3. Start a new Codex session with your vault available as a writable workspace
+```
+
+Then try:
+
+```text
+$worklog status
+```
+
+If no current week file exists, run `$worklog rollover`. See
+[`docs/SETUP-CODEX.md`](docs/SETUP-CODEX.md) for installation, permissions,
+upgrades, and Netflix MCP notes.
 
 ### What setup.sh does
 
@@ -179,11 +211,11 @@ Calendar sidebar -> click week number -> Periodic Notes creates the file -> Temp
 
 ## How It Works
 
-This is a Claude Code skill: a markdown file ([SKILL.md](skills/worklog/SKILL.md)) that Claude reads as instructions. There is no runtime, no server, no API. Claude reads your vault files directly, follows the instructions to structure and link content, and writes the results back. The skill defines the file formats, linking conventions, and command behaviors. To keep token cost low, `/worklog audit` and preference application use bundled read-only scanner scripts in `skills/worklog/scripts/`, and less-common command detail (viz, the Netflix commands, the full pull flow) is loaded on demand from `skills/worklog/references/` rather than included in every invocation.
+This is an agent skill: a markdown file ([SKILL.md](skills/worklog/SKILL.md)) that Claude Code or Codex reads as instructions. There is no worklog runtime, server, or API. The agent reads your vault files directly, follows the instructions to structure and link content, and writes the results back. The skill defines the file formats, linking conventions, and command behaviors. To keep token cost low, worklog audit and preference application use bundled read-only scanner scripts in `skills/worklog/scripts/`, and less-common command detail (viz, the Netflix commands, the full pull flow) is loaded on demand from `skills/worklog/references/` rather than included in every invocation.
 
 ### The model guard
 
-A few commands are heavy single-shot synthesis over a large vault: `/worklog pull`, `/worklog tidy`, `/worklog viz`, a quarterly `/worklog summary`, and processing a full transcript. Before running one of those on a sub-Opus model, the skill pauses once per session and asks whether to continue or switch, because smaller models truncate or lose fidelity on large worklog inputs. It is advisory rather than a hard gate: it never blocks on its own, it never fires for `add`, `review`, `audit`, `rollover`, single-item edits or a monthly summary, and it remembers your answer for the rest of the session.
+A few commands are heavy single-shot synthesis over a large vault: pull, tidy, viz, a quarterly summary, and processing a full transcript. Claude Code retains the existing advisory Opus model guard. Codex proceeds on its configured model and reasoning level; for unusually large vaults, choose a more capable model or higher reasoning effort before retrying a truncated result.
 
 ## Vault Structure
 
@@ -241,6 +273,9 @@ These fields enable [Dataview queries](docs/dataview-queries.md) for live dashbo
 
 ## Commands
 
+The table uses Claude Code's `/worklog` spelling. In Codex, replace it with
+`$worklog`; the command names and arguments are otherwise the same.
+
 | Command | What it does |
 |---------|-------------|
 | `/worklog` | Show active items grouped by priority |
@@ -296,9 +331,9 @@ The 60-day default is deliberate. On a vault whose mass sits in the last three m
 
 ## Working with Raw Input
 
-The most common workflow: paste meeting notes, Slack threads, or transcripts directly into the conversation and ask Claude to add them to the worklog.
+The most common workflow: paste meeting notes, Slack threads, or transcripts directly into the conversation and ask the agent to add them to the worklog.
 
-Claude will:
+The agent will:
 - Extract action items and decisions
 - Match against existing items (adds sub-items, avoids duplicates)
 - Wiki-link people and programs (creating stubs for new ones)
@@ -316,11 +351,11 @@ here are notes from my 1:1 with Sarah:
 add to worklog
 ```
 
-Claude adds these as sub-items under the existing migration item, wiki-links Sarah Chen and Marcus Williams, and dates the annotations.
+The agent adds these as sub-items under the existing migration item, wiki-links Sarah Chen and Marcus Williams, and dates the annotations.
 
 ## The Knowledge Graph
 
-Every time Claude writes to the vault, it wiki-links all people, programs, and teams. This builds a dense knowledge graph in Obsidian:
+Every time the skill writes to the vault, it wiki-links all people, programs, and teams. This builds a dense knowledge graph in Obsidian:
 
 - Click any person's note to see every week they appeared in (via backlinks)
 - Click any program to see its full history across weeks
@@ -333,9 +368,9 @@ Every time Claude writes to the vault, it wiki-links all people, programs, and t
 
 **Team notes** (`Teams/Platform.md`) capture team membership and the work the team owns. The optional `parent:` frontmatter property links sub-teams to their parent org, so the graph can model nested team structures.
 
-**Preference notes** (`Preferences/Markdown Formatting.md`, `Preferences/Slack DM Voice.md`, `Preferences/Commit Discipline.md`, ...) are the skill's general-purpose memory for how you work. One note per preference: voice, style, workflow, tooling, decision rules, vault conventions, anything you want to remember and apply later. Claude reads these before any task with a preference-shaped surface, so your working style stays consistent across sessions instead of drifting back to a generic LLM default.
+**Preference notes** (`Preferences/Markdown Formatting.md`, `Preferences/Slack DM Voice.md`, `Preferences/Commit Discipline.md`, ...) are the skill's general-purpose memory for how you work. One note per preference: voice, style, workflow, tooling, decision rules, vault conventions, anything you want to remember and apply later. The active agent reads these before any task with a preference-shaped surface, so your working style stays consistent across sessions instead of drifting back to a generic LLM default.
 
-Claude creates stub notes for new people, programs, and teams automatically. The graph grows organically as your worklog evolves.
+The skill creates stub notes for new people, programs, and teams automatically. The graph grows organically as your worklog evolves.
 
 ![Person note showing context accumulation across multiple weeks](docs/images/person-note.png)
 
@@ -404,7 +439,7 @@ Yes. The skill creates its own directories (Worklogs/, People/, Programs/, etc.)
 Use thematic subgroups within each week. The skill adapts subgroup labels to your current work, so you don't need separate vaults or files per project.
 
 **Can I edit files directly in Obsidian?**
-Absolutely. The skill reads the current file state before every change. Edit freely in Obsidian between Claude sessions.
+Absolutely. The skill reads the current file state before every change. Edit freely in Obsidian between agent sessions.
 
 **What happens if I miss a weekly rollover?**
 Nothing breaks. Run `/worklog rollover` whenever you're ready. The old week stays in Worklogs/ until you roll it over.

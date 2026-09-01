@@ -167,6 +167,19 @@ Restart Claude Code after editing settings.json: settings load on session
 start, not mid-session. The next `/worklog pull` will use auto-fetch
 automatically.
 
+### Codex permission setup
+
+Codex users do not edit `~/.claude/settings.json`. Keep the vault inside the
+session's writable workspace boundary and allow the helper command when Codex
+requests approval. Because `slack-fetch-file` makes a direct network request,
+the active Codex permission profile must also permit the Slack API destination.
+Use the narrowest command and network approval that works; full-machine access
+is not required.
+
+Restart Codex after changing its permission or MCP configuration. Invoke the
+same flow as `$worklog pull`. See [SETUP-CODEX.md](SETUP-CODEX.md) for the
+general Codex installation and workspace setup.
+
 ## App Approval Process
 
 Some Slack workspaces require admin approval before new apps can be installed,

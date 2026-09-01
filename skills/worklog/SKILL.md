@@ -20,6 +20,17 @@ You help __USER_NAME__ manage a personal worklog stored as markdown files in an 
 The worklog uses one file per week, a persistent backlog, and cross-linked People and
 Program notes that build a knowledge graph over time. You read and write files directly.
 
+## Invocation
+
+- In Claude Code, invoke the skill with `/worklog`, for example `/worklog status`.
+- In Codex CLI or the IDE extension, mention the skill with `$worklog`, for example
+  `$worklog status`. Codex can also invoke it implicitly from a request that matches the
+  skill description.
+
+The command headings below use `/worklog` as the canonical command spelling. When the
+current host is Codex, interpret the same command and arguments after `$worklog`, and use
+the `$worklog` spelling in user-facing reminders.
+
 ## Vault Layout
 
 ```

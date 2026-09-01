@@ -6,7 +6,7 @@ If you're a Netflix engineer, this walkthrough adds the internal integrations: S
 
 ## Prerequisites
 
-- The standard worklog prerequisites (Claude Code, Obsidian, a vault); see the main [README](../README.md)
+- The standard worklog prerequisites (Claude Code or Codex, Obsidian, a vault); see the main [README](../README.md)
 - A Netflix `@netflix.com` git identity
 - `newt` on PATH (Netflix dev tooling). Install via `https://manuals.netflix.net/view/newt` if missing.
 
@@ -21,7 +21,14 @@ If you're a Netflix engineer, this walkthrough adds the internal integrations: S
 | Tracking Jira-tracked work | Paste ticket details inline | `/worklog jira <KEY>`, pulls status, title, owner |
 | Looking up Netflix internals | Web search Manuals manually | Manuals RAG via Core Tools surfaces authoritative answers |
 
-## Step 1: setup.sh runs `newt join` automatically (strict mode)
+## Step 1: make the Core Tools profile available
+
+Claude Code users can use the existing strict setup path below. Codex users should first
+run `newt --app-type=dev-profiles join --profile=genai-core-tools`, then run
+`./setup-codex.sh`; see [SETUP-CODEX.md](SETUP-CODEX.md). Restart the selected host after
+the profile or MCP configuration changes.
+
+### Claude Code: setup.sh runs `newt join` automatically (strict mode)
 
 The Netflix-detection block in `setup.sh` runs this for you when it sees an `@netflix.com` git email:
 
