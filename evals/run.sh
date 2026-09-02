@@ -251,8 +251,10 @@ PY
     git -C "$W/vault" diff --cached > "$W/diff.txt" 2>/dev/null
     git -C "$W/vault" diff --cached --name-status > "$W/changed.txt" 2>/dev/null
 
+    # < /dev/null so a grep that forgot its file argument fails instead of
+    # blocking the batch on stdin forever.
     VAULT="$W/vault" OUT="$W/out.txt" DIFF="$W/diff.txt" CHANGED="$W/changed.txt" \
-      "$ASSERT" > "$W/checks.txt" 2>&1
+      "$ASSERT" > "$W/checks.txt" 2>&1 < /dev/null
     FAILS=$?
     TOTAL=$(grep -c '^\(PASS\|FAIL\)' "$W/checks.txt")
     PASSED=$(grep -c '^PASS' "$W/checks.txt")

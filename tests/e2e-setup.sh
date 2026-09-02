@@ -94,9 +94,26 @@ SKILL_FILE="$TEST_REPO/skills/worklog/SKILL.md"
 for ph in __VAULT_PATH__ __USER_NAME__ __GIT_USER_NAME__ __GIT_USER_EMAIL__ __SKILL_INSTALL_PATH__ __BACKUP_REPO_URL__; do
   assert_true "placeholder $ph replaced" "missing_str '$SKILL_FILE' '$ph'"
 done
+# Substituted values must land somewhere in the rendered skill, not necessarily
+# in SKILL.md. The git identity appears only in references/sync.md now that
+# command detail loads on demand.
+SKILL_DIR="$TEST_REPO/skills/worklog"
+value_landed() { # <value>
+  grep -rqF -- "$1" "$SKILL_DIR" --include='*.md'
+}
 for val in "$TEST_VAULT" "$TEST_INSTALL" "e2e-tester" "testuser@netflix.com"; do
-  assert_true "value '$val' in source SKILL.md" "has_str '$SKILL_FILE' '$val'"
+  assert_true "value '$val' in the rendered skill" "value_landed '$val'"
 done
+
+# Every markdown file the skill loads has to be rendered, not just SKILL.md. The
+# reference files carry the same placeholders, and progressive disclosure moves
+# most command detail into them, so an unrendered one is a literal
+# "__VAULT_PATH__" the skill would try to use as a path.
+while IFS= read -r ref; do
+  for ph in __VAULT_PATH__ __USER_NAME__ __GIT_USER_NAME__ __GIT_USER_EMAIL__ __SKILL_INSTALL_PATH__ __BACKUP_REPO_URL__; do
+    assert_true "placeholder $ph replaced in ${ref##*/}" "missing_str '$ref' '$ph'"
+  done
+done < <(find "$TEST_REPO/skills/worklog/references" -name '*.md' -type f | sort)
 
 # Plugin install (only tracked files)
 for f in .claude-plugin/plugin.json .codex-plugin/plugin.json skills/worklog/SKILL.md skills/worklog/references/netflix-commands.md README.md setup.sh docs/SETUP-NETFLIX.md docs/NETFLIX-COMMANDS.md; do

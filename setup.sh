@@ -291,27 +291,47 @@ PLACEHOLDERS=(
   __BACKUP_REPO_URL__
 )
 
-sed_inplace "s|__VAULT_PATH__|${VAULT_PATH_ESC}|g" "$SKILL_FILE"
-sed_inplace "s|__USER_NAME__|${DISPLAY_NAME_ESC}|g" "$SKILL_FILE"
-sed_inplace "s|__GIT_USER_NAME__|${GIT_USER_NAME_ESC}|g" "$SKILL_FILE"
-sed_inplace "s|__GIT_USER_EMAIL__|${GIT_USER_EMAIL_ESC}|g" "$SKILL_FILE"
-sed_inplace "s|__SKILL_INSTALL_PATH__|${SKILL_INSTALL_PATH_ESC}|g" "$SKILL_FILE"
+# Every markdown file the skill loads needs the same substitutions. SKILL.md is
+# the entry point, but the reference files it reads on demand carry the same
+# placeholders, and an unrendered __VAULT_PATH__ in one of those is a literal
+# string the skill would try to use as a path.
+SKILL_MD_FILES=("$SKILL_FILE")
+while IFS= read -r f; do
+  [ "$f" = "$SKILL_FILE" ] || SKILL_MD_FILES+=("$f")
+done < <(find "$REPO_ROOT/skills/worklog" -name '*.md' -type f | sort)
+
+echo "  rendering ${#SKILL_MD_FILES[@]} markdown file(s)"
+
+for f in "${SKILL_MD_FILES[@]}"; do
+  sed_inplace "s|__VAULT_PATH__|${VAULT_PATH_ESC}|g" "$f"
+  sed_inplace "s|__USER_NAME__|${DISPLAY_NAME_ESC}|g" "$f"
+  sed_inplace "s|__GIT_USER_NAME__|${GIT_USER_NAME_ESC}|g" "$f"
+  sed_inplace "s|__GIT_USER_EMAIL__|${GIT_USER_EMAIL_ESC}|g" "$f"
+  sed_inplace "s|__SKILL_INSTALL_PATH__|${SKILL_INSTALL_PATH_ESC}|g" "$f"
+done
+
 if [[ "$BACKUP_REPO_URL" == "NONE" ]]; then
-  sed_inplace "s|__BACKUP_REPO_URL__|NONE|g" "$SKILL_FILE"
+  for f in "${SKILL_MD_FILES[@]}"; do
+    sed_inplace "s|__BACKUP_REPO_URL__|NONE|g" "$f"
+  done
   sed_inplace "s|^git push$|# git push  # configure a backup repo to enable|g" "$SKILL_FILE"
 else
-  sed_inplace "s|__BACKUP_REPO_URL__|${BACKUP_REPO_URL_ESC}|g" "$SKILL_FILE"
+  for f in "${SKILL_MD_FILES[@]}"; do
+    sed_inplace "s|__BACKUP_REPO_URL__|${BACKUP_REPO_URL_ESC}|g" "$f"
+  done
 fi
 
 # Verify each known placeholder is gone (literal match, not regex).
 REMAINING=""
 for ph in "${PLACEHOLDERS[@]}"; do
-  if grep -qF "$ph" "$SKILL_FILE"; then
-    REMAINING+="$ph "
-  fi
+  for f in "${SKILL_MD_FILES[@]}"; do
+    if grep -qF "$ph" "$f"; then
+      REMAINING+="$ph (${f##*/}) "
+    fi
+  done
 done
 if [[ -n "$REMAINING" ]]; then
-  fail "Some placeholders were not replaced in SKILL.md: $REMAINING"
+  fail "Some placeholders were not replaced: $REMAINING"
 fi
 echo "  OK all placeholders replaced"
 
@@ -326,16 +346,26 @@ declare -A SUBSTITUTIONS=(
   [GIT_USER_EMAIL]="$GIT_USER_EMAIL"
   [SKILL_INSTALL_PATH]="$SKILL_INSTALL_PATH"
 )
+# Check against every rendered file, not SKILL.md alone. Command detail loads on
+# demand now, so a placeholder can legitimately live only in a reference file -
+# the git identity appears only in references/sync.md, for instance.
+landed() { # <value>
+  local v="$1" f
+  for f in "${SKILL_MD_FILES[@]}"; do
+    grep -qF -- "$v" "$f" && return 0
+  done
+  return 1
+}
 for key in "${!SUBSTITUTIONS[@]}"; do
   val="${SUBSTITUTIONS[$key]}"
-  if ! grep -qF -- "$val" "$SKILL_FILE"; then
-    fail "Substitution for $key did not land - value '$val' not in $SKILL_FILE (sed escape likely corrupted it)"
+  if ! landed "$val"; then
+    fail "Substitution for $key did not land - value '$val' in none of the rendered skill files (sed escape likely corrupted it)"
   fi
 done
-if [[ "$BACKUP_REPO_URL" != "NONE" ]] && ! grep -qF -- "$BACKUP_REPO_URL" "$SKILL_FILE"; then
-  fail "Substitution for BACKUP_REPO_URL did not land - value '$BACKUP_REPO_URL' not in $SKILL_FILE"
+if [[ "$BACKUP_REPO_URL" != "NONE" ]] && ! landed "$BACKUP_REPO_URL"; then
+  fail "Substitution for BACKUP_REPO_URL did not land - value '$BACKUP_REPO_URL' in none of the rendered skill files"
 fi
-echo "  OK all substituted values present in file"
+echo "  OK all substituted values present across the rendered files"
 
 # ===========================================================================
 # Step 10: Copy Weekly.md template into vault
