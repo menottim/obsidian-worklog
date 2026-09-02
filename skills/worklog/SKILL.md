@@ -93,22 +93,32 @@ Some worklog commands are heavy, single-shot synthesis and are more reliable on 
    Do not present the Claude-specific model choices below. If the result actually
    truncates or loses fidelity, explain that and suggest retrying with a more capable
    model or higher reasoning effort.
-3. If the host is Claude Code, preserve the existing guard behavior:
-   - Determine which model you are running as from your own context. Claude Code states
-     this in your system prompt (for example, "You are powered by the model named ...").
-   - If you are Opus-tier (Opus 4.x): proceed silently. No guard.
-   - If you cannot determine your model with confidence: proceed silently. Do not guess
-     and do not ask.
-   - If you are sub-Opus (Sonnet or Haiku tier) AND you have not already asked about this
-     earlier in the current conversation: pause, ask the user, and wait for their answer:
+3. If the host is Claude Code:
+   - Determine your model tier from your own context. Claude Code states this in your
+     system prompt (for example, "You are powered by the model named ...").
+   - Whatever the tier: __do the work.__ Never stop to ask the user to switch models, and
+     never wait for an answer before starting.
+   - If you are below the top tier and the result looks thin for the input - a long
+     transcript summarized to a few lines, entities you could not resolve, a sweep you
+     had to truncate - say so in one line at the end, after the work is done:
 
-     > This is a heavy synthesis task and you're running on `<your model>`. In testing, Opus 4.8 was the most reliable on large worklog inputs; smaller models can truncate or lose fidelity. Want me to continue on `<your model>`, or pause so you can switch (`/model` to Opus 4.8, ideally at high or xhigh effort) and re-run?
+     > Ran this on `<your model>`. If the result reads thin, re-running on the most
+     > capable Opus available at high effort may do better.
 
-     - If the user says continue: proceed normally.
-     - If the user says switch: tell them to run `/model` and pick Opus 4.8, then re-invoke the command, and stop.
-     - Remember the user's choice for the rest of this conversation and do not ask again this session.
+   - Say it once per conversation at most. If the result looks complete, say nothing.
 
-This is advisory, not a hard gate. It never blocks work on its own, and it never fires for `add`, `review`, `audit`, `rollover`, single-item edits, or a monthly summary.
+Branch on tier, never on a version number. "The most capable Opus available" stays true
+across releases; a named version goes stale and then misroutes every session after it.
+
+This is advisory and never a gate. It does not fire for `add`, `review`, `audit`,
+`rollover`, `pull`, single-item edits, or a week or month summary.
+
+__Why it works this way.__ An earlier version paused and asked the user to switch to a
+named model before doing anything. Measured against the eval fixtures, that guard was the
+largest single cause of failed runs on `pull`: six of the eight non-Opus failures across
+cases 16 and 18 were the guard firing and halting with no work done, and the one Sonnet
+run where it did not fire scored a clean 8 of 8. A guard that trades a correct cheap run
+for no run at all costs more than the model it was trying to avoid.
 
 ## Finding the Current Week
 
@@ -841,8 +851,6 @@ asks to add it to the worklog, follow this pattern:
 8. Regenerate enriched frontmatter
 
 ### `/worklog pull`
-
-Before proceeding, run the Model Guard (see `## Model Guard`).
 
 Ingest unprocessed messages from registered Slack channels into the vault. Each
 thread becomes a `Meetings/YYYY-MM-DD-<slug>.md` artifact, and the existing
