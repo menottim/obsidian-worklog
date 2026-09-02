@@ -106,6 +106,13 @@ Some worklog commands are heavy, single-shot synthesis and are more reliable on 
      > capable Opus available at high effort may do better.
 
    - Say it once per conversation at most. If the result looks complete, say nothing.
+   - __Exception, because self-assessment does not work here.__ For pasted input -
+     meeting notes, transcripts, Slack text - on a Haiku-tier model, append the note
+     unconditionally, whether or not the result looks thin to you. Measured on the
+     ingest eval, Haiku failed every run (0 of 3: missing sub-item dates, missing
+     wiki-links, no ops-log entry, and one run that never updated the week file) and
+     reported success in confident terms every time, with no note. A trigger that
+     depends on noticing your own thin output does not fire when the output is thin.
 
 Branch on tier, never on a version number. "The most capable Opus available" stays true
 across releases; a named version goes stale and then misroutes every session after it.
@@ -632,11 +639,18 @@ per month, which keeps it bounded without ever needing its own compaction.
 
 __The rule:__ log any operation that writes to the vault.
 
-That covers `add`, `pull`, `review`, `rollover`, `tidy`, `compact`, `summary`, `viz`,
-`sync`, `preference` capture, filing an answer, and `audit` __only when fixes were applied__.
+That covers `add`, `ingest` (pasted notes, transcripts or Slack text), `pull`,
+`review`, `rollover`, `tidy`, `compact`, `summary`, `viz`, `sync`, `preference`
+capture, filing an answer, and `audit` __only when fixes were applied__.
 It excludes `status`, `search`, `share`, and a read-only audit run, because none of
 those change the vault. Absence is informative too: no `pull` entries for three weeks
 answers "when did I last ingest" just as well as a positive entry would.
+
+__Never log work you have not verified.__ Before appending an entry for a write
+operation, confirm the change is actually in the file: re-read the target and check
+the item or sub-item you just wrote is present. A log entry for work that did not
+land is worse than no entry, because the log is what the vault trusts as its record
+of what happened. If the write did not land, say so and do not log it.
 
 __Always append through the helper__, never by editing the file directly:
 
@@ -735,6 +749,21 @@ updated and items added.
 
 Before processing a substantial input (a full transcript or a long notes doc, not a one-line add), run the Model Guard (see `## Model Guard`).
 
+__Measured floor: this path needs Sonnet-tier or better.__ On the ingest eval, Sonnet
+and Opus pass every run; Haiku passes none - missing sub-item dates, missing wiki-links,
+no ops-log entry, and one run that never updated the week file at all.
+
+If you are Haiku-tier, say so before starting - "ingest on Haiku is measured to lose
+dates, wiki-links and the log entry; doing it now, re-run on Sonnet if it reads thin" -
+then do the work anyway. State it and continue; do not ask, do not wait.
+
+__Do not rely on that disclosure.__ It was tested at both ends of this section and in
+two phrasings across nine Haiku runs, and Haiku stated it in none of them while
+reporting confident success and failing most checks. An instruction to flag your own
+thin output does not fire when the output is thin. The line is here because it costs
+nothing and helps on tiers that do follow it; the actual protection is running ingest
+on Sonnet or better, which is a session-level choice this skill cannot make.
+
 When the user pastes raw content (meeting notes, Slack threads, transcripts) and
 asks to add it to the worklog, follow this pattern:
 
@@ -743,16 +772,35 @@ asks to add it to the worklog, follow this pattern:
    - Action items and decisions become worklog items or sub-items
    - People mentioned become wiki-linked (create stubs if new)
    - Programs mentioned become wiki-linked
-3. Check for overlaps with existing items - prefer adding sub-items to existing
-   items over creating duplicates (e.g., if a meeting discussed an ongoing hiring
-   effort, add context as sub-items under the existing hiring item)
-4. For each new top-level item, assign a priority based on urgency/importance
-   cues in the raw content. Default to P1 if unclear.
+3. __Fold before you add.__ For every fact you extracted, find the existing item it
+   belongs under and add it there as a sub-item. Default to folding; a new top-level
+   item is the exception.
+
+   An existing item is the right home when it names the same program, or the same
+   person and the same topic, as the fact you are placing. A 1:1 that raises the
+   timeline of a program already tracked as an item belongs under that item, not
+   beside it as a second item about the same program.
+
+   Before you create any new top-level item from pasted input, name - to yourself -
+   the existing item you considered and why it does not fit. If you cannot name one,
+   you have not looked. Two items about the same program in one week is the specific
+   outcome this rule exists to prevent, and it is the most common way pasted input
+   makes a week file worse.
+4. For a fact that genuinely has no home, create one top-level item and assign a
+   priority from the urgency and importance cues in the raw content. Default to P1 if
+   unclear.
 5. Add dated annotations using the date from the raw content (Slack timestamps,
    meeting date), not today's date
 6. Update the current week file using the host's available file-editing tool
 7. Update relevant people/program notes with substantive new context
 8. Regenerate enriched frontmatter
+9. Append the ops-log entry: op `ingest`, target the source (for example
+   `1:1 notes - Sarah Chen` or `transcript - staff meeting`), recording how many
+   facts were folded into existing items and how many became new items.
+
+__Step 9 is part of the command.__ Pasting notes is the highest-volume way the vault
+changes, and an ingest that writes five files and logs nothing leaves no record of
+where any of it came from.
 
 ### `/worklog pull`
 

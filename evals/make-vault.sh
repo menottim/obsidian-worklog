@@ -9,6 +9,8 @@
 #   - "Brian" is a dominant alias: >=5 [[Brian Gaines|Brian]] vs 1 [[Brian Lee|Brian]]
 #   - "Chris" is ambiguous: [[Chris Park|Chris]] and [[Chris Vincent|Chris]] tie
 #   - Sources/ is empty, so the stale-channel nudge never fires
+#   - the active week holds 6 top-level items, one of which is the Sarah Chen /
+#     Dev Sharma leave item that case 6's notes are meant to fold into
 set -euo pipefail
 
 DEST="${1:?usage: make-vault.sh <dest> [--context-channel]}"
@@ -58,7 +60,7 @@ tags:
   - hiring
   - strategy
   - people-management
-item-count: 5
+item-count: 6
 done-count: 1
 ---
 
@@ -74,6 +76,7 @@ done-count: 1
 
 - **P0** ⏳ In Progress - [[Backend EM Hiring]] loop with [[Sarah Chen]]
   - Three onsites scheduled, debrief pending ($(date +%b\ %-d))
+- **P0** ⏳ In Progress - Work with [[Sarah Chen]] on [[Dev Sharma]] leave coverage
 - **P2** 🔁 Ongoing - Weekly 1:1s with [[Brian Gaines|Brian]] and [[Priya Patel|Priya]]
 
 **Done**

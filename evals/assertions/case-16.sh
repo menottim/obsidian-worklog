@@ -22,9 +22,13 @@ awk '/^- \*\*P[0-9]\*\*.*[Cc]utover/{f=1;next} /^- \*\*P/{f=0} f && /^ +- .*(dat
 check "folded as a sub-item under the existing cutover item" $?
 
 TOP="$(grep -c '^- \*\*P[0-9]\*\*' "$WEEK_FILE")"
-[ "$TOP" -eq 5 ]; check "no new top-level item created (found $TOP, fixture has 5)" $?
+[ "$TOP" -eq 6 ]; check "no new top-level item created (found $TOP, fixture has 6)" $?
 
-! printf '%s' "$ADDED" | grep -qiE 'espresso|coffee machine'; check "banter dropped, not folded" $?
+# Scope this to vault content, not the whole diff: a correct ops-log entry names
+# what it dropped ("1 dropped (noise: espresso-machine chatter)"), and counting
+# that as folded banter fails a run for doing the right thing.
+! grep -rqiE 'espresso|coffee machine' "$VAULT/Worklogs" "$VAULT/People" "$VAULT/Programs" 2>/dev/null
+check "banter dropped, not folded" $?
 grep -q 'last_scan_ts: *[^n]' "$VAULT/Sources/infrasec-leads.md"; check "last_scan_ts advanced off null" $?
 grep -rqE '^## \[[0-9]{4}-[0-9]{2}-[0-9]{2}\] pull \|' "$VAULT"/Logs/*.md; check "ops log has a pull entry" $?
 exit $FAILS
