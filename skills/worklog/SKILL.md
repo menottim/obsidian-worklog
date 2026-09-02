@@ -556,6 +556,35 @@ Frontmatter Auto-generation rules below (those apply to weekly, archive, and
 summary files). The participant/program wiki-link extraction for Meetings
 frontmatter happens once at write time and is not regenerated on every edit.
 
+### What earns a page
+
+Create a People stub for any person named who does not have one. People are cheap and
+the graph is the point.
+
+Be stricter with Programs. A Program page is a named, ongoing initiative with an owner -
+the kind of thing that recurs across weeks and accumulates history. A document, a
+proposal, a ticket, a meeting, a review, or simply the subject of one item does not get
+one; it stays plain text in the item title. "API rate limit proposal" mentioned once is
+not a program, and creating a page for it puts a permanent empty note in the vault that
+`audit` will keep reporting.
+
+If you are unsure whether something is a program, leave it as text. The second mention
+is a better time to decide, and by then the vault will tell you.
+
+### People named by first name only
+
+A mention with no surname that resolves to no existing entity still gets a stub, filed
+under the first name exactly as given: `People/Alex.md`. Link to it as `[[Alex]]`.
+
+Record in the body what the mention actually told you - the team, the topic, the date -
+and say plainly that the surname is unconfirmed. Do not stop to ask the user, and do not
+skip the stub: an unlinked name is invisible in the graph, and the next mention of that
+person has nothing to attach to.
+
+When a later mention supplies the surname, rename the note and let the links follow.
+This is deliberately the lossy-but-recoverable choice. A missing note cannot be
+recovered from a name nobody wrote down.
+
 ## Frontmatter Auto-generation
 
 Every time you write or update a weekly file (during review, rollover, add, tidy,
@@ -775,13 +804,26 @@ items carried forward and items completed.
 
 ### `/worklog add <priority> <title>`
 
-Add a new item to the current week file. Check for overlaps with existing items
-and flag potential merges. Use the host's available file-editing tool to insert into the
-appropriate subgroup
-(or create a new subgroup if needed). Wiki-link any people or programs. Create stub
-notes for new entities.
+Add one item to the current week file. All five steps, in order:
 
-__Log it:__ append one entry with op `add`, target the item title.
+1. Read the current week and check for overlaps. Flag a potential merge rather than
+   writing a near-duplicate item.
+2. Insert into the subgroup that fits, using the host's file-editing tool. Create a new
+   subgroup only when none of the existing ones do.
+3. Wiki-link the people and programs named, per `## Cross-Linking`.
+4. Create a People stub for anyone named who does not have one. Do __not__ create a
+   Program page for the thing the item is about - see __What earns a page__ under
+   `## Cross-Linking`.
+5. Append the ops-log entry: op `add`, target the item title.
+
+__Step 5 is part of the command, not a footnote to it.__ An add that skips the log
+leaves no record that the vault changed, and the log is the only place that record
+exists. Measured across model tiers, this is the step most likely to be dropped when
+the headline edit is done, so treat it as the command not being finished until the
+entry is written.
+
+Adding one item does not justify rewriting the vault. Touch the week file, the log, and
+a stub for a genuinely new person. Nothing else.
 
 ### `/worklog tidy`
 
