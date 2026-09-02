@@ -1,0 +1,16 @@
+{
+  "channel": {"id": "C0EVAL001", "name": "infrasec-leads"},
+  "users": {
+    "U_BGAINES": {"name": "bgaines", "real_name": "Brian Gaines"},
+    "U_PPATEL": {"name": "ppatel", "real_name": "Priya Patel"},
+    "U_SCHEN": {"name": "schen", "real_name": "Sarah Chen"}
+  },
+  "units": [
+    {"hours_ago": 40, "user": "U_SCHEN", "text": "reminder the office is closed monday", "replies": []},
+    {"hours_ago": 33, "user": "U_PPATEL", "text": "did everyone see the game last night", "replies": [
+      {"user": "U_BGAINES", "text": "brutal. that last quarter was hard to watch"}
+    ]},
+    {"hours_ago": 22, "user": "U_BGAINES", "text": "lunch truck is out front if anyone wants in", "replies": []},
+    {"hours_ago": 9, "user": "U_SCHEN", "text": "moving our 1:1 fifteen minutes later today, calendar updated", "replies": []}
+  ]
+}
