@@ -1,6 +1,6 @@
 {
   "name": "obsidian-worklog",
-  "version": "5.15.0",
+  "version": "5.16.0",
   "description": "Obsidian worklog manager for Claude Code and Codex: weekly planning, knowledge graph, priorities, summaries, visualizations, preferences, and Netflix-aware ingestion.",
   "author": {
     "name": "Menotti Minutillo",
