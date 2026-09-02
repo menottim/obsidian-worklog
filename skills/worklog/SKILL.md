@@ -789,7 +789,7 @@ and read the `summary` field. Do not open People or Program bodies for this.
 ### `/worklog review`
 
 Monday morning workflow. Combines status review, updates, adds, and file updates
-into a single pass. Minimizes back-and-forth.
+into a single pass, one item at a time.
 
 **Important:** This command updates the CURRENT week file in place. It does NOT
 create a new week file or archive anything. Use `/worklog rollover` to start a
@@ -798,11 +798,20 @@ ask the user if they want to rollover first.
 
 **Phase 1: Review existing items**
 
-Walk through each active item one by one. Show the item number, total count,
-priority, and title (e.g. "3/10 - P0: Item title"). Keep prompts short.
+__Present exactly one item, then stop and wait.__ Do not write the second item until
+the user has replied to the first. This is a stopping rule, not a pacing suggestion.
+
+Format each one as `<n>/<total> - **P0**: <title>`, followed by its most recent dated
+sub-item if it has one. A few lines, no more.
+
+Never put more than one item in a message - not as a list, not as a preview of what is
+coming next, and not when answering them all at once would obviously be faster. Batching
+is the failure mode this rule exists to prevent: the point of `review` is that the user
+reads one item, answers it, and moves on, instead of facing a wall of text.
 
 The user responds with quick updates like "done", "still working on it", "pinged X".
-If they give updates for multiple items in one response, apply all and skip ahead.
+If they answer several items at once, apply all of those and resume at the first item
+they did not answer.
 
 **Phase 2: Collect new items**
 
