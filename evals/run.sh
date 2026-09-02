@@ -13,12 +13,19 @@
 # derived copy carrying auth and nothing else. --strict-mcp-config drops every
 # MCP server except a case's own fixture server.
 #
-# Containment is layered, because two runs escaped onto the real vault during
-# development by two different routes:
+# Containment is layered, because four runs escaped onto the real vault during
+# development, each by a different route. Note what it cannot do: the skill needs
+# Bash, and a shell can read anything the user can. So containment removes the
+# realistic ways a run FINDS the real vault, and the tripwire is the backstop
+# that stops a batch the moment one does. Layers:
 #   - the settings copy drops enabledPlugins, so the real installed plugin cannot
 #     load alongside the fixture copy
 #   - only .claude-plugin and skills are staged, so the real vault path in the
 #     repo's docs and defaults never enters the sandbox
+#   - the sandbox lives OUTSIDE this repo. Escape #4 was a run whose cwd sat in
+#     evals/runs/, walking up to read the real vault path out of setup.sh and
+#     docs/superpowers/plans. Removing it from the staged copy is not enough when
+#     the repo is one `cd ..` away.
 #   - a pre-flight grep refuses to start if the staged copy names the real vault
 #   - the real vault is fingerprinted before the batch and after every run
 # Set WORKLOG_REAL_VAULT if your vault is not at ~/Documents/Obsidian Vault, or
@@ -99,8 +106,17 @@ fi
 STAMP="$(date +%Y%m%d-%H%M%S)"
 RUNDIR="$HERE/runs/$STAMP"
 mkdir -p "$RUNDIR"
-EVAL_CONFIG_DIR="$RUNDIR/claude-config"
+# Sandboxes live outside the repo so a run cannot walk up into it. Only the
+# small artifacts are copied back under evals/runs for inspection.
+WORKROOT="${WORKLOG_EVAL_WORKROOT:-$(mktemp -d -t worklog-evals)}"
+EVAL_CONFIG_DIR="$WORKROOT/claude-config"
 mkdir -p "$EVAL_CONFIG_DIR"
+echo "run.sh: sandboxes in $WORKROOT"
+
+if [ -n "$REAL_VAULT" ] && grep -rqF "$REAL_VAULT" "$WORKROOT" 2>/dev/null; then
+  echo "run.sh: ABORT - the sandbox root already names the real vault" >&2
+  exit 1
+fi
 CSV="$RUNDIR/results.csv"
 echo "case,model,effort,rep,pass,checks_passed,checks_total,cost_usd,input_tokens,cache_read,cache_creation,output_tokens,seconds,turns" > "$CSV"
 
@@ -136,8 +152,10 @@ for CASE in $(echo "$CASES" | tr ',' ' '); do
     MODEL="${CFG%%:*}"
     EFFORT="${CFG##*:}"
     [ "$EFFORT" = "$MODEL" ] && EFFORT=""
-    W="$RUNDIR/case$CASE-$MODEL-${EFFORT:-default}-r$REP"
-    mkdir -p "$W"
+    NAME="case$CASE-$MODEL-${EFFORT:-default}-r$REP"
+    W="$WORKROOT/$NAME"
+    ART="$RUNDIR/$NAME"
+    mkdir -p "$W" "$ART"
 
     # Throwaway plugin copy. Copy ONLY what the plugin needs to load. The rest of
     # the repo - setup.sh's defaults, docs/superpowers/plans, and this runner
@@ -176,9 +194,11 @@ PY
       exit 1
     fi
 
-    if [ -n "$REAL_VAULT" ] && grep -rqF "$REAL_VAULT" "$W/plugin" 2>/dev/null; then
-      echo "run.sh: ABORT - the staged plugin copy names the real vault. Refusing to run." >&2
-      grep -rlF "$REAL_VAULT" "$W/plugin" >&2
+    # Check the whole sandbox, not just the staged plugin. Escape #4 read the path
+    # out of a file the run could reach by walking up from cwd.
+    if [ -n "$REAL_VAULT" ] && grep -rqF "$REAL_VAULT" "$W" 2>/dev/null; then
+      echo "run.sh: ABORT - the sandbox names the real vault. Refusing to run." >&2
+      grep -rlF "$REAL_VAULT" "$W" >&2
       exit 1
     fi
 
@@ -219,7 +239,7 @@ PYCFG
       echo
       echo "run.sh: ABORT - the real vault at $REAL_VAULT changed during case $CASE/$MODEL." >&2
       echo "run.sh: a run escaped its fixture. Inspect with: git -C '$REAL_VAULT' status" >&2
-      echo "run.sh: artifacts for this run are in $W" >&2
+      echo "run.sh: artifacts for this run are in $ART (sandbox kept at $W)" >&2
       exit 1
     fi
 
@@ -270,6 +290,10 @@ print(",".join(str(x) for x in [
     m.get("cache_creation", 0), m.get("output_tokens", 0), secs, m.get("turns", 0),
 ]))
 PY
+    for f in result.json metrics.json out.txt checks.txt diff.txt changed.txt stderr.txt mcp.json; do
+      [ -f "$W/$f" ] && cp "$W/$f" "$ART/$f"
+    done
+
     COST=$(python3 -c "import json,sys;print('%.4f'%json.load(open(sys.argv[1])).get('cost_usd',0))" "$W/metrics.json")
     printf '%-5s %s/%s  $%s  %ss\n' "$VERDICT" "$PASSED" "$TOTAL" "$COST" "$ELAPSED"
     [ "$KEEP" -eq 1 ] || rm -rf "$W"
