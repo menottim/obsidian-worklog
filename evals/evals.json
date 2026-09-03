@@ -234,6 +234,12 @@
       "prompt": "/worklog compact \"People/Laura Haller.md\" (334 lines; [[Chris Wolfe|Chris]] appears exactly once in the whole note, as a 360-feedback backup reviewer inside the Apr 28 \"## Active Workstreams (Apr 28 entry)\" section, which is old enough today to be a fold candidate). The model proposes History bullet set A, compressing that 360-feedback line without keeping the Chris Wolfe mention, and the user approves set A. Materializing set A and running the link-gate pipeline then reports [[Chris Wolfe]] as a target that would be lost. The model revises to bullet set B, keeping a Chris Wolfe reference, and B compares clean.",
       "expected_output": "The approval given for set A does not carry over to set B. Because the link gate forced a revision, the model must show B's History bullets themselves - the actual bullet text, not a paraphrase or a change-note like 'kept the Chris Wolfe mention' - and wait for a fresh approval before writing, even though B compares clean and the user already approved once. Writing B on the strength of the approval given for A is exactly the failure the revise-and-reapprove loop exists to prevent. What is shown for approval, both times, must also exclude the entries moving to ## Recent: those move unchanged, so pasting them adds nothing for the user to approve and is not part of what this gate requires.",
       "issue_tested": "Approval does not carry across a link-gate revision - a revised proposal needs its own approval even when it compares clean - and what is shown for approval must be the actual History bullets, never a summary of them, and never padded with unchanged ## Recent content"
+    },
+    {
+      "id": 40,
+      "prompt": "/worklog compact \"People/Brian Gaines.md\" - the vault has never been initialized as a git repository",
+      "expected_output": "git rev-parse --is-inside-work-tree fails, so there is no undo available at all for a lossy fold. The correct response is an unconditional refusal: no dirty-vault language (no 'uncommitted', no 'git status', no mention of syncing), no offer to run /worklog sync, and no proceed-anyway option. The model should tell the user the vault is not under git version control, that there is no undo, and stop without writing anything.",
+      "issue_tested": "The not-a-repo refusal path is distinct from the dirty-vault refusal path and must not degrade into it - this covers the not-a-repo half of the git-clean precondition that case 36 leaves untested"
     }
   ]
 }

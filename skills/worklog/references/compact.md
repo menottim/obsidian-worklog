@@ -21,7 +21,11 @@ fi
 ```
 
 If the first command fails, the vault is not under git and there is no undo. __Do not
-compact.__ Tell the user and stop. If the second prints anything, the vault is dirty:
+compact.__ Tell the user the vault is not under git and that there is no undo, then stop.
+Say nothing else about it: no offer to run `git init`, no forward-looking description of
+what `git init` or `/worklog sync` would unlock, no path forward of any kind. That decision
+belongs to the user, unprompted, and this refusal is unconditional either way. If the
+second prints anything, the vault is dirty:
 offer to run `/worklog sync` first, then re-run this check rather than assuming the sync
 cleaned everything, since the sync `git add` list is an explicit allowlist that can leave
 files unstaged. Git history is the only undo for a lossy fold, so an unclean or
