@@ -211,7 +211,7 @@ PY
       exit 1
     fi
 
-    ARGS=(-p "$PROMPT" --bare --settings "$EVAL_SETTINGS"
+    ARGS=(--bare --settings "$EVAL_SETTINGS"
           --plugin-dir "$W/plugin" --model "$MODEL"
           --output-format stream-json --verbose --permission-mode acceptEdits
           --allowedTools Bash Read Edit Write Glob Grep Skill TodoWrite AskUserQuestion mcp__slack
@@ -238,9 +238,19 @@ PYCFG
 
     printf 'case %-3s %-8s %-8s r%-2s ... ' "$CASE" "$MODEL" "${EFFORT:-default}" "$REP"
     START=$(date +%s)
-    ( cd "$W" && CLAUDE_CONFIG_DIR="$EVAL_CONFIG_DIR" \
-        timeout "$TIMEOUT" claude "${ARGS[@]}" < /dev/null ) \
-      > "$W/stream.jsonl" 2>"$W/stderr.txt"
+    # Cases whose behavior only appears after a human answers get scripted
+    # replies in evals/replies/case-N.txt and run through the driver, which keeps
+    # the session open across turns. Everything else stays single-turn.
+    REPLIES="$HERE/replies/case-$CASE.txt"
+    if [ -f "$REPLIES" ]; then
+      ( cd "$W" && CLAUDE_CONFIG_DIR="$EVAL_CONFIG_DIR" \
+          timeout "$TIMEOUT" python3 "$HERE/drive.py" "$W" "$REPLIES" "$PROMPT" \
+            -- claude -p --input-format stream-json "${ARGS[@]}" )
+    else
+      ( cd "$W" && CLAUDE_CONFIG_DIR="$EVAL_CONFIG_DIR" \
+          timeout "$TIMEOUT" claude -p "$PROMPT" "${ARGS[@]}" < /dev/null ) \
+        > "$W/stream.jsonl" 2>"$W/stderr.txt"
+    fi
     RC=$?
     ELAPSED=$(( $(date +%s) - START ))
 
@@ -260,7 +270,10 @@ w = pathlib.Path(sys.argv[1])
 # only the last assistant turn, so a run that proposes in one message and answers
 # in the next hands the grader the answer and hides the proposal. Case 37 failed
 # for exactly that reason while behaving correctly.
-text, d = [], None
+# A multi-turn run emits one result event per turn, each carrying that turn's
+# own cost rather than a running total, so these are summed rather than taken
+# from the last one. Single-turn runs have exactly one and are unaffected.
+text, results = [], []
 for line in (w / "stream.jsonl").read_text().splitlines():
     line = line.strip()
     if not line.startswith("{"):
@@ -270,26 +283,37 @@ for line in (w / "stream.jsonl").read_text().splitlines():
     except json.JSONDecodeError:
         continue
     if ev.get("type") == "result":
-        d = ev
+        results.append(ev)
     if ev.get("type") == "assistant":
         for blk in (ev.get("message") or {}).get("content") or []:
             if isinstance(blk, dict) and blk.get("type") == "text" and blk.get("text"):
                 text.append(blk["text"])
 
 (w / "out.txt").write_text("\n\n".join(text))
-if d is None:
+if not results:
     (w / "metrics.json").write_text(json.dumps({"error": "no result event in stream"}))
     raise SystemExit
-u = d.get("usage", {})
-(w / "result.json").write_text(json.dumps(d))
+
+
+def total(key):
+    return sum(r.get(key, 0) or 0 for r in results)
+
+
+def usage_total(key):
+    return sum((r.get("usage") or {}).get(key, 0) or 0 for r in results)
+
+
+d = results[-1]
+(w / "result.json").write_text(json.dumps(results if len(results) > 1 else d))
 (w / "metrics.json").write_text(json.dumps({
-    "cost_usd": d.get("total_cost_usd", 0),
-    "turns": d.get("num_turns", 0),
-    "input_tokens": u.get("input_tokens", 0),
-    "cache_read": u.get("cache_read_input_tokens", 0),
-    "cache_creation": u.get("cache_creation_input_tokens", 0),
-    "output_tokens": u.get("output_tokens", 0),
-    "is_error": d.get("is_error", False),
+    "cost_usd": total("total_cost_usd"),
+    "turns": total("num_turns"),
+    "assistant_turns": len(results),
+    "input_tokens": usage_total("input_tokens"),
+    "cache_read": usage_total("cache_read_input_tokens"),
+    "cache_creation": usage_total("cache_creation_input_tokens"),
+    "output_tokens": usage_total("output_tokens"),
+    "is_error": any(r.get("is_error") for r in results),
 }, indent=1))
 PY
 
