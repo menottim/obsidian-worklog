@@ -1,0 +1,16 @@
+{
+  "pages": [
+    [
+      {
+        "channel_id": "D0EVAL_NEW",
+        "channel_type": "im",
+        "author_user_id": "U_PPATEL",
+        "author_name": "Priya Patel",
+        "user_name": "Priya Patel",
+        "content": "Heads up, I'm going to propose we split the on-call rotation into two tiers next quarter. Nothing decided yet but wanted your read before I bring it to the group.",
+        "text": "Heads up, I'm going to propose we split the on-call rotation into two tiers next quarter. Nothing decided yet but wanted your read before I bring it to the group.",
+        "hours_ago": 5
+      }
+    ]
+  ]
+}

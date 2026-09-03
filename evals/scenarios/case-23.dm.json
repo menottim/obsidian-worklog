@@ -1,0 +1,16 @@
+{
+  "pages": [
+    [
+      {
+        "channel_id": "D0EVAL_MATCH",
+        "channel_type": "im",
+        "author_user_id": "U_BGAINES",
+        "author_name": "Brian Gaines",
+        "user_name": "Brian Gaines",
+        "content": "Before the Platform Migration cutover Thursday, heads up: I found a permissions bug in the canary deploy step, needs a fix before we go.",
+        "text": "Before the Platform Migration cutover Thursday, heads up: I found a permissions bug in the canary deploy step, needs a fix before we go.",
+        "hours_ago": 4
+      }
+    ]
+  ]
+}
