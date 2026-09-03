@@ -179,6 +179,11 @@ for CASE in $(echo "$CASES" | tr ',' ' '); do
     if [ -x "$HERE/setup/case-$CASE.sh" ]; then
       "$HERE/setup/case-$CASE.sh" "$W/vault" >/dev/null
     fi
+
+    # Remember the fixture commit. Diffing against HEAD goes blind the moment a
+    # run commits its own work - `/worklog sync` does exactly that, and case 39
+    # produced an empty diff while having rewritten the note.
+    BASE_SHA="$(git -C "$W/vault" rev-parse HEAD)"
     # Render every markdown file the skill can load, matching setup.sh. Rendering
     # SKILL.md alone leaves literal __VAULT_PATH__ in references/, which is a
     # configuration no real install produces - so the harness would be testing
@@ -319,12 +324,13 @@ PY
 
     # Capture the vault mutation as the graded artifact.
     git -C "$W/vault" add -A >/dev/null 2>&1
-    git -C "$W/vault" diff --cached > "$W/diff.txt" 2>/dev/null
-    git -C "$W/vault" diff --cached --name-status > "$W/changed.txt" 2>/dev/null
+    git -C "$W/vault" diff "$BASE_SHA" > "$W/diff.txt" 2>/dev/null
+    git -C "$W/vault" diff "$BASE_SHA" --name-status > "$W/changed.txt" 2>/dev/null
 
     # < /dev/null so a grep that forgot its file argument fails instead of
     # blocking the batch on stdin forever.
     VAULT="$W/vault" OUT="$W/out.txt" DIFF="$W/diff.txt" CHANGED="$W/changed.txt" \
+      STREAM="$W/stream.jsonl" \
       "$ASSERT" > "$W/checks.txt" 2>&1 < /dev/null
     FAILS=$?
     TOTAL=$(grep -c '^\(PASS\|FAIL\)' "$W/checks.txt")

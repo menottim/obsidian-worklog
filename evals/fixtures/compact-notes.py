@@ -123,6 +123,44 @@ write("People/Christine Chalmers.md", [
           ["- Same coaching arc, same day, but no stricter child beneath it."]),
 ])
 
+# Laura: a single [[Chris Wolfe|Chris]] mention, buried once in an old section
+# that is a fold candidate. Compressing that section without keeping the mention
+# drops a link target, which is what the link gate exists to catch.
+write("People/Chris Wolfe.md", [
+    "---",
+    "type: person",
+    "team: Detection & Response",
+    "---",
+    "",
+    "# Chris Wolfe",
+    "",
+    "## Role",
+    "",
+    "Engineering manager, 360-feedback reviewer.",
+    "",
+])
+
+write("People/Laura Haller.md", [
+    "---",
+    "type: person",
+    "team: Platform Security",
+    "---",
+    "",
+    "# Laura Haller",
+    "",
+    "## Context",
+    "",
+    "Engineering manager on platform security.",
+    "",
+    filler(44, 100, "Workstream"),
+    entry(96, "Active Workstreams", [
+        "- Running the 360-feedback round for the team.",
+        "- Backup reviewer for the 360 round is [[Chris Wolfe|Chris]], the only",
+        "  mention of him anywhere in this note.",
+        "- Remaining items carried forward.",
+    ]),
+])
+
 write("People/Brian Gaines.md", [
     "---",
     "type: person",

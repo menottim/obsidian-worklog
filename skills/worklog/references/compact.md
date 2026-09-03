@@ -182,6 +182,15 @@ the History bullets, which are exactly the thing the user needs to see before ag
 lose the detail behind them. Wait for approval before touching the file. If either gate
 then finds a problem, a dropped link target or an unexplained vanished heading, revise
 the proposal, show the revised History bullets again, and wait for approval again.
+
+__An approval covers the exact bullets the user was shown, and nothing else.__ The moment
+a bullet changes, for any reason, the approval you were holding is void. Show the new
+bullets and stop. Concretely: __never revise and write in the same turn.__ Finding the
+problem yourself, fixing it, and writing because the gates now pass is the specific
+failure here - the user ends up with bullets they never read, and the fact that the
+revision was an improvement is beside the point. Measured on the eval fixture, this is
+what a capable model does by default: it caught a dropped `[[wiki-link]]`, revised
+correctly, and wrote in the same turn on the earlier approval.
 Re-run both comparisons against the revised proposal. Repeat until the user has approved
 the bullets they are actually getting, the heading comparison is clean, and either the
 link comparison is clean or they have explicitly confirmed the specific link targets that
