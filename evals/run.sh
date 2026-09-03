@@ -143,7 +143,7 @@ for CASE in $(echo "$CASES" | tr ',' ' '); do
   # names a program already tracked...)". That text is setup, and sending it would
   # hand the model the classification the case is meant to test. The scenario file
   # supplies the state instead, so strip it.
-  if [ -f "$HERE/scenarios/case-$CASE.json" ]; then
+  if [ -f "$HERE/scenarios/case-$CASE.json" ] || [ -f "$HERE/fixtures/case-$CASE.flags" ]; then
     PROMPT="$(printf '%s' "$PROMPT" | sed -E 's/[[:space:]]*\(.*\)[[:space:]]*$//')"
   fi
 
@@ -164,11 +164,20 @@ for CASE in $(echo "$CASES" | tr ',' ' '); do
     # supposed to touch.
     mkdir -p "$W/plugin"
     cp -R "$REPO/.claude-plugin" "$REPO/skills" "$W/plugin/"
+    # Per-case vault shape. A case can ask for extra fixture content by dropping
+    # its flags in evals/fixtures/case-N.flags (for example --compact-notes).
     SCENARIO="$HERE/scenarios/case-$CASE.json"
-    if [ -f "$SCENARIO" ]; then
-      "$HERE/make-vault.sh" "$W/vault" --context-channel >/dev/null
-    else
-      "$HERE/make-vault.sh" "$W/vault" >/dev/null
+    VAULT_FLAGS=""
+    [ -f "$SCENARIO" ] && VAULT_FLAGS="--context-channel"
+    [ -f "$HERE/fixtures/case-$CASE.flags" ] && VAULT_FLAGS="$VAULT_FLAGS $(cat "$HERE/fixtures/case-$CASE.flags")"
+    # shellcheck disable=SC2086
+    "$HERE/make-vault.sh" "$W/vault" $VAULT_FLAGS >/dev/null
+
+    # Per-case setup, run after the fixture is committed. Cases that need a
+    # specific vault STATE rather than specific content use this - case 36 needs
+    # a dirty working tree, which the generator deliberately never produces.
+    if [ -x "$HERE/setup/case-$CASE.sh" ]; then
+      "$HERE/setup/case-$CASE.sh" "$W/vault" >/dev/null
     fi
     # Render every markdown file the skill can load, matching setup.sh. Rendering
     # SKILL.md alone leaves literal __VAULT_PATH__ in references/, which is a
@@ -204,7 +213,7 @@ PY
 
     ARGS=(-p "$PROMPT" --bare --settings "$EVAL_SETTINGS"
           --plugin-dir "$W/plugin" --model "$MODEL"
-          --output-format json --permission-mode acceptEdits
+          --output-format stream-json --verbose --permission-mode acceptEdits
           --allowedTools Bash Read Edit Write Glob Grep Skill TodoWrite AskUserQuestion mcp__slack
           --strict-mcp-config --no-session-persistence
           --max-budget-usd "$BUDGET" --add-dir "$W/vault")
@@ -231,7 +240,7 @@ PYCFG
     START=$(date +%s)
     ( cd "$W" && CLAUDE_CONFIG_DIR="$EVAL_CONFIG_DIR" \
         timeout "$TIMEOUT" claude "${ARGS[@]}" < /dev/null ) \
-      > "$W/result.json" 2>"$W/stderr.txt"
+      > "$W/stream.jsonl" 2>"$W/stderr.txt"
     RC=$?
     ELAPSED=$(( $(date +%s) - START ))
 
@@ -246,15 +255,33 @@ PYCFG
     python3 - "$W" <<'PY'
 import json, pathlib, sys
 w = pathlib.Path(sys.argv[1])
-raw = (w / "result.json").read_text()
-try:
-    d = json.loads(raw)
-except Exception:
-    (w / "metrics.json").write_text(json.dumps({"error": raw[:2000]}))
-    (w / "out.txt").write_text(raw[:4000])
+
+# Read the whole stream, not just the final message. --output-format json returns
+# only the last assistant turn, so a run that proposes in one message and answers
+# in the next hands the grader the answer and hides the proposal. Case 37 failed
+# for exactly that reason while behaving correctly.
+text, d = [], None
+for line in (w / "stream.jsonl").read_text().splitlines():
+    line = line.strip()
+    if not line.startswith("{"):
+        continue
+    try:
+        ev = json.loads(line)
+    except json.JSONDecodeError:
+        continue
+    if ev.get("type") == "result":
+        d = ev
+    if ev.get("type") == "assistant":
+        for blk in (ev.get("message") or {}).get("content") or []:
+            if isinstance(blk, dict) and blk.get("type") == "text" and blk.get("text"):
+                text.append(blk["text"])
+
+(w / "out.txt").write_text("\n\n".join(text))
+if d is None:
+    (w / "metrics.json").write_text(json.dumps({"error": "no result event in stream"}))
     raise SystemExit
 u = d.get("usage", {})
-(w / "out.txt").write_text(d.get("result") or "")
+(w / "result.json").write_text(json.dumps(d))
 (w / "metrics.json").write_text(json.dumps({
     "cost_usd": d.get("total_cost_usd", 0),
     "turns": d.get("num_turns", 0),
@@ -290,7 +317,7 @@ print(",".join(str(x) for x in [
     m.get("cache_creation", 0), m.get("output_tokens", 0), secs, m.get("turns", 0),
 ]))
 PY
-    for f in result.json metrics.json out.txt checks.txt diff.txt changed.txt stderr.txt mcp.json; do
+    for f in result.json metrics.json out.txt checks.txt diff.txt changed.txt stderr.txt mcp.json stream.jsonl; do
       [ -f "$W/$f" ] && cp "$W/$f" "$ART/$f"
     done
 

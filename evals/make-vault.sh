@@ -15,7 +15,11 @@ set -euo pipefail
 
 DEST="${1:?usage: make-vault.sh <dest> [--context-channel]}"
 WITH_SOURCE=0
-[ "${2:-}" = "--context-channel" ] && WITH_SOURCE=1
+WITH_COMPACT=0
+for arg in "$@"; do
+  [ "$arg" = "--context-channel" ] && WITH_SOURCE=1
+  [ "$arg" = "--compact-notes" ] && WITH_COMPACT=1
+done
 [ -e "$DEST" ] && { echo "make-vault: $DEST already exists" >&2; exit 1; }
 
 eval "$(python3 - <<'PY'
@@ -253,6 +257,12 @@ belongs on tracked work, not for meeting notes.
 EOF
 fi
 : > "$DEST/Preferences/.gitkeep"
+
+# Compaction cases need notes that are genuinely oversized and structured the way
+# the rules care about. Behind a flag so every other case keeps a small vault.
+if [ "$WITH_COMPACT" = "1" ]; then
+  python3 "$(dirname "$0")/fixtures/compact-notes.py" "$DEST"
+fi
 
 git -C "$DEST" init -q
 git -C "$DEST" -c user.name="eval" -c user.email="eval@example.com" add -A
