@@ -1,0 +1,40 @@
+{
+  "pages": [
+    [
+      {
+        "channel_id": "D0EVAL_A",
+        "channel_type": "im",
+        "author_user_id": "U_A",
+        "author_name": "Priya Patel",
+        "user_name": "Priya Patel",
+        "content": "first DM in a run of many, about the vendor contract renewal",
+        "text": "first DM in a run of many, about the vendor contract renewal",
+        "hours_ago": 30
+      }
+    ],
+    [
+      {
+        "channel_id": "D0EVAL_B",
+        "channel_type": "im",
+        "author_user_id": "U_B",
+        "author_name": "Brian Gaines",
+        "user_name": "Brian Gaines",
+        "content": "second DM, about the on-call rotation swap",
+        "text": "second DM, about the on-call rotation swap",
+        "hours_ago": 20
+      }
+    ],
+    [
+      {
+        "channel_id": "D0EVAL_C",
+        "channel_type": "im",
+        "author_user_id": "U_C",
+        "author_name": "Sarah Chen",
+        "user_name": "Sarah Chen",
+        "content": "third DM, about the design review follow-up",
+        "text": "third DM, about the design review follow-up",
+        "hours_ago": 10
+      }
+    ]
+  ]
+}

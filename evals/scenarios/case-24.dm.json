@@ -1,0 +1,4 @@
+{
+  "exit_code": 3,
+  "stderr": "missing_scope: dm search requires user_scope stub.dm:read"
+}
