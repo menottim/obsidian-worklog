@@ -16,9 +16,11 @@ set -euo pipefail
 DEST="${1:?usage: make-vault.sh <dest> [--context-channel]}"
 WITH_SOURCE=0
 WITH_COMPACT=0
+WITH_DMS=0
 for arg in "$@"; do
   [ "$arg" = "--context-channel" ] && WITH_SOURCE=1
   [ "$arg" = "--compact-notes" ] && WITH_COMPACT=1
+  [ "$arg" = "--dm-source" ] && WITH_DMS=1
 done
 [ -e "$DEST" ] && { echo "make-vault: $DEST already exists" >&2; exit 1; }
 
@@ -257,6 +259,29 @@ belongs on tracked work, not for meeting notes.
 EOF
 fi
 : > "$DEST/Preferences/.gitkeep"
+
+# The DM sweep only runs when Sources/_dms.md exists and is enabled.
+if [ "$WITH_DMS" = "1" ]; then
+  cat > "$DEST/Sources/_dms.md" <<EOF
+---
+type: dm-sweep
+enabled: true
+include_1on1: true
+include_groups: true
+query: ""
+max_results: 100
+nudge_threshold_days: 5
+last_scan_ts: null
+first_scan_lookback_days: 3
+exclude_users: []
+exclude_conversations: []
+---
+
+# Direct Messages
+
+Approval-only sweep of 1:1 and group DMs. Nothing folds automatically.
+EOF
+fi
 
 # Compaction cases need notes that are genuinely oversized and structured the way
 # the rules care about. Behind a flag so every other case keeps a small vault.

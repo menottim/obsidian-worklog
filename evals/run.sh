@@ -201,6 +201,26 @@ for f in sorted(pathlib.Path(root).rglob("*.md")):
     f.write_text(t)
 PY
 
+    # Redirect the Slack helper path into the sandbox. The skill calls helpers at a
+    # literal ~/.config/obsidian-worklog/bin path, and HOME stays real in here, so
+    # without this a DM-sweep case would query the user's real Slack DMs.
+    mkdir -p "$W/bin"
+    cp "$HERE/fake-slack/slack-search-dms" "$W/bin/" 2>/dev/null || true
+    python3 - "$W/plugin/skills/worklog" "$W/bin" <<'PYBIN'
+import pathlib, sys
+root, binpath = sys.argv[1:3]
+for f in sorted(pathlib.Path(root).rglob("*.md")):
+    t = f.read_text()
+    if "~/.config/obsidian-worklog/bin" in t:
+        f.write_text(t.replace("~/.config/obsidian-worklog/bin", binpath))
+PYBIN
+
+    if grep -rqF '.config/obsidian-worklog/bin' "$W/plugin/skills" 2>/dev/null; then
+      echo "run.sh: ABORT - the staged skill still points at the real helper path." >&2
+      grep -rlF '.config/obsidian-worklog/bin' "$W/plugin/skills" >&2
+      exit 1
+    fi
+
     LEFT="$(grep -rlE '__(VAULT_PATH|SKILL_INSTALL_PATH|USER_NAME|GIT_USER_NAME|GIT_USER_EMAIL|BACKUP_REPO_URL)__' "$W/plugin/skills" 2>/dev/null)"
     if [ -n "$LEFT" ]; then
       echo "run.sh: ABORT - unrendered placeholders in the staged skill:" >&2
@@ -246,6 +266,14 @@ PYCFG
     # Cases whose behavior only appears after a human answers get scripted
     # replies in evals/replies/case-N.txt and run through the driver, which keeps
     # the session open across turns. Everything else stays single-turn.
+    DM_SCENARIO="$HERE/scenarios/case-$CASE.dm.json"
+    if [ -f "$DM_SCENARIO" ]; then
+      cp "$DM_SCENARIO" "$W/dm-scenario.json"
+      export FAKE_DM_SCENARIO="$W/dm-scenario.json"
+    else
+      unset FAKE_DM_SCENARIO 2>/dev/null || true
+    fi
+
     REPLIES="$HERE/replies/case-$CASE.txt"
     if [ -f "$REPLIES" ]; then
       ( cd "$W" && CLAUDE_CONFIG_DIR="$EVAL_CONFIG_DIR" \

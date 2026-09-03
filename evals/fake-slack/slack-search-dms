@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# Stand-in for the real slack-search-dms helper, for eval runs only.
+#
+# The skill calls this helper at a literal ~/.config/obsidian-worklog/bin path.
+# HOME stays real inside the sandbox, so without this redirect a DM-sweep case
+# would query the user's real Slack DMs. The runner rewrites the helper base path
+# in the staged skill to point here, and aborts if that rewrite does not land.
+#
+# Output contract, from references/pull-flow.md: one JSON result object per line,
+# then a final {"next_cursor":"..."} line. A non-zero exit means the caller must
+# skip the DM sweep and say why.
+set -u
+
+: "${FAKE_DM_SCENARIO:?FAKE_DM_SCENARIO is not set; refusing to run}"
+
+# Refuse to run against anything but a fixture. If this ever executes outside a
+# sandbox, it must fail loudly rather than look like a working helper.
+case "$FAKE_DM_SCENARIO" in
+  */worklog-evals.*|/tmp/*|/private/tmp/*) : ;;
+  *) echo "slack-search-dms(stub): scenario is not in a sandbox: $FAKE_DM_SCENARIO" >&2; exit 90 ;;
+esac
+
+[ -f "$FAKE_DM_SCENARIO" ] || {
+  echo "slack-search-dms(stub): no scenario file at $FAKE_DM_SCENARIO" >&2
+  exit 91
+}
+
+AFTER="${1:-0}"
+CURSOR="${2:-}"
+
+exec python3 - "$FAKE_DM_SCENARIO" "$AFTER" "$CURSOR" <<'PY'
+import json, sys, time
+
+scenario = json.load(open(sys.argv[1]))
+after = float(sys.argv[2] or 0)
+cursor = sys.argv[3] or ""
+
+if scenario.get("exit_code"):
+    sys.stderr.write(scenario.get("stderr", "helper failed") + "\n")
+    raise SystemExit(int(scenario["exit_code"]))
+
+now = time.time()
+pages = scenario.get("pages", [])
+index = int(cursor) if cursor.isdigit() else 0
+page = pages[index] if index < len(pages) else []
+
+for item in page:
+    ts = now - item.pop("hours_ago", 1) * 3600
+    if ts <= after:
+        continue
+    item["ts"] = f"{ts:.6f}"
+    item.setdefault("permalink",
+                    f"https://example.slack.com/archives/{item.get('channel_id','D0EVAL')}"
+                    f"/p{item['ts'].replace('.', '')}")
+    print(json.dumps(item))
+
+nxt = str(index + 1) if index + 1 < len(pages) else ""
+print(json.dumps({"next_cursor": nxt}))
+PY
