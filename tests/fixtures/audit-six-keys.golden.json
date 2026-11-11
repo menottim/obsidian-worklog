@@ -1,0 +1,94 @@
+{
+  "empty_stubs": [
+    {
+      "file": "People/Chris Ito.md"
+    },
+    {
+      "file": "People/Chris Park.md"
+    },
+    {
+      "file": "People/Dana Wu.md"
+    },
+    {
+      "file": "People/Declared Person.md"
+    },
+    {
+      "file": "People/Madonna.md"
+    },
+    {
+      "file": "People/Omar Haddad.md"
+    },
+    {
+      "file": "People/Pat Quinn.md"
+    },
+    {
+      "file": "People/Pat Rogers.md"
+    },
+    {
+      "file": "People/Theo Kask.md"
+    },
+    {
+      "file": "People/Theo Lin.md"
+    },
+    {
+      "file": "Programs/Auth (v2).md"
+    },
+    {
+      "file": "Programs/Cloud Security.md"
+    }
+  ],
+  "frontmatter_gaps": [
+    {
+      "file": "Worklogs/2026-W20.md",
+      "missing": [
+        "tags",
+        "item-count",
+        "done-count"
+      ]
+    }
+  ],
+  "missing_links": [],
+  "orphan_programs": [
+    {
+      "file": "Programs/Auth (v2).md"
+    },
+    {
+      "file": "Programs/Cloud Security.md"
+    }
+  ],
+  "stale_people": [
+    {
+      "file": "People/Chris Ito.md",
+      "last_seen": "never"
+    },
+    {
+      "file": "People/Chris Park.md",
+      "last_seen": "never"
+    },
+    {
+      "file": "People/Dana Wu.md",
+      "last_seen": "never"
+    },
+    {
+      "file": "People/Declared Person.md",
+      "last_seen": "never"
+    },
+    {
+      "file": "People/Madonna.md",
+      "last_seen": "never"
+    },
+    {
+      "file": "People/Nadia Okafor.md",
+      "last_seen": "never"
+    },
+    {
+      "file": "People/Pat Quinn.md",
+      "last_seen": "never"
+    },
+    {
+      "file": "People/Pat Rogers.md",
+      "last_seen": "never"
+    }
+  ],
+  "stuck_items": []
+}

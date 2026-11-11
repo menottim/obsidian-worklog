@@ -1,0 +1,7 @@
+interface:
+  display_name: "Obsidian Worklog"
+  short_description: "Manage a structured Obsidian worklog"
+  default_prompt: "Use $worklog to show my active priorities."
+
+policy:
+  allow_implicit_invocation: true

@@ -97,7 +97,7 @@ dv.list(p0lines.length > 0 ? p0lines : ["No P0 items this week"]);
 
 ## 6. Completion Rate Trend
 
-Charts completion rate (done / total) as a table across all weeks. Use this to spot weeks where throughput dropped - useful for retrospectives or capacity conversations.
+Charts completion rate (done / total) as a table across all weeks. Use this to spot weeks where throughput dropped. Handy for retrospectives or capacity conversations.
 
 ```dataviewjs
 const pages = dv.pages('"Worklogs"')

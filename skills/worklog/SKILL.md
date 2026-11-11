@@ -5,12 +5,15 @@ description: >
   "worklog", "weekly rollover", "what's on my plate", "my priorities", "add to my worklog",
   "tidy my worklog", "what am I working on", "summarize my week", "monthly summary",
   "quarterly summary", "what did I accomplish", "audit my vault", "vault health check",
+  "compact my notes", "these notes are too long",
   "visualize my work", "worklog charts", or anything about managing weekly work priorities.
   Also trigger when the user asks about P0/P1/P2 items, wants a status update for Slack,
   or asks about priority drift, trends, or time allocation.
   Also trigger when the user asks to "pull from Slack", "ingest the channel",
   "pull meeting notes", "register a channel", or any phrase about reading new
-  messages from a registered Slack source into the vault.
+  messages from a registered Slack source into the vault. Also trigger when the user
+  pastes a Slack permalink, Confluence page, or Google Doc URL to ingest, gives a Jira
+  key or URL to track, or asks to move old history to cold storage or write a rollup.
 ---
 
 # Worklog Manager
@@ -18,6 +21,21 @@ description: >
 You help __USER_NAME__ manage a personal worklog stored as markdown files in an Obsidian vault.
 The worklog uses one file per week, a persistent backlog, and cross-linked People and
 Program notes that build a knowledge graph over time. You read and write files directly.
+
+## Invocation
+
+- In Claude Code, invoke the skill with `/worklog`, for example `/worklog status`.
+- In Codex CLI or the IDE extension, mention the skill with `$worklog`, for example
+  `$worklog status`. Codex can also invoke it implicitly from a request that matches the
+  skill description.
+
+The command headings below use `/worklog` as the canonical command spelling. When the
+current host is Codex, interpret the same command and arguments after `$worklog`, and use
+the `$worklog` spelling in user-facing reminders.
+
+Before every `/worklog` command, run the Auto Sync first-run check (`## Auto Sync`), then
+route it per `## Model Routing`. Routing reads your tier from your own system prompt, which
+costs no tool call.
 
 ## Vault Layout
 
@@ -34,6 +52,13 @@ __VAULT_PATH__/
     Platform Migration.md  # One note per program/initiative
     Cloud Security.md
     ...
+  Threads/
+    build-pipeline-review.md    # One note per long-running worklog item - its full
+    developer-onboarding-program-rollout.md  # dated history, spilled out of the week file so
+    ...                            # the week stays scannable. See references/threads.md
+  Cold/
+    People/<Note name>/2026-Q3.md  # Verbatim old history of People/Programs/Threads
+    ...                            # notes, one folder per note. See references/cold.md
   Teams/
     Backend Engineering.md  # One note per team
     Platform Security.md
@@ -52,6 +77,8 @@ __VAULT_PATH__/
     YYYY-MM-DD-<topic-slug>.md  # One note per ingested Slack thread
     ...                          # (top-of-thread = email body, replies in
                                  # discussion section)
+  Logs/
+    YYYY-MM.md           # Append-only operations log (one file per month)
   Archive/
     YYYY-WMM.md          # Completed weeks
     ...
@@ -61,11 +88,36 @@ __VAULT_PATH__/
     YYYY-QN.md           # Quarterly summary
   Reports/
     YYYY-Month-viz.html  # D3 visualization (open in browser)
+  References/
+    <Topic>.md           # Durable reference artifacts (handover docs, leveling
+    ...                  # frameworks, passdowns) - not per-week, not per-person
   Templates/
     Weekly.md            # Templater template for new weeks
 ```
 
-The vault is backed up to `__BACKUP_REPO_URL__` (private).
+Backup repo: `__BACKUP_REPO_URL__` (private; `NONE` means the vault has no git backup).
+
+## Model Routing
+
+Before every `/worklog` command, read `__SKILL_INSTALL_PATH__/skills/worklog/references/model-routing.md`
+and route the command's phases to the tier it names. Summary:
+
+| Command | Tier |
+|---|---|
+| `status`, `search`, `audit`, `add`, `review`, `sync`, `share`, `jira` | Haiku |
+| `pull` | Fetch Haiku → Analyze Sonnet → Write Haiku |
+| Pasted notes, transcripts, `/worklog ingest <url>` | Analyze Sonnet → Write Haiku |
+| `rollover`, `tidy`, `cold`, `rollup`, week `summary`, preference capture | Sonnet |
+| Month or quarter `summary`, `viz`, `compact`, free-form vault analysis | Opus |
+
+- If the host is Claude Code: a phase on a different tier than the session runs in a
+  subagent with that `model`; the main session keeps every exchange with the user and
+  verifies the writes. With no `Agent` tool, run everything inline.
+- If the host is Codex: run every phase inline on the configured model and reasoning
+  effort, with no model notes.
+
+Never ask the user to switch models and never wait on a model choice. The reference has
+the phase contract and the fallbacks.
 
 ## Finding the Current Week
 
@@ -81,10 +133,13 @@ Other key paths:
 - Reports: `__VAULT_PATH__/Reports/<period>-viz.html`
 - People: `__VAULT_PATH__/People/<Name>.md`
 - Programs: `__VAULT_PATH__/Programs/<Name>.md`
+- Threads: `__VAULT_PATH__/Threads/<slug>.md`
+- Cold: `__VAULT_PATH__/Cold/<Folder>/<Note name>/<YYYY>-Q<n>.md`
 - Teams: `__VAULT_PATH__/Teams/<Name>.md`
 - Preferences: `__VAULT_PATH__/Preferences/<Title>.md`
 - Sources: `__VAULT_PATH__/Sources/<channel-name>.md`
 - Meetings: `__VAULT_PATH__/Meetings/YYYY-MM-DD-<topic-slug>.md`
+- Logs: `__VAULT_PATH__/Logs/YYYY-MM.md`
 
 ## Weekly File Structure
 
@@ -172,7 +227,7 @@ is what makes the Obsidian graph view useful - click any person to see every wee
 they appear in via backlinks.
 
 **When writing or updating ANY file in the vault (worklogs, people, programs, archive):**
-1. Glob `People/*.md` and `Programs/*.md` to get the current list of known entities
+1. Run `__SKILL_INSTALL_PATH__/skills/worklog/scripts/cross-link-index.sh '__VAULT_PATH__'` once per write to get the entity/alias digest (re-run after creating a new People/Programs stub so it picks up the new entity). Do NOT glob `People/*.md`/`Programs/*.md` and do NOT read note bodies to resolve aliases. Use `entities[].canonical` as link targets, `entities[].aliases` for partial/case forms, and treat any `ambiguous` surface form as resolve-from-context (ask or leave unlinked rather than guess the wrong person). If the script fails (non-zero exit), surface the error rather than falling back to globbing.
 2. Wrap recognized names and programs in `[[wiki-links]]` everywhere they appear -
    not just in the current week, but in any file being touched
 3. Only link on first mention within an item (don't re-link in sub-items)
@@ -188,6 +243,10 @@ they appear in via backlinks.
   section with whatever is known
 - When creating people from Slack @ mentions, use `slack_search_users` to resolve
   full names and titles (if available; otherwise ask the user for the full name)
+- Write a one-line `summary:` in the frontmatter when you know enough to. When appending
+  substantive context to an existing note later, refresh `summary:` if the note's current
+  state changed. Skip the refresh for minor additions, the same judgment the frontmatter
+  regeneration rules already use.
 - This keeps the graph growing naturally as the worklog evolves
 
 **Linking discipline is critical.** Every unlinked mention is a missing edge in the
@@ -198,6 +257,7 @@ graph. When in doubt, link it. The graph's value comes from density of connectio
 ---
 type: person
 team: Backend Engineering
+summary: "Staff engineer on the auth rewrite; joined 2024"
 ---
 # Name
 ## Context
@@ -209,10 +269,33 @@ The optional `team` property links the person to a team note in `Teams/`. Set it
 when you're confident about the person's team. Use the team's short name (e.g.,
 `Backend Engineering`, `Platform Security`, `Frontend`).
 
+__`team:` is a controlled vocabulary for teams in __USER_NAME__'s own org.__ A value must
+either match a `Teams/` note name exactly, or be one of the reserved values `External`,
+`Former Employee`, `Unknown`, or `Partner`. Free text defeats the point of the property
+for the org you actually track: the Teams dimension of the graph only works if `team:`
+resolves to a note. When you do not know someone's team, write `Unknown` rather than
+inventing a label or leaving a placeholder. If a real team in the org has no note yet,
+create the `Teams/` note first, then reference it.
+
+__Teams outside the org are different.__ Most people in the vault work elsewhere at the
+company, and creating a `Teams/` note for every partner org would be more upkeep than the
+graph is worth. For them, keep the real team name in `team:` even though it will not
+resolve, because `Infra Design Partners` tells you more than `Partner` does. Use `Partner`
+only when you know someone is outside the org but not which team. A value that does not
+resolve is drift worth fixing only when it names a team the org owns; otherwise it is
+just an outside team recorded by name.
+
+The optional `summary` property is a one-line answer to "who is this" for someone who
+has never read the note: present tense, current state, under about 120 characters, no
+wrapping. It is what `cross-link-index.sh --with-summaries` returns so a query can pick
+the right entity without opening the note. When absent, the helper derives a provisional
+summary from the note's first bullet, so the field is worth writing but never required.
+
 **Program note structure:**
 ```markdown
 ---
 type: program
+summary: "Consolidating three auth stacks onto one; targeting Q4"
 ---
 # Program Name
 ## Context
@@ -245,280 +328,17 @@ status changes - not every minor mention).
 
 ## Preferences
 
-The `Preferences/` directory is the skill's general-purpose memory layer for
-durable preferences it discovers about how the user works. This is a __core
-feature__ of the worklog skill: anything the user wants you to remember across
-sessions - about their voice, their tools, their conventions, their decision rules,
-their workflow, their formatting choices, their interaction style - gets captured
-here as one note per preference.
+Capturing, applying and editing durable preference notes.
 
-This is broader than communication. Preferences span the full surface area of
-working together:
-
-- __Voice & communication__ - how to write status updates, DMs, status updates,
-  meeting notes, emails, peer messages
-- __Style & formatting__ - markdown conventions, em-dash policy, list style, when
-  to bold, when to use code blocks
-- __Workflow & process__ - when to ask vs proceed, when to plan vs execute, how
-  fine-grained to make todos, when to commit, when to push
-- __Vault conventions__ - how to phrase subgroup labels, when to split items, how
-  to date sub-items, what counts as substantive enough to log
-- __Decision rules__ - heuristics the user reuses ("never compare candidates",
-  "always sync the public mirror after edits", "never send on behalf of me")
-- __Tooling__ - which CLI flags to prefer, which APIs to call first, which
-  servers / tools the user dislikes
-- __Knowledge graph hygiene__ - linking conventions, stub-creation rules, when to
-  promote a stub to a real note
-
-Anything the user expects you to remember and apply later belongs here.
-
-### Why this exists
-
-Working preferences are high-leverage and high-context. The user has specific ways
-they like things done - some they'll articulate, some they'll only correct after
-you've gotten it wrong, some they'll silently accept when you guess right. These
-patterns are not visible in the codebase or in the worklog itself; they live in how
-the user reacts to your work and what they explicitly ask you to remember.
-
-When you save a preference durably, you're protecting the user from having to give
-the same feedback twice. That is the entire point.
-
-### When to capture a preference
-
-Watch for these signals during a session:
-
-1. __Explicit asks__: "always do X", "never do Y", "from now on when X, do Z",
-   "save this as a preference", "remember this for next time"
-2. __Repeated corrections__: the user has corrected you on the same kind of thing
-   more than once. Examples: dropping em-dashes from drafts, re-framing closes to
-   be more casual, switching from a checklist to a paragraph, asking for shorter
-   summaries, asking you not to commit without confirming
-3. __Quiet endorsements__: the user accepts your output without edits when you
-   made a non-obvious choice (a particular structural move, a tone calibration, a
-   tool selection, a default). These are easy to miss but signal the pattern is
-   right
-4. __Patterns they explicitly name__: when the user says "in my X voice" or
-   "the X-style answer" or "the X workflow" - they're telling you they have a
-   named pattern. Capture it under that name
-
-### How to capture a preference
-
-Create a note in `Preferences/` with a Title Case filename describing the
-preference. One preference per note. Keep them tight.
-
-```markdown
----
-type: preference
-applies-to: ["communication", "slack-dm"]
----
-
-# <Preference Name>
-
-## The Rule
-
-<One or two sentences stating the preference crisply.>
-
-## When It Applies
-
-<Triggers - contexts, situations, tasks where this preference activates. Be
-specific so future-you can judge edge cases.>
-
-## Why
-
-<The reason - often a past incident, a stylistic choice, a stated value, or a
-constraint. The "why" lets future-you adapt the rule when context changes.>
-
-## Examples
-
-<Optional. A good example, a counter-example, or a tiny verbatim phrase the user
-has confirmed.>
-```
-
-The `applies-to` frontmatter tag helps the skill find relevant preferences fast.
-Use short slug-like values that describe the surface or context the preference
-governs (e.g., `communication`, `slack-dm`, `status-update`, `markdown`,
-`workflow`, `tooling`, `vault-convention`, `decision-rule`).
-
-### When to apply a preference
-
-Before doing any task that has a preference-shaped surface - drafting a message,
-writing markdown, making a workflow choice, picking a tool, structuring a note -
-glob `Preferences/*.md` and check whether any preferences apply. Cite them lightly
-when you act so the user can correct you if a preference needs updating.
-
-A user who has built up 10-20 preferences in this directory will see their working
-style preserved across sessions. That is the durable benefit of this pattern.
-
-### Examples of preference notes worth capturing
-
-These are illustrative - the actual notes are whatever the user wants to remember:
-
-- __Markdown Formatting__ - bold/italic conventions, em-dash policy, list style
-- __Slack DM Voice__ - opener style, closing patterns, formality level
-- __Status Update Voice__ - structure, tone, framing for upward-facing notes
-- __Meeting Notes Style__ - how to structure transcripts and decisions
-- __Commit Discipline__ - when to commit, push, ask first, use a different identity
-- __No Comparisons__ - never compare candidates / teams / people in writing
-- __Sub-item Linking__ - which kinds of items get sub-items vs new top-level items
-- __Tool Preferences__ - which CLI flags, which APIs, which servers to prefer
-- __Frontmatter Conventions__ - vault-specific rules for YAML fields
-- __Default Recipes__ - canonical defaults the user wants you to confirm before
-  acting (e.g., a default protein shake, a default deploy target)
-
-The skill simply helps create, maintain, and apply these notes.
-
-### Editing and removing preferences
-
-If a preference becomes outdated (the user changes how they want something done),
-update the note rather than creating a new one. Note the date of the change
-inline so you can see how the preference has evolved.
-
-If the user explicitly retracts a preference ("I don't want to do that anymore"),
-update the file to mark it deprecated rather than deleting - preserves the
-history of the user's evolving working style. Or delete entirely if they prefer.
+Read `__SKILL_INSTALL_PATH__/skills/worklog/references/preferences.md` and follow it. Do not act on this command from memory - the rules, the format and the guardrails all live there.
 
 ## Sources
 
-The `Sources/` directory is the registry for Slack channels (and, in the future,
-other content sources) that the skill ingests on demand via `/worklog pull`. One
-file per registered channel, named after the channel without the leading `#`
-(e.g., `Sources/example-meeting-notes.md`).
-
-This is config + state. The frontmatter is machine-read; the body is human-readable
-notes about the source.
-
-__Source note structure:__
-
-```markdown
----
-type: meeting-notes-via-email
-channel_name: "#example-meeting-notes"
-channel_id: C0XXXXXXX
-nudge_threshold_days: 5
-last_scan_ts: null
-first_scan_lookback_days: 14
----
-
-# #example-meeting-notes
-
-Notes about this source - what it is, who posts to it, anything worth remembering
-about ingesting from this channel.
-```
-
-__Frontmatter fields:__
-
-- `type`: source-type identifier. v1 supports only `meeting-notes-via-email`. The
-  parser logic for `/worklog pull` is keyed off this value.
-- `channel_name`: the human-readable Slack channel name with the `#` prefix.
-- `channel_id`: the Slack channel ID (e.g., `C0XXXXXXX`). Resolved during
-  registration via `slack_search_channels`.
-- `nudge_threshold_days`: integer. If `last_scan_ts` is older than this, the
-  stale-channel nudge fires on rollover/tidy/audit. Default 5.
-- `last_scan_ts`: ISO 8601 timestamp of the last successful pull. `null` on first
-  run (until the first pull completes). Updated per-thread during a pull, so a
-  partial pull crash is resumable.
-- `first_scan_lookback_days`: how many days back to look on first run. Default
-  14. Ignored once `last_scan_ts` is non-null.
-
-__When the user creates a new source manually:__ they may write a `Sources/<channel>.md`
-by hand. Validate frontmatter on next `/worklog pull` and ask the user to fill in
-any missing fields.
-
-__Adding a new source inline:__ if the user says "register `#another-channel` as a
-source" (or similar phrasing), resolve the channel ID via `slack_search_channels`,
-write the new `Sources/<channel-name>.md` with template defaults, then run a first
-pull against just that source.
+Read `__SKILL_INSTALL_PATH__/skills/worklog/references/sources.md` and follow it. Do not act on this command from memory - the source-type schemas, the registration flow and the two sub-headers (`context-channel`, `dm-sweep`) all live there.
 
 ## Meetings
 
-The `Meetings/` directory holds one markdown note per ingested Slack thread. These
-are durable artifacts: a permanent, searchable record of every meeting whose notes
-posted to a registered `Sources/*.md` channel. Linked into the knowledge graph
-through wiki-links to participants and programs.
-
-__Filename:__ `Meetings/YYYY-MM-DD-<topic-slug>.md`
-
-- `YYYY-MM-DD` is the email-send date or the top-of-thread Slack timestamp,
-  rendered in __the user's local timezone__ (matches how weekly files are dated).
-- `<topic-slug>` is kebab-case from the email subject. Lowercase. Strip
-  non-alphanumeric characters except hyphens. Cap at ~50 chars.
-- On collision (same date + same slug), append `-2`, `-3`, etc.
-
-__Meeting note structure:__
-
-```markdown
----
-type: meeting
-date: 2026-05-04
-source_channel: "#example-meeting-notes"
-source_channel_id: C0XXXXXXX
-slack_thread_ts: "1714694400.123456"
-slack_last_reply_ts: "1714780800.654321"
-slack_thread_url: https://example.slack.com/archives/C0X.../p171...
-participants:
-  - "[[Sarah Chen]]"
-  - "[[Marcus Williams]]"
-programs:
-  - "[[Hiring]]"
-status: ingested
----
-
-# <Email Subject>
-
-> [!info] Slack thread in [[Sources/example-meeting-notes|#example-meeting-notes]] · [open in Slack](https://...)
-> Original sender: <name> · Posted 2026-05-04 09:00 PT
-
-## Notes
-
-<email body - meeting notes verbatim, lightly cleaned up: strip email-client
-chrome (signatures, "On <date> X wrote:" quote blocks, unsubscribe footers),
-keep the substantive content>
-
-## Discussion
-
-### 2026-05-04 09:15 — [[Sarah Chen]]
-<reply>
-
-### 2026-05-04 11:42 — [[Marcus Williams]]
-<reply>
-
-## Extracted Items
-
-- See [[YYYY-WNN]] for items added to this week's worklog
-```
-
-__Frontmatter fields:__
-
-- `type`: always `meeting` for files in this directory.
-- `date`: YYYY-MM-DD of the email-send date or top-of-thread ts (user's local TZ).
-- `source_channel`, `source_channel_id`: which `Sources/*.md` produced this note.
-- `slack_thread_ts`: the top-level message's Slack timestamp - the unique thread
-  identifier. Used by `/worklog pull` to look up "have we ingested this thread."
-- `slack_last_reply_ts`: timestamp of the most recent reply ingested. Equals
-  `slack_thread_ts` if the thread has no replies yet. Updated on every pull that
-  appends new replies.
-- `slack_thread_url`: deep link to the thread in Slack.
-- `participants`: wiki-linked array of people who appear in the thread. Sourced
-  from thread repliers + names mentioned in the email body. Use
-  `slack_search_users` to resolve full names per the existing Cross-Linking rules.
-- `programs`: wiki-linked array of programs mentioned in the thread.
-- `status`: `ingested` once the meeting note + extraction are complete. Reserved
-  for future statuses.
-
-__Discussion section subheadings:__ `### YYYY-MM-DD HH:MM — [[Author]]` in the user's
-local timezone, chronological order (oldest first). New replies appended to the
-end of the section preserve chronological order naturally.
-
-__User edits are preserved:__ on subsequent pulls, only the `## Discussion` section
-is appended to and `slack_last_reply_ts` is updated. The `## Notes` section and
-any user-added content elsewhere in the file is never overwritten. If the user
-deletes a Meetings note, the next pull recreates it from scratch (because the
-`slack_thread_ts` no longer matches any frontmatter).
-
-__No frontmatter auto-generation:__ Meetings notes are not subject to the
-Frontmatter Auto-generation rules below (those apply to weekly, archive, and
-summary files). The participant/program wiki-link extraction for Meetings
-frontmatter happens once at write time and is not regenerated on every edit.
+Read `__SKILL_INSTALL_PATH__/skills/worklog/references/meetings.md` and follow it. Do not act on this command from memory - the note schema, the filename rules, and the "what earns a page" and "first name only" stub rules all live there.
 
 ## Frontmatter Auto-generation
 
@@ -560,9 +380,114 @@ doing it on every single sub-item addition in a batch.
 arrays using the same extraction rules. Summary files do not need `item-count` or
 `done-count` (their structure differs from weekly files).
 
+## Operations Log
+
+`Logs/YYYY-MM.md` is an append-only record of what this skill did and when. One file
+per month, which keeps it bounded without ever needing its own compaction.
+
+__The rule:__ log any operation that writes to the vault.
+
+That covers `add`, `ingest` (pasted notes, transcripts, Slack text or a fetched URL), `jira`, `pull`,
+`review`, `rollover`, `tidy`, `cold`, `compact`, `summary`, `rollup`, `viz`, `sync`, `preference`
+capture, filing an answer, and `audit` __only when fixes were applied__.
+It excludes `status`, `search`, `share`, and a read-only audit run, because none of
+those change the vault. Absence is informative too: no `pull` entries for three weeks
+answers "when did I last ingest" just as well as a positive entry would.
+
+`sync` entries come from `sync.sh`, which writes them into the same commit. Do not log a sync
+yourself.
+
+__Never log work you have not verified.__ Before appending an entry for a write
+operation, confirm the change is actually in the file: re-read the target and check
+the item or sub-item you just wrote is present. A log entry for work that did not
+land is worse than no entry, because the log is what the vault trusts as its record
+of what happened. If the write did not land, say so and do not log it.
+
+__Always append through the helper__, never by editing the file directly:
+
+```bash
+__SKILL_INSTALL_PATH__/skills/worklog/scripts/log-append.sh '__VAULT_PATH__' \
+  <op> <target> 'first body line' 'second body line'
+```
+
+The helper creates the month file with frontmatter if absent and writes the entry as:
+
+```markdown
+## [2026-08-05] pull | #platform-leads
+- 24 messages swept, 4 folded, 2 dropped (sensitive)
+- last_scan_ts -> 2026-08-05T18:22:00Z (complete)
+```
+
+The `## [YYYY-MM-DD] <op> | <target>` prefix is a contract. Every reader greps for it,
+so a hand-written entry that misses the format silently disappears from every query.
+Use the helper and the format cannot drift.
+
+__Pull entries carry one extra requirement:__ record whether the sweep was complete or
+partial, and the resulting `last_scan_ts` per source. A partial sweep that looks
+complete in hindsight is the specific failure this log exists to prevent.
+
+__Reading the log__ needs no script:
+
+```bash
+cat '__VAULT_PATH__'/Logs/*.md | grep '^## \[' | tail -5
+```
+
+## Auto Sync
+
+The setting lives in `Preferences/Auto Sync.md`. Read it with `auto-sync.sh get`, which prints
+`on`, `off` or `unset` (no answer yet). `invalid` counts as `off`; relay the warning the script
+prints on stderr. `auto-sync.sh` is the only thing that writes the note.
+
+__First-run check.__ Before routing, run `__SKILL_INSTALL_PATH__/skills/worklog/scripts/auto-sync.sh '__VAULT_PATH__' get`. If it prints `unset`:
+
+1. Run `__SKILL_INSTALL_PATH__/skills/worklog/scripts/auto-sync.sh '__VAULT_PATH__' can-sync`.
+   If it fails, set `off` with source `first-run`, do not ask, and tell the user in one line: `Auto sync is off: <can-sync reason>. Once the vault is a git repo with an origin remote, ask me to turn auto sync on.` Then go to step 3.
+2. Otherwise, before any other step of the user's command, ask once: `Sync the vault automatically after each change? [Y/n]`, with Yes as the default. Use `AskUserQuestion` when it is in the session's tool list. In Codex, or when the tool is not in the session's tool list (as in headless runs), ask in plain text: end the turn with the question and wait for the answer. Never skip the question because the tool is missing. Set the answer with source `first-run`.
+3. On both paths, log the choice: the `off` set in step 1 and the answer in step 2. Op
+   `preference`, target `Auto Sync`. Then continue the user's command.
+
+```bash
+__SKILL_INSTALL_PATH__/skills/worklog/scripts/auto-sync.sh '__VAULT_PATH__' set <on|off> <setup|first-run|user>
+__SKILL_INSTALL_PATH__/skills/worklog/scripts/log-append.sh '__VAULT_PATH__' preference 'Auto Sync' 'set to <on|off> via <first-run|user>'
+```
+
+__Turning it on or off.__ When the user asks, run `set <on|off> user` and log it the same way.
+
+__When it runs.__ When on, each command that writes the vault syncs once, after its log entries
+are written and verified. The writing commands are those listed under `## Operations Log`.
+Read-only commands never sync. In a phased command, the main session syncs after its Verify
+step. A Write-phase subagent never syncs. Auto sync never asks for approval. Run `sync.sh --auto`:
+
+```bash
+__SKILL_INSTALL_PATH__/skills/worklog/scripts/sync.sh '__VAULT_PATH__' __SKILL_INSTALL_PATH__ "__GIT_USER_NAME__" "__GIT_USER_EMAIL__" --auto
+```
+
+The reply ends with the exact line `sync.sh` printed, on its own line, character for character. Do not paraphrase it, shorten it, or fold it into a sentence. Wrong: `auto-sync pushed the vault (5bef238, 5 files).` Right, as the last line: `Auto-synced vault: 5bef238 pushed (5 files).` Then act on the exit code:
+
+- 0, pushed: `Auto-synced vault: <hash> pushed (<n> files).`
+- 4, nothing to commit: `Auto-sync: nothing to commit.`
+- 3, committed but the push failed: `Auto-synced vault: <hash> committed locally; push failed: <reason>. The next sync retries.`
+- 2, skipped: `Auto-sync skipped: <reason>.` The script prints this line. Relay it, or its stderr message if it printed none. Reasons include `not a git repo`, `no backup remote` and `detached HEAD`.
+- 1, shrink check flagged: the script prints the flagged lines and commits nothing. Show the lines and stop. The user confirms each line, or restores it with `git checkout -- <path>`. For confirmed lines, re-run the same sync command with `WORKLOG_SHRINK_CONFIRM` set to exactly those paths, one per line, for example `WORKLOG_SHRINK_CONFIRM='<path>'`. Use `$'...'` or a heredoc for more than one path. Never set the variable without the user confirming each path.
+
+`/worklog sync` runs the same script without `--auto`, and works whether auto sync is on or off.
+Its output uses `Sync` in place of `Auto-sync`.
+
+__Clean-vault preconditions.__ `cold`, `rollover` step 3, `tidy` step 6, the spill gate in
+`threads.md` and `compact` each need a clean vault. When on, run `sync.sh --auto` first and
+print its line; continue on exit 0, 3 or 4, then re-run the clean check; stop on 1 or 2. Exit 3
+means the commit succeeded, so the tree is clean, and the push-failure line is relayed.
+
+__Reminders.__ When on, no command tells the user to run `/worklog sync` or offers to. Each
+reminder in this file and in the references says so where it applies.
+
 ## Commands
 
 ### `/worklog` or `/worklog status`
+
+__Precondition:__ this section is for a bare invocation with no payload. If the
+message also carries pasted body content (more than a line or two of prose beyond the
+command itself), this is not `status` - go to `### Processing raw input` instead.
 
 Read the current week file and backlog, show a summary of active work:
 1. List all items NOT `Done` from the current week
@@ -570,10 +495,14 @@ Read the current week file and backlog, show a summary of active work:
 3. Group by priority (P0 first, then P1, then P2)
 4. Present in a clean markdown table or list
 
+If the user's question needs entity context rather than just item titles, get it from
+`__SKILL_INSTALL_PATH__/skills/worklog/scripts/cross-link-index.sh '__VAULT_PATH__' --with-summaries`
+and read the `summary` field. Do not open People or Program bodies for this.
+
 ### `/worklog review`
 
 Monday morning workflow. Combines status review, updates, adds, and file updates
-into a single pass. Minimizes back-and-forth.
+into a single pass, one item at a time.
 
 **Important:** This command updates the CURRENT week file in place. It does NOT
 create a new week file or archive anything. Use `/worklog rollover` to start a
@@ -582,11 +511,20 @@ ask the user if they want to rollover first.
 
 **Phase 1: Review existing items**
 
-Walk through each active item one by one. Show the item number, total count,
-priority, and title (e.g. "3/10 - P0: Item title"). Keep prompts short.
+__Present exactly one item, then stop and wait.__ Do not write the second item until
+the user has replied to the first. This is a stopping rule, not a pacing suggestion.
+
+Format each one as `<n>/<total> - **P0**: <title>`, followed by its most recent dated
+sub-item if it has one. A few lines, no more.
+
+Never put more than one item in a message - not as a list, not as a preview of what is
+coming next, and not when answering them all at once would obviously be faster. Batching
+is the failure mode this rule exists to prevent: the point of `review` is that the user
+reads one item, answers it, and moves on, instead of facing a wall of text.
 
 The user responds with quick updates like "done", "still working on it", "pinged X".
-If they give updates for multiple items in one response, apply all and skip ahead.
+If they answer several items at once, apply all of those and resume at the first item
+they did not answer.
 
 **Phase 2: Collect new items**
 
@@ -608,26 +546,114 @@ After all updates and adds are collected:
 
 Tell the user the files are updated - visible in Obsidian immediately.
 
+__Log it:__ append one entry with op `review`, target the week label, recording items
+updated and items added.
+
 ### Processing raw input (meeting notes, Slack messages, transcripts)
 
-When the user pastes raw content (meeting notes, Slack threads, transcripts) and
-asks to add it to the worklog, follow this pattern:
+Route substantial input (a full transcript or a long notes doc, not a one-line add) per `## Model Routing`: analysis on Sonnet, writes on Haiku from a fully written plan.
+
+__Measured floor: this path needs Sonnet-tier or better.__ On the ingest eval, Sonnet
+and Opus pass every run; Haiku passes none - missing sub-item dates, missing wiki-links,
+no ops-log entry, and one run that never updated the week file at all.
+
+If you are Haiku-tier, say so before starting - "ingest on Haiku is measured to lose
+dates, wiki-links and the log entry; doing it now, re-run on Sonnet if it reads thin" -
+then do the work anyway. State it and continue; do not ask, do not wait.
+
+__Do not rely on that disclosure.__ It was tested at both ends of this section and in
+two phrasings across nine Haiku runs, and Haiku stated it in none of them while
+reporting confident success and failing most checks. An instruction to flag your own
+thin output does not fire when the output is thin. The line is here because it costs
+nothing and helps on tiers that do follow it; the actual protection is running ingest
+on Sonnet or better, which is a session-level choice this skill cannot make.
+
+Follow this pattern in two cases: the user pastes raw content (meeting notes, Slack
+threads, transcripts) and asks to add it to the worklog, or the user sends a bare
+`/worklog` with a substantial paste attached. In the second case, treat the paste itself
+as the request. Do not wait for a separate ask.
 
 1. Read the current week file first
 2. Extract actionable items from the raw input:
    - Action items and decisions become worklog items or sub-items
    - People mentioned become wiki-linked (create stubs if new)
    - Programs mentioned become wiki-linked
-3. Check for overlaps with existing items - prefer adding sub-items to existing
-   items over creating duplicates (e.g., if a meeting discussed an ongoing hiring
-   effort, add context as sub-items under the existing hiring item)
-4. For each new top-level item, assign a priority based on urgency/importance
-   cues in the raw content. Default to P1 if unclear.
+3. __Fold before you add.__ For every fact you extracted, find the existing item it
+   belongs under and add it there as a sub-item. Default to folding; a new top-level
+   item is the exception.
+
+   An existing item is the right home when it names the same program, or the same
+   person and the same topic, as the fact you are placing. A 1:1 that raises the
+   timeline of a program already tracked as an item belongs under that item, not
+   beside it as a second item about the same program.
+
+   Before you create any new top-level item from pasted input, name - to yourself -
+   the existing item you considered and why it does not fit. If you cannot name one,
+   you have not looked. Two items about the same program in one week is the specific
+   outcome this rule exists to prevent, and it is the most common way pasted input
+   makes a week file worse.
+
+   __Fold, then check the item you folded into.__ Folding is the right default and it is
+   also how the week file grows, because every fact it places becomes a sub-item on an
+   item that already has some. After folding, if the item now exceeds
+   `WORKLOG_WEEK_KEEP_SUBS` sub-items (default 2), spill its older sub-items to its Thread
+   note per `references/threads.md` - keeping the newest, moving the rest verbatim. Do this
+   as part of the same ingest, not as a suggestion at the end. An ingest that folds twelve
+   facts into eight items and leaves them there is how 951 KB accumulated one correct fold
+   at a time.
+
+   __Check `Backlog.md` too.__ An item can be parked rather than absent. Folding into a
+   parked item means waking it, per `references/threads.md` - not creating a new top-level
+   item beside its own parked copy.
+4. For a fact that genuinely has no home, create one top-level item and assign a
+   priority from the urgency and importance cues in the raw content. Default to P1 if
+   unclear. A new fact that arrives already deprioritized ("push to next quarter") still
+   gets a week-file item: P2, with the decision as its dated sub-item. Never write a new
+   item straight into `Backlog.md`; parking applies only to an existing item, through the
+   park procedure in `references/threads.md`.
 5. Add dated annotations using the date from the raw content (Slack timestamps,
    meeting date), not today's date
-6. Update the current week file using the Edit tool
+6. Update `Worklogs/<the current week's file>.md` using the host's available
+   file-editing tool. This is the week file - not the ops log from step 9, a
+   different file that this step does not touch. The extracted item belongs in
+   the week file and nowhere else; the ops log in step 9 gets a one-line
+   summary of the ingest, never the item itself.
 7. Update relevant people/program notes with substantive new context
 8. Regenerate enriched frontmatter
+9. Append the ops-log entry to the operations log (a separate file from the week
+   file in step 6): op `ingest`, target the source (for example `1:1 notes -
+   Sarah Chen` or `transcript - staff meeting`), recording how many facts were
+   folded into existing items and how many became new items.
+10. Open `Worklogs/<the current week's file>.md` again, as its own read, and look
+    for the exact item or sub-item text you just wrote in step 6. Do this before
+    you write the word "done," "added," or "updated" anywhere in your reply -
+    those words are not available to you until this read has happened and shown
+    the text. Not present verbatim in that file: the write did not apply. Retry
+    the edit in step 6 once, then repeat this read. Still not present after the
+    retry: tell the user the write failed. Do not report success.
+
+__Step 9 is part of the command.__ Pasting notes is the highest-volume way the vault
+changes, and an ingest that writes five files and logs nothing leaves no record of
+where any of it came from.
+
+__Step 10 is what makes "success" true, not asserted.__ The observed failure is not
+"forgot to check" - it is writing the item to the wrong file (most often the ops log
+from step 9, which sits right next to the week file in this same pipeline and is
+easy to reach for) and then reporting success because a write happened somewhere.
+Step 10 catches that regardless of which file the item actually landed in, because
+it looks for the text in one specific, named file and nowhere else. A retry that
+also fails to produce the text there is a failed ingest, and must be reported as
+one, no matter how confident the write itself felt.
+
+__Step 10 does not catch every failure mode.__ Tested on a one-line "add this to the
+worklog" note, 22 runs each with and without step 10 present: 19/22 passed either
+way, no measurable difference. The failing transcripts show why - on a quick note,
+Haiku sometimes skips this numbered procedure altogether, guesses a plausible file
+(usually the ops log from step 9), writes there, and replies with success before
+step 10 exists to run. Step 10 only helps when the model follows the procedure it
+sits inside; it cannot re-read a file the model never opened. As with the
+disclosure above, the actual protection for a quick add that must land correctly
+is running it on Sonnet or better.
 
 ### `/worklog pull`
 
@@ -636,206 +662,23 @@ thread becomes a `Meetings/YYYY-MM-DD-<slug>.md` artifact, and the existing
 __Processing raw input__ pipeline runs against the meeting body + replies to
 extract action items into the current week file.
 
-__Pull flow:__
+__Source-type branch:__ `/worklog pull` processes every `Sources/*.md`. For each
+source, branch on `type`:
+- `meeting-notes-via-email` → the per-thread flow in `references/pull-flow.md`.
+- `context-channel` → the __Context-channel sweep flow__ in `references/pull-flow.md`.
 
-1. Glob `__VAULT_PATH__/Sources/*.md`. If empty, walk the user through registering
-   one channel (see __First-run registration__ below) and continue with that
-   channel only.
-2. For each source file, parse the frontmatter (`channel_id`, `last_scan_ts`,
-   `first_scan_lookback_days`). Compute the lookback window:
-   - If `last_scan_ts` is `null`: window starts `first_scan_lookback_days` ago.
-   - Otherwise: window starts at `last_scan_ts`.
-3. Use `slack_read_channel` to list top-level messages in `channel_id` posted
-   after the window start.
-4. For each top-level message (a thread):
-   1. Use `slack_read_thread` to fetch the full thread (top message + all replies).
-   2. Glob `__VAULT_PATH__/Meetings/*.md` and grep frontmatter for a match on
-      `slack_thread_ts`.
-   3. __New thread__ (no match): get the email body, then ingest.
-      - __ALWAYS try auto-fetch first__ by running this exact command:
-        ```bash
-        ~/.config/obsidian-worklog/bin/slack-fetch-file <file_id>
-        ```
-        where `<file_id>` is the ID of the top-of-thread file attachment from
-        `slack_read_thread`. Do __NOT__ skip this step. Do __NOT__ check
-        whether the helper is "configured" or "set up" first - just run it.
-        The helper handles all configuration checks internally (token file
-        readable, network reachable, file visible) and reports failure via
-        non-zero exit codes with a clear stderr message. The helper prints
-        the body (HTML for `text/html` files, raw bytes for others) to
-        stdout on success.
-      - __On exit code 0__ (helper succeeded, body on stdout): use that
-        output as the source body. __Skip the prompt step below entirely__
-        and proceed straight to "With the body" below.
-      - __On any non-zero exit__ (helper missing, token missing/expired,
-        `not_visible`, `access_denied`, network error, no file attachment
-        on the top-of-thread post, etc.): only __then__ fall back to
-        prompting:
-        - Show the user a one-block summary of this thread:
-          - Date: top-of-thread ts in user's local timezone (e.g., `2026-05-01`).
-          - Subject: from the file attachment name (or the message text if any).
-          - Posted by: bot/integration name (typically `Slackbot`).
-          - Slack permalink (constructed from `channel_id` + `slack_thread_ts`).
-          - Attached file: `<filename>` (`<MIME type>`, `<size>`).
-          - Auto-fetch error if any (one line, e.g., `auto-fetch failed: not_visible`).
-        - Ask: _"Paste the email body to ingest, or say 'skip' (advances
-          `last_scan_ts` past this thread; won't be prompted again). For
-          multiple new threads, you can also say 'skip all remaining' to bail
-          out of the pull and resume later."_
-      - __With the body (from auto-fetch OR user paste)__:
-        - Compute the meeting note filename: `YYYY-MM-DD-<topic-slug>.md` per
-          the rules in the Meetings section. Date is the top-of-thread ts in
-          user's local timezone; slug is kebab-case from the email subject.
-        - On filename collision, append `-2`, `-3`, etc. until unique.
-        - Build the Meetings note body per the schema in the Meetings section:
-          - `## Notes`: the body, lightly cleaned. If HTML, convert to plain
-            markdown (strip tags, preserve paragraph breaks, headings, lists,
-            and links). Strip email-client chrome (signatures, "On <date> X
-            wrote:" quote blocks, unsubscribe footers, tracking pixels,
-            `Forwarded message` headers). Preserve substantive content.
-          - `## Discussion`: each reply from `slack_read_thread` becomes a
-            `### YYYY-MM-DD HH:MM — [[Author]]` subheading (user's local TZ,
-            chronological), followed by the reply text. Resolve author names
-            via `slack_search_users` if only a handle/ID is available. If the
-            thread has no replies, leave `## Discussion` empty.
-          - `## Extracted Items`: a single line linking to the current week
-            file: `- See [[YYYY-WNN]] for items added to this week's worklog`.
-        - Build frontmatter per the schema in the Meetings section. Set
-          `slack_last_reply_ts` equal to `slack_thread_ts` if the thread has
-          no replies; otherwise to the timestamp of the latest reply.
-        - Resolve participants: union of (thread repliers from
-          `slack_read_thread`, names @-mentioned in the body, names in the
-          body's "Attendees:" / "Participants:" section if present).
-          Wiki-link all; create stub People notes for unknown names per the
-          existing Cross-Linking rules.
-        - Resolve programs: glob `Programs/*.md` for known names; scan the
-          body for matches; wiki-link.
-        - Write the new `Meetings/YYYY-MM-DD-<slug>.md`.
-        - Run the __Processing raw input__ pipeline (above) against the body
-          + replies, treating the meeting date as the source date for action
-          items. Items go into the __current__ week file (the user's actual
-          current week, not the meeting's week, since the meeting's week may
-          be in the archive). Sub-item dated annotations use the actual
-          Slack timestamps from the thread, not today's date.
-      - __On 'skip'__ (manual-paste fallback only):
-        - Do __not__ create a Meetings note (skeletons rot).
-        - Advance `last_scan_ts` on the source file past this thread's ts so
-          the next pull won't re-prompt.
-        - Note in session output: `Skipped: <date> <subject>`.
-      - __On 'skip all remaining'__ (manual-paste fallback only):
-        - Do not advance `last_scan_ts` for the threads that haven't been
-          shown yet; leave them for the next pull.
-        - Stop the pull and print whatever summary is available so far.
-   4. __Existing thread, new replies__ (match found, replies after
-      `slack_last_reply_ts`):
-      - Open the matched `Meetings/*.md` with the Edit tool.
-      - For each reply with `ts > slack_last_reply_ts`, append a
-        `### YYYY-MM-DD HH:MM — [[Author]]` subheading to the end of the
-        `## Discussion` section, followed by the reply text.
-      - Update the frontmatter: set `slack_last_reply_ts` to the timestamp of
-        the most recent reply just appended. Update `participants` if any new
-        people appeared (preserve existing entries).
-      - Run the __Processing raw input__ pipeline against __only the appended
-        replies__, not the full meeting again. This avoids duplicating items.
-   5. __Existing thread, no new replies__ (match found, no replies after
-      `slack_last_reply_ts`): skip. No file changes.
-   6. After processing each thread, advance `last_scan_ts` on the source file to
-      the timestamp of that thread (or that reply, for thread-evolution updates).
-      This makes a mid-pull crash resumable.
-5. After all threads are processed for a source, set `last_scan_ts` to the
-   current time (now).
-6. Repeat for the next source file.
-7. Print a summary:
-   - `<N> new threads ingested` (with the new Meetings note paths)
-   - `<M> threads updated` (with thread titles)
-   - `<K> items extracted to [[YYYY-WNN]]`
-   - For each source pulled, the new `last_scan_ts`.
+Uncertain and new candidates from all `context-channel` sources accumulate into a
+single approval batch presented once, at the very end of the whole pull (after the
+email sources finish their own inline paste/skip flow).
 
-__First-run registration:__
+__Full flow detail:__ the pull steps, the context-channel sweep, the DM sweep + privacy
+override, first-run registration, and body extraction live in
+`__SKILL_INSTALL_PATH__/skills/worklog/references/pull-flow.md`. __Before executing `/worklog pull`, you MUST
+read that reference and follow it__ (kept out of this file for size; behavior is unchanged).
 
-When `Sources/` is empty (or the user explicitly asks to register a new channel):
-
-1. Ask: "Which channel should I monitor? (give the channel name, with or without
-   the leading #)"
-2. Use `slack_search_channels` to resolve the name to a channel ID. If multiple
-   matches, present the top results and let the user pick.
-3. Confirm with the user: "Register `#<channel>` (id `C0XXXXXXX`) as a
-   `meeting-notes-via-email` source?"
-4. On confirmation, write `__VAULT_PATH__/Sources/<channel-name>.md` (channel name
-   without the `#`, kebab-case), populated from the template in the Sources
-   section: `type: meeting-notes-via-email`, `channel_name`, `channel_id`,
-   `nudge_threshold_days: 5`, `last_scan_ts: null`, `first_scan_lookback_days: 14`,
-   plus a brief body line about what the channel is.
-5. Proceed with the first pull (lookback = `first_scan_lookback_days` days).
-
-__Body extraction:__
-
-For larger HTML emails (generally >5-10KB or with rich formatting), Slack's
-email-to-channel integration posts forwarded emails as `.html` (or `.eml`)
-file attachments on bot messages. The email body lives __inside__ the file,
-not in the message text. Most Slack MCP tools return file metadata only (ID,
-name, MIME type, size) and don't expose file body content directly.
-
-__Default behavior: auto-fetch via the helper script.__ The skill's pull flow
-(step 4.3 above) __always__ shells out to:
-
-```bash
-~/.config/obsidian-worklog/bin/slack-fetch-file <file_id>
-```
-
-This calls Slack's `files.info` API to get `url_private_download`, fetches
-the body with `Authorization: Bearer <token>`, and prints it to stdout on
-exit code 0. The helper handles all configuration checks internally and
-returns non-zero on any failure (token missing/expired, file not visible,
-network error). The skill checks the exit code and proceeds:
-
-- __Exit 0__: use the body, run the existing __Processing raw input__
-  pipeline against it. No user prompt.
-- __Non-zero exit__: fall back to prompting the user to paste the body
-  inline. Surface the helper's stderr message (one line) so the user knows
-  what went wrong.
-
-This is unconditional. The skill does __not__ check "is the helper
-configured" or "does the token exist" before trying — it just runs the
-command and branches on the result. If the helper isn't installed at all,
-the run will exit non-zero with "command not found" and the manual-paste
-fallback engages.
-
-__Setup for new users:__ see `docs/SETUP-SLACK.md` in the repo for the
-~5-minute walkthrough — register a Slack app at `api.slack.com/apps` with
-`files:read` scope, store the resulting `xoxp-` user token at
-`~/.config/obsidian-worklog/slack-token` (chmod 600), and drop in the
-~30-line helper script. After that, every `/worklog pull` ingests bodies
-automatically.
-
-__Thread replies__ are never affected by this — replies are normal Slack
-messages and `slack_read_thread` returns their full text. Body extraction
-only applies to the top-of-thread email content.
-
-__Errors and edge cases:__
-
-- __Slack MCP not available:__ fail with: "This needs a Slack MCP plugin. Install
-  one and re-run." Do not silently skip.
-- __Channel not found / ambiguous__ during registration: show the top matches
-  from `slack_search_channels` and let the user pick.
-- __User pastes empty / clearly-non-meeting content:__ ask once for confirmation
-  (e.g., "That looks short - are you sure that's the full body?"). On second
-  confirm, proceed; the resulting Meetings note may be sparse but that's the
-  user's call.
-- __Rate limit hit mid-pull (Slack API):__ `last_scan_ts` advances per thread,
-  so the next pull resumes from where we left off. Tell the user it was partial.
-- __Manually-deleted Meetings note:__ next pull will re-prompt the user to
-  paste the body again (the `slack_thread_ts` no longer matches anything in
-  `Meetings/*.md`, so the thread is treated as new). If the user wants to
-  permanently skip a thread without ingesting, use 'skip' in step 4.3 - that
-  advances `last_scan_ts` past the thread's ts so it's never re-prompted.
-- __Manually-edited Meetings note:__ on next pull, only `## Discussion` is
-  appended to and `slack_last_reply_ts` is updated. `## Notes` and any user
-  additions elsewhere are preserved.
-- __Thread with no replies:__ Meetings note is created with an empty
-  `## Discussion` section; `slack_last_reply_ts` equals `slack_thread_ts`.
-- __Tombstone (deleted in Slack after ingestion):__ leave the existing Meetings
-  note alone. Do not "un-ingest."
+__Log it:__ after the pull completes, append one entry per source via `log-append.sh`
+with op `pull` and target `#<channel-name>`, recording counts and whether the sweep was
+complete or partial along with the resulting `last_scan_ts`. See `## Operations Log`.
 
 ### `/worklog rollover`
 
@@ -850,21 +693,75 @@ earlier in the session, suppress the nudge for the rest of the session. Then:
 Quick rollover without item-by-item review:
 1. Read the current week file
 2. Calculate the next Monday's date and ISO week
-3. Collect all items NOT `Done`
-4. Check Backlog for items to surface
-5. Create new week file with subgroups and wiki-links
-6. Move current week to Archive with summary
+3. __Cold move (before the Thread spill, which edits Thread frontmatter).__ If the vault git
+   state is clean and the audit scanner reports `cold_candidates`, read
+   `__SKILL_INSTALL_PATH__/skills/worklog/references/cold.md` and run the cold move for each
+   candidate with movable bytes >= 8 KB, then continue. If the vault is dirty, skip this step
+   and say so in one line. When auto sync is on, run `sync.sh --auto` first instead and continue on exit 0, 3 or 4, then re-run the clean check; stop on 1 or 2. Candidates under 8 KB wait for `/worklog cold`. After the cold moves
+   pass the gate, commit them locally (no push), so step 4 starts on a clean vault. The Thread
+   spill requires a clean vault. Do these actions in order:
+   - Run `__SKILL_INSTALL_PATH__/skills/worklog/scripts/shrink-check.sh '__VAULT_PATH__'`.
+     Cold moves are exempt by design, so it passes. If it exits 1, stop and show the lines.
+   - Run `git -C '__VAULT_PATH__' add Cold/ Logs/ '<each moved note>'`.
+   - Run `git -C '__VAULT_PATH__' -c user.name="__GIT_USER_NAME__" -c user.email="__GIT_USER_EMAIL__" commit -m "worklog cold $(date +%Y-%m-%d): <n> notes"`.
+4. __Read `__SKILL_INSTALL_PATH__/skills/worklog/references/threads.md` and follow it.__
+   Rollover is where the week file's size is decided, so this step is not optional and must
+   not be done from memory. For each item NOT `Done`, apply the retention rule
+   (`WORKLOG_WEEK_KEEP_SUBS`, default 2), the dormancy rule (`WORKLOG_WEEK_DORMANT_DAYS`,
+   default 14), and the write ordering: Thread note first, verified, then prune. __Apply it,
+   do not propose it and wait.__ A spill is a verbatim move and the two gates in
+   `threads.md` are what make it safe, so rollover writes and then reports what moved. A
+   condensed-history split or a gate failure still stops for approval.
+5. Check Backlog for items to surface - including items an earlier rollover parked that
+   have gone active again. Wake them per `threads.md`.
+6. Create new week file with subgroups and wiki-links, carrying only live items with their
+   kept sub-items and Thread links
+7. Move current week to Archive with summary
 
 Then ask if the user wants to add any new items.
 
+__Step 4 is the fix for the specific way this file grew.__ It used to read "Collect all
+items NOT `Done`" and said nothing about sub-items, so an item that survived ten weeks
+carried ten weeks of dated sub-items with it and nothing ever pruned. Measured on
+`2026-W37.md`: 953 KB, 151 items, whose title lines were 18.6 KB - 2% of the file. The other
+98% was accumulated sub-items that ten rollovers had copied forward unread. Nesting was
+never the problem; depth was effectively two levels. Volume was.
+
+__Rollover is the only place that has to get this right.__ The week file is created fresh
+every Monday and archived at the next rollover, so it has no history of its own - its size
+is entirely a function of what rollover chooses to copy.
+
+__Log it:__ append one entry with op `rollover`, target the new week label, recording items
+carried forward, items parked to Backlog, items woken from Backlog, items completed, Thread
+notes written or appended, and the new week file's body size in bytes. The size belongs in
+the log because it is the number that went unwatched for ten weeks.
+
 ### `/worklog add <priority> <title>`
 
-Add a new item to the current week file. Check for overlaps with existing items
-and flag potential merges. Use the Edit tool to insert into the appropriate subgroup
-(or create a new subgroup if needed). Wiki-link any people or programs. Create stub
-notes for new entities.
+Add one item to the current week file. All five steps, in order:
+
+1. Read the current week and check for overlaps. Flag a potential merge rather than
+   writing a near-duplicate item.
+2. Insert into the subgroup that fits, using the host's file-editing tool. Create a new
+   subgroup only when none of the existing ones do.
+3. Wiki-link the people and programs named, per `## Cross-Linking`.
+4. Create a People stub for anyone named who does not have one. Do __not__ create a
+   Program page for the thing the item is about - see __What earns a page__ in
+   `references/meetings.md`.
+5. Append the ops-log entry: op `add`, target the item title.
+
+__Step 5 is part of the command, not a footnote to it.__ An add that skips the log
+leaves no record that the vault changed, and the log is the only place that record
+exists. Measured across model tiers, this is the step most likely to be dropped when
+the headline edit is done, so treat it as the command not being finished until the
+entry is written.
+
+Adding one item does not justify rewriting the vault. Touch the week file, the log, and
+a stub for a genuinely new person. Nothing else.
 
 ### `/worklog tidy`
+
+Route per `## Model Routing` (Sonnet). Spill approvals stay in the main session.
 
 __Nudge check (run first):__ Same as `/worklog rollover` above - check
 `Sources/*.md` and surface a stale-channel FYI before continuing.
@@ -872,78 +769,77 @@ __Nudge check (run first):__ Same as `/worklog rollover` above - check
 Read the current week file and suggest cleanup:
 1. Move Done items to a Done subgroup at the bottom
 2. Flag Backlog items `In Progress` for 2+ weeks without notes
-3. Flag duplicates between weekly file and backlog
+3. Flag duplicates between weekly file and backlog - including an item that exists both
+   live and as a `🔁 Parked` backlog entry, which is what a wake that did not clean up
+   leaves behind
 4. Suggest items ready to archive
 5. Suggest subgroup reorganization if themes shifted
+6. __Spill oversized items.__ Run the scanner and read `week_volume`. For every item over
+   `WORKLOG_WEEK_KEEP_SUBS` sub-items, and for the week file as a whole if it is over
+   `WORKLOG_WEEK_BYTES`, offer a spill to `Threads/`. __Read
+   `__SKILL_INSTALL_PATH__/skills/worklog/references/threads.md`
+   and follow it__ - the retention rule, the ordering and both gates live there and this
+   step is not safe from memory. Offer largest item first, one at a time, never batched. When auto
+   sync is on, run `sync.sh --auto` first (the clean-vault precondition in `threads.md`), and continue on exit 0, 3 or 4, then re-run the clean check; stop on 1 or 2.
+7. __Park dormant items.__ Any item with no dated sub-item newer than
+   `WORKLOG_WEEK_DORMANT_DAYS` parks to `Backlog.md`, per `threads.md`.
 
-Present as a checklist. Apply approved changes directly.
+Present as a checklist. Apply approved changes directly - except steps 6 and 7, which write
+files and are governed by the approval gates in `references/threads.md`. An approval of the
+checklist is not an approval of a spill.
+
+__Steps 6 and 7 are the ones that shorten anything.__ Steps 1-5 reorder and flag; they have
+never removed a byte. That was the gap between this command and the suggestion at the bottom
+of `## Important Behaviors`, which promised tidy would "consolidate stale sub-items" - a
+capability nothing here specified. `rollover` is the routine path for retention and `tidy`
+is the mid-week one, and both read the same rule file so they cannot drift apart.
+
+__Log it:__ if any changes were applied, append one entry with op `tidy` and target the
+current week label. If nothing was applied, write no entry.
 
 ### `/worklog audit`
 
-__Nudge check (run first):__ Same as `/worklog rollover` above - check
-`Sources/*.md` and surface a stale-channel FYI before continuing.
-
 Scan the vault for quality issues and present a fix-it checklist. No arguments.
 
-**Checks:**
+Read `__SKILL_INSTALL_PATH__/skills/worklog/references/audit.md` and follow it. Do not act on this command from memory - the nudge check, the scanner invocation, the twelve-key output and the presentation format all live there.
 
-1. **Stale people**: Notes in `People/` not mentioned (via wiki-link) in any weekly
-   file dated within the last 4 weeks. Excludes people who appear in the Backlog.
-   Method: Glob `People/*.md`, then for each person Grep across the 4 most recent
-   weekly files (active + archive) for their wiki-link.
+### `/worklog cold [note]`
 
-2. **Orphan programs**: Notes in `Programs/` with no wiki-link from any file in
-   `Worklogs/` or `Archive/` dated within the last 4 weeks. Same method as stale
-   people but for `Programs/*.md`.
+Move old dated entries from People, Programs and Threads notes to `Cold/`, verbatim.
 
-3. **Stuck items**: Items in the current active week that have been carried forward
-   from previous weeks without recent progress. To detect: for each "In Progress"
-   item in the active week, search the archive files' rollover notes (the parenthetical
-   list after "rolled forward to") for matching titles. If an item title appears in
-   2+ consecutive archives' rollover lists AND has no `(Mon D)` sub-item annotation
-   in the active week dated within the last 2 weeks, flag it as stuck. This works
-   with the archive summary format since rolled-forward items are listed by title.
+Read `__SKILL_INSTALL_PATH__/skills/worklog/references/cold.md` and follow it. Do not act on this command from memory - the windows, pin rules, index label rules, copy-verify-delete order, gate and lookup ladder all live there.
 
-4. **Missing links**: Unlinked mentions of known people or programs in weekly files.
-   Glob `People/*.md` and `Programs/*.md` to get entity names. For each weekly file,
-   scan body text for name strings that are NOT wrapped in `[[wiki-links]]`. Report
-   the file, line, and suggested link.
+- No argument: run the audit scanner, take `cold_candidates` and move every candidate, one note at a time, without per-note approval. The move is verbatim and gated. At the end, report what moved: note, entries moved, pins kept and why, warm size before and after.
+- With an argument: that note only.
+- Precondition: a clean vault git state. Check it once at the start of the run. If the vault is dirty, say so and offer `/worklog sync` first. When auto sync is on, run `sync.sh --auto` first instead and continue on exit 0, 3 or 4, then re-run the clean check; stop on 1 or 2. Move each note at most once per run.
+- Log each note with op `cold` (see cold.md, Logging).
+- End with a local commit (no push), message `worklog cold <date>: <n> notes`, like rollover. Before that commit, run `__SKILL_INSTALL_PATH__/skills/worklog/scripts/shrink-check.sh '__VAULT_PATH__'` (cold moves are exempt, so it passes). Then suggest `/worklog sync`. When auto sync is on, run `sync.sh --auto` in place of the suggestion.
+- The report also lists every warm line that points at moved content by position ("see below").
+- Model: use Sonnet-tier or better for the move, because pin and label judgment need it. This is a note, not a guard. Do the work on whatever tier you are.
 
-5. **Empty stubs**: People or Program notes where the Context section has no bullet
-   points (only the `## Context` heading exists, or is missing entirely).
+### `/worklog compact [note]`
 
-6. **Frontmatter gaps**: Weekly or archive files missing any of: `programs`, `people`,
-   `tags`, `item-count`, `done-count`.
+Compaction and semantic lint for an oversized note. `/worklog cold` (lossless) normally handles size. Run compact's lossy fold only when the user explicitly asks for it.
 
-**Output:** Present findings grouped by check type in conversation. Each finding
-includes the file path and a suggested action. Example:
-
-```
-Vault audit results:
-
-Stale people (not mentioned in 4+ weeks):
-- People/Jordan Lee.md - last seen in W13
-  Suggested: archive, update context, or remove if no longer relevant
-
-Stuck items (3+ weeks without update):
-- "Figure out Q2 plans across Cloud Security" - P0 since W14, last dated sub-item Apr 13
-  Suggested: add a status update or reprioritize
-
-Missing links:
-- Worklogs/2026-W16.md:23 "Tom" -> [[Tom Rivera|Tom]]
-
-Frontmatter gaps:
-- Archive/2026-W11.md: missing programs, people, tags, item-count, done-count
-```
-
-User picks which fixes to apply. Apply approved fixes directly using Edit/Write tools.
-For frontmatter gaps, regenerate using the Frontmatter Auto-generation rules.
+Read `__SKILL_INSTALL_PATH__/skills/worklog/references/compact.md` and follow it. Do not act on this command from memory - the rules, the format and the guardrails all live there.
 
 ### `/worklog search <term>`
 
 Search across Worklogs/, Archive/, People/, and Programs/ for items matching the
-term. Use Grep to search all `.md` files. Show matches with their week/file,
+term. Use Grep to search all `.md` files, excluding `Cold/`. Show matches with their week/file,
 priority, and status.
+
+Then count the matches in `Cold/` with `grep -r -i -F -o -- '<term>' Cold/ | wc -l`. Report
+"N more matches in cold storage" and do not read the cold files. Search only counts cold
+matches. This is the one exception to reading per the ladder. The count is the cue for the
+question in ladder step 5 (offer to show them).
+
+When a match needs entity context to be intelligible, read it from the
+`--with-summaries` digest rather than opening the note:
+
+```bash
+__SKILL_INSTALL_PATH__/skills/worklog/scripts/cross-link-index.sh '__VAULT_PATH__' --with-summaries
+```
 
 ### `/worklog share`
 
@@ -958,308 +854,72 @@ Done: Team offsite travel booked
 
 Brief titles only, no sub-notes, no wiki-link syntax, grouped by priority.
 
+Clipboard only. Do not write a vault file - see `/worklog file` for what is worth
+filing and why this is not.
+
 ### `/worklog rollup`
 
-Generate an IC-appropriate weekly context dump for posting to a broad team
-channel (e.g. `#eng-all`, `#team-broadcasts`). This is your voice speaking to the
-whole org: what happened this week that individual contributors would benefit
-from knowing, organized into two buckets. Copies a Slack-mrkdwn-formatted
-message to the clipboard via `pbcopy`.
+IC-facing weekly rollup: clipboard copy plus a filed reference note.
 
-**Audience:**
+Read `__SKILL_INSTALL_PATH__/skills/worklog/references/rollup.md` and follow it. Do not act on this command from memory - the rules, the format and the guardrails all live there.
 
-- Individual contributors across the org (not just leads or peers)
-- Posted to a broad channel, not DM or leadership-only
+### `/worklog file [title]`
 
-**Content rules — what to INCLUDE:**
+File the answer you just produced into the vault as a durable artifact. This is for
+substantive analysis - a comparison, an investigation, a synthesis you were asked for -
+not for routine command output.
 
-- Program-level updates, structural decisions, publications
-- Framework changes, org-wide patterns (e.g., paved roads)
-- Ownership / tech lead assignments at the program level
-- Cross-team themes and trade-offs
-- Public artifacts (docs shipped, decisions landed)
-- Things ICs can act on, escalate, or route based on
-
-**Content rules — what to FILTER OUT:**
-
-- Performance commentary (growth conversations, assessments, team performance issues)
-- 1:1 specifics (what someone said privately, personal context)
-- Hiring candidate names, pipeline details, feedback notes
-- Career conversations, individual coaching, certainty scores
-- Inter-leader negotiation details (who said what to whom behind the scenes)
-- Anything marked as private or sensitive in the source item
-
-**Source:**
-
-Read the current week file. Scan both active and Done items. Each item should be
-evaluated against the include/filter rules. When in doubt, soften or drop - this
-is a broadcast channel, not the leadership thread.
-
-**Structure:**
-
-```
-:wave: Weekly context dump - W<NN> (Mon D-D)
-
-*Stuff you should probably know*
-
-• *Headline for item one.* One or two sentences of context. What's the action or implication for the reader?
-
-• *Headline for item two.* ...
-
-(6-8 bullets. The items most likely to affect the reader's own work or routing decisions.)
-
-*Context: everything else*
-
-• Item one, one sentence.
-
-• Item two, one sentence.
-
-(5-8 bullets. Lighter, one-liner style. FYI-grade items.)
-
-Next week: <one-liner, if relevant>
-```
-
-**Formatting:**
-
-- Use Slack mrkdwn: `*bold*` for bold, `_italic_` for italic, `•` for bullets
-- No wiki-link syntax (`[[...]]`) - this is for Slack, not Obsidian
-- Include names only when they denote program ownership or the right contact
-  for a question (e.g., "Nick is tech lead" is fine; "strong signal on
-  candidate X" is not)
-- Keep bullets to 1-3 sentences each; link to the source doc in Slack if the
-  item needs more depth (user can add link after pasting)
-- Emoji are welcome but sparing - a friendly opener and maybe a sign-off
-
-**Output:**
-
-After generating the message, copy it to the clipboard via `pbcopy` and tell
-the user the message is ready to paste. Do not save it as a vault file - this
-is a one-shot, ephemeral message.
-
-**Edge cases:**
-
-- If the current week has very few Done items and most work is In Progress,
-  frame items as "in flight" and still surface them if program-relevant.
-- If the user requests a different audience ("send this to leads" or "make it
-  shorter"), adapt the filter/structure on the fly but keep the same split.
-
-### `/worklog summary [period]`
-
-Generate an impact-oriented summary for reporting up. Reads weekly files in the
-specified date range, synthesizes completed work into outcomes, and outputs both
-a vault file and a clipboard version.
-
-**Syntax:**
-
-```
-/worklog summary              # current week so far
-/worklog summary week         # current week so far (explicit)
-/worklog summary month        # current calendar month
-/worklog summary quarter      # current quarter (Q1=Jan-Mar, Q2=Apr-Jun, etc.)
-/worklog summary W14          # specific ISO week (assumes current year)
-/worklog summary March        # specific month (full name or 3-letter abbreviation)
-/worklog summary Q1           # specific quarter
-```
-
-Arguments are case-insensitive.
-
-**Data collection:**
-
-1. Parse the argument to determine start and end dates for the period
-2. Find all weekly files in `Worklogs/` and `Archive/` whose `date-start` falls
-   within the range (read frontmatter to check)
-3. From archived files: extract completed items from the bullet list
-4. From the active week: extract items marked `✅ Done` plus notable in-progress
-   milestones (items with dated sub-items showing meaningful progress)
-5. Collect all wiki-linked people and programs mentioned
-
-**Synthesis guidelines:**
-
-- Frame completed items as outcomes ("Shipped cloud security consolidation plan") not
-  tasks ("Finished writing the plan")
-- Group related items into single outcome bullets where they tell a coherent story
-- Elevate decisions and direction changes into Themes & Decisions
-- Target counts: 3-5 bullets for a week, 5-8 for a month, 10-15 for a quarter
-- In Flight should only include items that matter at the reporting level
-
-**Output 1 - Vault file:**
-
-Create the `Summaries/` directory if it doesn't exist. Save to:
-- Week: `Summaries/2026-W16.md`
-- Month: `Summaries/2026-April.md`
-- Quarter: `Summaries/2026-Q2.md`
-
-Structure:
+Write `References/<title>.md`:
 
 ```markdown
 ---
-type: summary
-period: 2026-April
-date-start: 2026-04-01
-date-end: 2026-04-30
-weeks: ["2026-W14", "2026-W15", "2026-W16"]
-status: final
-programs:
-  - "[[Cloud Security]]"
-  - "[[Platform Migration]]"
-people:
-  - "[[Sarah Chen]]"
-  - "[[Priya Patel]]"
-tags:
-  - hiring
-  - strategy
+type: reference
+source: <what produced this, e.g. "conversation 2026-08-05" or "/worklog search">
 ---
 
-# April 2026 Summary
+# <Title>
 
-## Key Outcomes
-- Significant completions framed as outcomes, wiki-linked to [[people]] and [[programs]]
-- Ordered by impact, not chronology
-
-## In Flight
-- Major items still in progress at period end, with current state
-
-## Themes & Decisions
-- Notable decisions, direction changes, or cross-cutting patterns
-
-## Priority Drift
-- "Item title" has been P0 for N consecutive weeks (W14-W16)
-- P0 count grew from X (first week) to Y (last week)
-- New P0s this period: item, item
-- Dropped from P0: item (or "none")
-- Items promoted/demoted: "item" moved P2 -> P1 in WNN
-
-## Trends
-- Category: appeared in N/M weeks, X% of items - heaviest/growing/shrinking
-- Programs touched: N unique across period
-- People engaged: N unique across period
-- Completion rate: N items completed, M rolled forward (X% completion)
-
-## Coverage
-Sourced from [[2026-W14]], [[2026-W15]], [[2026-W16]]
+<the answer, cross-linked per the Cross-Linking rules>
 ```
 
-**Priority Drift** (monthly and quarterly summaries only, omit for weekly):
+- Filename is the given title. With no title, derive `YYYY-MM-DD <Short Title>` from the
+  content.
+- Wiki-link every person and program per the Cross-Linking rules. An unlinked filed
+  answer is a page nothing points at, which is most of its value gone.
+- Create stub notes for any new entities, same as anywhere else.
+- If the file exists, tell the user and ask whether to overwrite or pick a new title.
 
-For each week in the range, extract P0 items by title (text after `- **P0** <status> - `).
-Match the same item across weeks by checking if titles share 80%+ of their words.
-Report: longest-running P0s, P0 count change over the period, new/dropped P0s, and
-any items that changed priority level.
+__Offer, do not assume.__ After producing a substantive analytical answer against the
+vault, offer once to file it. Do not file without confirmation. This mirrors how
+`Preferences/` capture works, and for the same reason: the user's confirmation is what
+keeps the vault from filling with artifacts they did not want.
 
-**Trends** (monthly and quarterly summaries only, omit for weekly):
+__Log it:__ append one entry with op `file` and target the filed path.
 
-Using enriched frontmatter and body parsing:
-1. Category distribution: count items per thematic subgroup across weeks, compute %
-2. Program frequency: which programs appeared in how many weeks
-3. People engagement: count of unique people across the period
-4. Completion rate: total done vs. total rolled forward
-5. Growth/shrink: flag categories growing or shrinking in item count
+__What not to file:__ `/worklog share` output, which is a three-line blurb, and
+`/worklog search` results, which are re-derivable by re-running the search.
 
-Wiki-link all people and programs per the cross-linking rules. Create stub notes
-for any new entities.
+### `/worklog summary [period]`
 
-**Output 2 - Clipboard:**
+Week, month and quarter summaries.
 
-After writing the vault file, copy a condensed plain-text version via `pbcopy`.
-No wiki-link syntax, no frontmatter:
-
-```
-April 2026 Summary:
-
-Key outcomes:
-- Outcome one
-- Outcome two
-
-In flight:
-- Active item with current state
-
-Themes: Brief sentence on patterns/decisions
-
-Priority drift: P0 count grew X -> Y. Longest-running P0: item (N weeks).
-
-Trends: Heaviest category: X (N%). M programs, N people engaged. X% completion rate.
-```
-
-**Edge cases:**
-
-- If no weeks exist in the range, say so rather than producing empty output
-- If the active week is partially complete, note "as of <today's date>"
-- For overlapping periods, include a week if its `date-start` falls within the range
-- If a vault file already exists for the period, tell the user it exists and ask
-  whether to overwrite or skip. If overwriting, proceed normally.
+Read `__SKILL_INSTALL_PATH__/skills/worklog/references/summary.md` and follow it. Do not act on this command from memory - the rules, the format and the guardrails all live there.
 
 ### `/worklog viz [period]`
 
-Generate standalone HTML files with D3.js charts for visual analysis. Period
-parsing uses the same logic as `/worklog summary`.
+Route per `## Model Routing` (Opus).
 
-**Syntax:**
+Generate standalone HTML D3 charts for a period. __Before executing, you MUST read
+`__SKILL_INSTALL_PATH__/skills/worklog/references/viz.md` and follow it__ (full mechanics + template-fill
+live there to keep this file small).
 
-```
-/worklog viz month        # current calendar month
-/worklog viz quarter      # current quarter
-/worklog viz W11-W16      # custom week range
-```
-
-**Output:**
-
-Create the `Reports/` directory if it doesn't exist. Generate:
-- `Reports/2026-April-viz.html`
-- `Reports/2026-Q2-viz.html`
-- `Reports/2026-W11-W16-viz.html`
-
-**How to generate:**
-
-1. Read all weekly files in the range (same as `/worklog summary`)
-2. Collect data from enriched frontmatter (`item-count`, `done-count`, `programs[]`)
-   and body parsing (subgroup item counts, P0/P1/P2 counts per week)
-3. Read the HTML template from `references/viz-template.html` (bundled with this skill)
-4. Replace `{{TITLE}}` with the period name (e.g., "April 2026")
-5. Replace `{{SUBTITLE}}` with the source info (e.g., "Sourced from W15, W16 (as of Apr 13)")
-6. Replace the `// DATA_PLACEHOLDER` line with `const data = { ... };` containing
-   the aggregated data as a JSON object matching the schema described in the template
-7. Write the completed HTML file to `Reports/`
-
-The template includes four charts: time allocation pie, program activity heatmap,
-P0 trend line, and completion rate stacked bars. Using the template ensures
-consistent styling and layout across invocations.
-
-After writing, tell the user: "Visualization saved to Reports/<filename>.html -
-open in a browser to view."
+__Log it:__ append one entry with op `viz` and target the generated report path.
 
 ### `/worklog sync`
 
-Back up the vault and skill to the private repo. First copies the current skill
-source into the vault, then commits and pushes:
+Vault git sync against the backup repo.
 
-```bash
-# Copy skill files into vault for backup
-cp __SKILL_INSTALL_PATH__/skills/worklog/SKILL.md \
-   "__VAULT_PATH__/.skills/worklog/SKILL.md"
-cp __SKILL_INSTALL_PATH__/.claude-plugin/plugin.json \
-   "__VAULT_PATH__/.skills/worklog/plugin.json"
-
-# Commit and push
-cd "__VAULT_PATH__"
-git add Worklogs/ People/ Programs/ Archive/ Summaries/ Reports/ Templates/ Sources/ Meetings/ .skills/
-git -c user.name="__GIT_USER_NAME__" -c user.email="__GIT_USER_EMAIL__" \
-    commit -m "worklog sync $(date +%Y-%m-%d)"
-git push
-```
-
-Before the first sync, check if a `.gitignore` exists in the vault root. If not,
-create one to prevent committing sensitive or unnecessary files:
-
-```
-.obsidian/plugins/*/data.json
-.obsidian/workspace.json
-.DS_Store
-*.swp
-.env
-```
-
-Run this after any major update (review, rollover, batch adds). The user may also
-ask to sync manually at any time.
+Read `__SKILL_INSTALL_PATH__/skills/worklog/references/sync.md` and follow it. Do not act on this command from memory - the rules, the format and the guardrails all live there. Manual and auto sync share the output lines and exit codes in `## Auto Sync`.
 
 ## Archiving
 
@@ -1298,6 +958,29 @@ done-count: 3
 Use `[[wiki-links]]` for week cross-references. Summary lists completed and rolled
 forward counts (with brief titles in parentheses). Only completed items as bullets.
 
+__The archive is a summary because the history lives in `Threads/`, and only because of
+that.__ Every file in `Archive/` has zero `^- \*\*P[012]\*\*` lines; the entire body of
+`Archive/2026-W36.md` is `0 items completed, 37 items rolled forward to [[2026-W37]] (...)`.
+That is correct only once every rolled-forward item's history has a durable home. Before it
+did, the current week file was the sole surviving copy of every open item's past, and this
+summary-style archive is what made it so.
+
+So: __never archive a week whose rolled-forward items do not each have a verified Thread
+note or a `Backlog.md` park entry.__ Check before rewriting the file, not after. An archive
+write is the point of no return for a week file, and the ordering in
+`references/threads.md` exists to keep this side of it safe.
+
+Add one line to the archive body listing the Threads the week fed, so the archive is a
+navigable index rather than a count:
+
+```markdown
+3 items completed, 28 items rolled forward to [[2026-W38]] (...), 9 parked to [[Backlog]],
+31 Threads updated.
+
+Threads: [[Threads/developer-onboarding-program-rollout|Developer Onboarding Program rollout]],
+[[Threads/build-pipeline-review|build pipeline review]], ...
+```
+
 ## Important Behaviors
 
 - Always read the current file before making changes - the user may have edited
@@ -1313,17 +996,38 @@ forward counts (with brief titles in parentheses). Only completed items as bulle
   for unlinked names. If someone is mentioned who doesn't have a note yet, create a
   stub note first, then link them. Use `slack_search_users` to resolve full names
   when only a first name or handle is given. The graph is only as good as its links.
-- After major updates, remind the user to `/worklog sync` or offer to run it.
-- **Suggest tidy proactively.** After adding 3+ items in a single session, or when
-  the current week file exceeds 20 top-level items, suggest running `/worklog tidy`
-  to keep subgroups balanced, consolidate stale sub-items, and fix frontmatter.
-  Don't force it - just mention it once at the end of the session.
+- After major updates, remind the user to `/worklog sync` or offer to run it. When auto sync is on, skip this (see `## Auto Sync`).
+- __Never truncate a vault file by accident.__ Write vault files only with the Edit or Write
+  tools, or with a script that reads the whole file before it opens the file for writing. Never
+  open a file for writing and read it in the same expression (for example
+  `open(p,'w').write(open(p).read().replace(...))`), because opening the file for writing empties it first.
+  After any scripted or bulk edit, run `__SKILL_INSTALL_PATH__/skills/worklog/scripts/shrink-check.sh '__VAULT_PATH__'`
+  before committing.
+- **Suggest tidy proactively.** After adding 3+ items in a single session, or when the
+  scanner's `week_volume` reports `over_threshold: true`, suggest running `/worklog tidy`
+  to spill oversized items to `Threads/`, park dormant ones, balance subgroups, and fix
+  frontmatter. Don't force it - just mention it once at the end of the session.
+
+  __Do not gate this on top-level item count.__ The old threshold was "exceeds 20 top-level
+  items", which is the one number this file's growth cannot move: `fold before you add`
+  routes new facts into existing items, so item count held nearly flat across four weeks
+  (126, 136, 144, 151) while the file grew to 953 KB. A threshold on the dimension a rule
+  deliberately pins is a threshold that never fires on the dimension the same rule inflates.
+  `week_volume` measures sub-item bytes and per-item sub-item counts instead.
+- __A spill is a move, and the copy comes first.__ Spilling a week-file item to `Threads/`
+  never runs on a vault that is dirty or not under git, never writes the week file before
+  the Thread note is written and verified, and never drops a `[[wiki-link]]` target or a
+  dated sub-item without the user confirming it by name. Archiving rewrites a week as a
+  summary, so until the Thread note exists the week file is the only copy of that item's
+  history. Order is the safety property here, not a preference. See
+  `references/threads.md`.
 - **Preferences are first-class.** `Preferences/` is the skill's general-purpose
   memory layer for anything durable about how the user works - voice, style,
   workflow, tooling, decision rules, vault conventions, formatting, defaults.
   Before any task with a preference-shaped surface (drafting communication,
   writing markdown, picking a tool, structuring a note, making a workflow choice),
-  glob `Preferences/*.md` and apply what's relevant. When the user gives feedback
+  run `__SKILL_INSTALL_PATH__/skills/worklog/scripts/preferences-index.sh '__VAULT_PATH__'`, pick the
+  1-3 relevant preferences from the digest, and read only those bodies. When the user gives feedback
   that sounds durable - "always", "never", "from now on", repeated corrections,
   or quiet endorsements of non-obvious choices - offer to capture it as a
   `Preferences/` note. The user-approved capture is what makes this pattern
@@ -1336,3 +1040,42 @@ forward counts (with brief titles in parentheses). Only completed items as bulle
   `/worklog status`, `/worklog review`, `/worklog search`, `/worklog share`,
   `/worklog sync`) do __not__ nudge. If the user says "skip pull" or "not now"
   earlier in the session, suppress further nudges for that session.
+- __Context channels are swept, not transcribed.__ Sources with `type: context-channel`
+  are swept since `last_scan_ts`, classified by relevance, and high-confidence matches
+  are folded directly into existing worklog items and People/Program/Team notes with a
+  Slack permalink for provenance. They are __never__ written as `Meetings/` notes.
+- __DM sweeps are approval-only and genericized.__ With `Sources/_dms.md` enabled, pulls
+  also sweep the user's 1:1 + group DMs via Slack's Real-time Search API (the
+  `slack-search-dms` helper). DM content is __never auto-folded__ — every relevant item
+  routes through the one-by-one approval batch, and approved items are folded as genericized,
+  workstream-level summaries with a Slack permalink. If the helper is missing/unauthorized
+  (or DM-search consent is absent), the DM sweep is skipped and the channel pull is unaffected.
+- __Log what you write.__ Any operation that changes the vault appends one entry to
+  `Logs/YYYY-MM.md` via `__SKILL_INSTALL_PATH__/skills/worklog/scripts/log-append.sh`.
+  See `## Operations Log`. Read-only commands (`status`, `search`, `share`, an audit
+  that applied nothing) write no entry.
+- __Good answers are artifacts.__ A rollup files itself to `References/`. For any other
+  substantive analysis you produce against the vault, offer once to file it with
+  `/worklog file`. Filed answers are cross-linked, so they compound in the graph the
+  same way ingested content does. Ephemeral by design: `share` and `search`.
+- __Distributions are yours to judge.__ Three audit outputs (`oversized_notes`,
+  `team_vocabulary`, `recurring_tags`) are tables, not to-do lists. The scanner is not
+  claiming each row is a problem; it is handing you the full picture cheaply so you can
+  say which rows matter. Never present a distribution row as a defect without saying why
+  it is one.
+- __Compaction is lossy and git is the undo.__ `/worklog compact` never runs on a vault
+  that is dirty or not under git, never touches a top-level current-state section,
+  never writes before the user has approved the fold, and never loses a
+  `[[wiki-link]]` target without the user confirming it. Suggest it when
+  `/worklog audit` reports `oversized_notes`, one note at a time, never in a batch.
+- __Cold storage is lossless.__ `/worklog cold` moves old dated entries to `Cold/` verbatim,
+  gated by `cold-gate.sh`, and never summarizes. Answer any question from the vault with the
+  lookup ladder in `references/cold.md`. Read warm notes first. Always scan the `## Cold storage`
+  index lines. Read cold files only as the ladder allows. ASK before you sweep all of `Cold/`.
+
+## Integration commands (ingest, jira)
+
+`/worklog ingest <url>`, `/worklog jira <key>`, and the `/worklog <arg>` auto-routing all
+live in detail in `__SKILL_INSTALL_PATH__/skills/worklog/references/integrations.md`. __Before running any of these (or
+auto-routing a bare `/worklog <arg>`), you MUST read that reference and follow it exactly__:
+it names the MCP tool per action and the untrusted-content rules.

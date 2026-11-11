@@ -1,0 +1,25 @@
+{
+  "channel": {"id": "C0EVAL001", "name": "platform-leads"},
+  "users": {
+    "U_TKASK": {"name": "tkask", "real_name": "Theo Kask"},
+    "U_PPATEL": {"name": "ppatel", "real_name": "Priya Patel"},
+    "U_SCHEN": {"name": "schen", "real_name": "Sarah Chen"}
+  },
+  "units": [
+    {
+      "hours_ago": 30,
+      "user": "U_TKASK",
+      "text": "Platform Migration cutover: we closed the data-tier gap. Replication lag is under 200ms in staging, so the rollback path is complete end to end now.",
+      "replies": [
+        {"user": "U_PPATEL", "text": "Confirmed on my side. I reran the rehearsal twice this morning, both clean."},
+        {"user": "U_TKASK", "text": "Then I think we are go for the Thursday window. I'll write up the runbook delta today."}
+      ]
+    },
+    {
+      "hours_ago": 20,
+      "user": "U_SCHEN",
+      "text": "Anyone know if the espresso machine on 4 is fixed yet",
+      "replies": []
+    }
+  ]
+}
