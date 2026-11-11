@@ -1,0 +1,36 @@
+{
+  "pages": [
+    [
+      {
+        "channel_id": "D0EVAL_KEEP",
+        "channel_type": "im",
+        "author_user_id": "U_ALLOWED",
+        "author_name": "Priya Patel",
+        "user_name": "Priya Patel",
+        "content": "Quick question about the Q3 budget review timeline",
+        "text": "Quick question about the Q3 budget review timeline",
+        "hours_ago": 10
+      },
+      {
+        "channel_id": "D0EVAL_BLOCK",
+        "channel_type": "im",
+        "author_user_id": "U_BLOCKED",
+        "author_name": "Sarah Chen",
+        "user_name": "Sarah Chen",
+        "content": "excluded user message about a personal health matter",
+        "text": "excluded user message about a personal health matter",
+        "hours_ago": 8
+      },
+      {
+        "channel_id": "D0EVAL_BLOCKED_CHAN",
+        "channel_type": "mpim",
+        "author_user_id": "U_ALLOWED2",
+        "author_name": "Bryce Gale",
+        "user_name": "Bryce Gale",
+        "content": "message in a blocked channel group",
+        "text": "message in a blocked channel group",
+        "hours_ago": 6
+      }
+    ]
+  ]
+}

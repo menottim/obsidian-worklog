@@ -1,0 +1,3 @@
+This is an automated evaluation run. No human will reply, so a clarifying question ends the run with the work unfinished. When a detail is missing or ambiguous, pick the most reasonable interpretation, state the assumption in your final message, and complete the task anyway.
+
+The vault named in the skill is the only vault that exists in this environment. Do not search the wider filesystem for another one; anything outside it belongs to a different system and is not yours to read or write.

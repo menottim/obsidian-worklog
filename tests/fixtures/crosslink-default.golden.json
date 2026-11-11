@@ -1,0 +1,101 @@
+{
+  "entities": [
+    {
+      "canonical": "Avery Sinclair",
+      "type": "person",
+      "aliases": [
+        "Avery"
+      ]
+    },
+    {
+      "canonical": "Bryce Gale",
+      "type": "person",
+      "aliases": [
+        "Bryce"
+      ],
+      "alias_notes": [
+        {
+          "alias": "Bryce",
+          "alts": [
+            "Bryce Lee"
+          ]
+        }
+      ]
+    },
+    {
+      "canonical": "Bryce Lee",
+      "type": "person",
+      "aliases": []
+    },
+    {
+      "canonical": "Chris Park",
+      "type": "person",
+      "aliases": []
+    },
+    {
+      "canonical": "Chris Vance",
+      "type": "person",
+      "aliases": []
+    },
+    {
+      "canonical": "Dana Wu",
+      "type": "person",
+      "aliases": [
+        "Dana"
+      ]
+    },
+    {
+      "canonical": "Declared Person",
+      "type": "person",
+      "aliases": [
+        "DP",
+        "Declared"
+      ]
+    },
+    {
+      "canonical": "Julian Lowell",
+      "type": "person",
+      "aliases": [
+        "JTL",
+        "Julian"
+      ]
+    },
+    {
+      "canonical": "Madonna",
+      "type": "person",
+      "aliases": []
+    },
+    {
+      "canonical": "Pat Quinn",
+      "type": "person",
+      "aliases": [
+        "Pat"
+      ]
+    },
+    {
+      "canonical": "Pat Rogers",
+      "type": "person",
+      "aliases": []
+    },
+    {
+      "canonical": "Auth (v2)",
+      "type": "program",
+      "aliases": []
+    },
+    {
+      "canonical": "Cloud Security",
+      "type": "program",
+      "aliases": []
+    }
+  ],
+  "ambiguous": {
+    "Chris": [
+      "Chris Park",
+      "Chris Vance"
+    ]
+  },
+  "meta": {
+    "people": 11,
+    "programs": 2
+  }
+}

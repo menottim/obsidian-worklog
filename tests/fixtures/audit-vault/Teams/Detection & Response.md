@@ -1,0 +1,4 @@
+---
+type: team
+---
+# Detection & Response
