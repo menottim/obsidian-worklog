@@ -55,8 +55,8 @@ if ! grep -q '__VAULT_PATH__' "$SKILL_FILE" 2>/dev/null; then
   echo "ERROR: $SKILL_FILE does not contain __VAULT_PATH__ placeholder."
   echo "Either the file is missing or setup.sh has already been run on it."
   echo ""
-  echo "To reconfigure, restore the original SKILL.md first:"
-  echo "  cd $REPO_ROOT && git checkout skills/worklog/SKILL.md"
+  echo "To reconfigure, restore the original skill files first:"
+  echo "  cd $REPO_ROOT && git checkout -- skills/worklog"
   echo "Then re-run setup.sh."
   exit 1
 fi

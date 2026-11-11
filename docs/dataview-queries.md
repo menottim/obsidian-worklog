@@ -1,14 +1,31 @@
 # Dataview Queries
 
-Ready-to-paste queries for the worklog vault. Each query reads from the frontmatter fields populated by the weekly template: `programs`, `people`, `tags`, `item-count`, `done-count`.
+This page gives queries for the worklog vault. You can copy them into a note.
 
-Copy any block into a note using the ` ```dataview ` fence (or ` ```dataviewjs ` for JavaScript queries).
+To use a query, copy the block into a note. Use the ` ```dataview ` fence for a Dataview Query Language (DQL) query. Use the ` ```dataviewjs ` fence for a JavaScript query. For the plugin settings, see [Obsidian Plugin Configuration Guide](obsidian-setup.md).
+
+## Where the data comes from
+
+The skill writes these frontmatter fields in each week file:
+
+- `type`, `week`, `date-start`, `date-end`, `status`, `prev`
+- `programs`, `people`, `tags`, `item-count`, `done-count`
+
+The skill calculates the fields in the second line from the body of the week file. For the rules, see "Frontmatter Auto-generation" in `skills/worklog/SKILL.md`.
+
+The current week file is in `Worklogs/`. At rollover, the skill moves the previous week file to `Archive/` and keeps its frontmatter. Thus the history queries read the two folders. The `WHERE week` filter excludes the files that have no `week` field, for example `Worklogs/Backlog.md`.
+
+Other notes have frontmatter that some queries use:
+
+- Thread notes in `Threads/`: `type: thread`, `title`, `opened`, `last-active`, `status` (`live`, `parked`, or `closed`), `week`, `programs`, `people`, `summary`, `compacted`. See `skills/worklog/references/threads.md`.
+- People and program notes: `summary`. People notes can also have `team`. After `/worklog compact`, a note also has `compacted:` with the date of the compaction. See `skills/worklog/references/compact.md`.
+- Operations log files in `Logs/YYYY-MM.md`: one `## [YYYY-MM-DD] <op> | <target>` heading for each operation. See "Operations Log" in `skills/worklog/SKILL.md`.
 
 ---
 
 ## 1. Weekly Overview Table
 
-Shows a summary row per week with total items, completed items, and how many distinct programs were active. Use this as a dashboard view of throughput over time.
+This query shows one row for each week. The row shows the total items, the completed items, the number of programs, and the completion rate. Use it to see the throughput over time.
 
 ```dataview
 TABLE
@@ -16,8 +33,8 @@ TABLE
   done-count AS "Done",
   length(programs) AS "Programs",
   round((done-count / item-count) * 100) + "%" AS "Completion"
-FROM "Worklogs"
-WHERE item-count > 0
+FROM "Worklogs" OR "Archive"
+WHERE week AND item-count > 0
 SORT file.name DESC
 ```
 
@@ -25,10 +42,10 @@ SORT file.name DESC
 
 ## 2. People Engagement Over Time
 
-Flattens the `people` array across all weekly notes so you can see how often each person appears in your worklog. Useful for spotting collaboration patterns or relationships that have gone quiet.
+This query counts the number of weeks in which each person occurs. Use it to find collaboration patterns. Use it also to find contacts that stopped.
 
 ```dataviewjs
-const pages = dv.pages('"Worklogs"').where(p => p.people && p.people.length > 0);
+const pages = dv.pages('"Worklogs" or "Archive"').where(p => p.week && p.people && p.people.length > 0);
 const counts = {};
 for (const page of pages) {
   for (const person of page.people) {
@@ -44,14 +61,15 @@ dv.table(["Person", "Weeks Mentioned"], rows);
 
 ## 3. Programs by Frequency
 
-Lists all programs that appear in your worklogs, ranked by how many weeks they were active. Helps identify which programs are consuming the most sustained attention.
+This query lists all programs in your week files. It sorts them by the number of active weeks. Use it to find the programs that get the most attention for a long time.
 
 ```dataviewjs
-const pages = dv.pages('"Worklogs"').where(p => p.programs && p.programs.length > 0);
+const pages = dv.pages('"Worklogs" or "Archive"').where(p => p.week && p.programs && p.programs.length > 0);
 const counts = {};
 for (const page of pages) {
   for (const prog of page.programs) {
-    counts[prog] = (counts[prog] || 0) + 1;
+    const name = typeof prog === "object" ? prog.path.split("/").pop().replace(".md", "") : prog;
+    counts[name] = (counts[name] || 0) + 1;
   }
 }
 const rows = Object.entries(counts).sort((a, b) => b[1] - a[1]);
@@ -62,46 +80,47 @@ dv.table(["Program", "Weeks Active"], rows);
 
 ## 4. Items Completed This Month
 
-Filters weekly notes to the current calendar month and sums up completed items. Add this to a monthly review note or a dashboard page.
+This query shows the weeks that start in the current calendar month. It shows the completed items for each week. Add it to a monthly review note or to a dashboard note.
 
 ```dataview
 TABLE
   file.name AS "Week",
   done-count AS "Items Completed"
-FROM "Worklogs"
-WHERE done-count > 0
-  AND dateformat(file.mtime, "yyyy-MM") = dateformat(date(today), "yyyy-MM")
+FROM "Worklogs" OR "Archive"
+WHERE week AND done-count > 0
+  AND date-start.year = date(today).year
+  AND date-start.month = date(today).month
 SORT file.name ASC
 ```
 
 ---
 
-## 5. Active P0 Items (Inline - Current Week)
+## 5. Open P0 Items (Current Week)
 
-Use this as an __inline query__ inside your current week's note to surface any items still marked P0. Paste the line below directly into the note body (not inside a code fence).
-
-```
-`$= dv.pages('"Worklogs"').where(p => p.file.name === dv.current().file.name).flatMap(p => p.p0_items ?? []).join(", ") || "None"`
-```
-
-> __Note:__ This requires your weekly template to populate a `p0_items` frontmatter list. If you track P0s inline in note body rather than frontmatter, use the Dataview JS approach below instead:
+Put this query in the current week file. It lists the P0 items that are not done. It reads the body of the file, because the frontmatter has no list of P0 items.
 
 ```dataviewjs
 const current = dv.current();
 const content = await dv.io.load(current.file.path);
-const p0lines = content.split("\n").filter(l => l.match(/P0/i));
-dv.list(p0lines.length > 0 ? p0lines : ["No P0 items this week"]);
+const p0lines = content.split("\n").filter(l => /^- \*\*P0\*\*/.test(l) && !l.includes("✅ Done"));
+dv.list(p0lines.length > 0 ? p0lines : ["No open P0 items this week"]);
+```
+
+To show the number of open items in the text of a week file, type this inline query in the body. Do not put it in a code fence.
+
+```
+`= this["item-count"] - this["done-count"]`
 ```
 
 ---
 
 ## 6. Completion Rate Trend
 
-Charts completion rate (done / total) as a table across all weeks. Use this to spot weeks where throughput dropped. Handy for retrospectives or capacity conversations.
+This query shows the completion rate (done / total) for each week, with a text bar. Use it to find the weeks with low throughput, for example for a retrospective or a capacity discussion.
 
 ```dataviewjs
-const pages = dv.pages('"Worklogs"')
-  .where(p => p["item-count"] > 0)
+const pages = dv.pages('"Worklogs" or "Archive"')
+  .where(p => p.week && p["item-count"] > 0)
   .sort(p => p.file.name, "asc");
 
 const rows = pages.map(p => {
@@ -117,10 +136,10 @@ dv.table(["Week", "Total", "Done", "Rate"], rows);
 
 ## 7. Tags Distribution
 
-Shows how often each tag appears across your worklog history. Useful for understanding what categories of work dominate your time.
+This query counts each tag in your week files. The skill makes the tags from the bold subgroup labels of the week. Use the query to see the types of work that use most of your time.
 
 ```dataviewjs
-const pages = dv.pages('"Worklogs"').where(p => p.tags && p.tags.length > 0);
+const pages = dv.pages('"Worklogs" or "Archive"').where(p => p.week && p.tags && p.tags.length > 0);
 const counts = {};
 for (const page of pages) {
   const tagList = Array.isArray(page.tags) ? page.tags : [page.tags];
@@ -137,7 +156,7 @@ dv.table(["Tag", "Occurrences"], rows);
 
 ## 8. Recent Activity
 
-Lists the 10 most recently modified files in your Worklogs folder. Useful for quickly resuming where you left off or finding notes you touched this week across sessions.
+This query lists the 10 files in `Worklogs/` that changed most recently. Use it to continue your work from the last session.
 
 ```dataview
 TABLE
@@ -147,4 +166,55 @@ TABLE
 FROM "Worklogs"
 SORT file.mtime DESC
 LIMIT 10
+```
+
+---
+
+## 9. Open Threads
+
+A Thread note keeps the dated history of one worklog item. The skill moves the history from the week file to the Thread note. This query lists the Threads that are not closed. It shows the most recently active Threads first. A `parked` Thread is an item in `Backlog.md`.
+
+```dataview
+TABLE
+  status AS "Status",
+  last-active AS "Last Active",
+  week AS "Week",
+  summary AS "Summary"
+FROM "Threads"
+WHERE type = "thread" AND status != "closed"
+SORT last-active DESC
+```
+
+---
+
+## 10. Compacted Notes
+
+This query lists the notes that `/worklog compact` folded, with the date of the last compaction. Thread notes have `compacted: null` until the first compaction, so the `WHERE compacted` filter excludes them.
+
+```dataview
+TABLE
+  compacted AS "Compacted",
+  summary AS "Summary"
+FROM "People" OR "Programs" OR "Threads"
+WHERE compacted
+SORT compacted DESC
+```
+
+---
+
+## 11. Recent Operations
+
+This query shows the last 15 entries of the operations log. The skill adds one entry for each operation that writes to the vault.
+
+```dataviewjs
+const files = dv.pages('"Logs"').sort(p => p.file.name, "asc");
+const entries = [];
+for (const f of files) {
+  const content = await dv.io.load(f.file.path);
+  for (const line of content.split("\n")) {
+    const m = line.match(/^## \[(\d{4}-\d{2}-\d{2})\] (\S+) \| (.*)$/);
+    if (m) entries.push([m[1], m[2], m[3]]);
+  }
+}
+dv.table(["Date", "Operation", "Target"], entries.slice(-15).reverse());
 ```

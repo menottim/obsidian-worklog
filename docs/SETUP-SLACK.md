@@ -1,62 +1,113 @@
-# Slack Auto-Fetch Setup (optional)
+# Slack Setup
 
-The `/worklog pull` command can __automatically fetch__ email bodies from a Slack
-channel when forwarded emails arrive as `.html` file attachments (which is what
-Slack's email-to-channel integration does for emails larger than ~5-10KB).
-Setting this up is __optional__: without it, the skill falls back to prompting
-you to paste each body inline, which works fine but takes more keystrokes per
-pull.
+This guide connects the worklog skill to Slack. It covers four features:
 
-If you want auto-fetch, follow this guide once. Five minutes of setup, then
-every future `/worklog pull` ingests bodies automatically.
+| Feature | Command | What it needs |
+|---------|---------|---------------|
+| Channel pull | `/worklog pull` | A Slack MCP server (required) |
+| Email body auto-fetch | `/worklog pull` | A Slack user token with `files:read` and the `slack-fetch-file` helper (optional) |
+| DM sweep | `/worklog pull` | The Slack MCP search tool, or the `slack-search-dms` helper with `search:read.*` scopes (optional, opt-in) |
+| One-thread ingest | `/worklog ingest <permalink>` | A Slack MCP server |
 
-## What you'll need
+Terms in this guide:
 
-- A Slack workspace where you can install personal apps (this may require admin
-  approval at your org; see [App Approval Process](#app-approval-process) below).
-- About 5 minutes.
+- A __source__ is one note in `Sources/` in your vault. Each note tells `/worklog pull` what to read.
+- A __helper__ is a small Bash script in `~/.config/obsidian-worklog/bin`. The skill runs it directly.
+- A __user token__ is a Slack OAuth token that starts with `xoxp-`. It has your own channel access.
 
-## 1. Create a personal Slack app
+## 1. Connect a Slack MCP server
 
-Go to <https://api.slack.com/apps> and click __Create New App__ → __From scratch__.
+`/worklog pull` and `/worklog ingest` read Slack through a Slack MCP server. The skill uses these tools:
 
-- __App Name__: `obsidian-worklog-fetcher` (or anything you like).
-- __Pick a workspace__: select the workspace where your meeting-notes channel lives.
+- `slack_read_channel` lists the top-level messages in a channel.
+- `slack_read_thread` reads a full thread.
+- `slack_search_channels` finds a channel ID from a channel name.
+- `slack_search_users` finds a full name from a user ID or handle.
+- `slack_search_public_and_private` lists your DMs for the DM sweep.
 
-## 2. Add the `files:read` scope
+Install a Slack MCP plugin in your host before the first pull. If no Slack MCP is available, the pull stops with this message:
 
-In the left sidebar, go to __OAuth & Permissions__ → __Scopes__.
+```
+This needs a Slack MCP plugin. Install one and re-run.
+```
 
-- Under __User Token Scopes__, click __Add an OAuth Scope__ and add `files:read`.
-- That's the only scope you need. Skip __Bot Token Scopes__ entirely.
+__Codex:__ before a pull, the skill checks that the host can do four operations. These are: list channel messages in a time window, read a full thread, find a channel by name, and find a user by ID or handle. If one operation is missing, the pull stops and names it. The pull does not move `last_scan_ts`. The skill does not use semantic or RAG Slack search as a replacement, because that search does not return every message. For one thread, use `$worklog ingest <slack-permalink>`.
 
-> __Why user-token (`xoxp-...`), not bot-token (`xoxb-...`)?__ User tokens
-> inherit your channel access. If you're a member of a channel, the token can
-> read files in it. Bot tokens require an explicit `/invite @your-bot` to each
-> channel, which is extra friction with no benefit when you're the only user.
+## 2. Register your sources
 
-## 3. Install the app to your workspace
+The skill supports three source types. Each type has its own flow.
 
-Still on __OAuth & Permissions__, scroll up and click __Install to Workspace__.
+| Source type | `type:` value | File | What the pull does |
+|-------------|---------------|------|--------------------|
+| Forwarded-email meeting notes | `meeting-notes-via-email` | `Sources/<channel-name>.md` | Writes one `Meetings/` note per thread, then extracts items |
+| Context channel | `context-channel` | `Sources/<channel-name>.md` | Reads new messages, sorts them into three groups, and adds the relevant ones to your vault |
+| DM sweep | `dm-sweep` | `Sources/_dms.md` (one file) | Finds new DMs and group DMs, then asks you about each relevant one |
 
-Slack will show a permissions confirmation page listing `files:read` and your
-workspace name. Click __Allow__.
+To register a meeting-notes channel:
 
-> __At workspaces with admin approval:__ if your workspace requires admin
-> approval for new apps, you'll see a "Request to Install" button instead of
-> direct approval. Submit the request; an admin will review and approve. The
-> `files:read` scope is read-only, scoped to your own access, and one of the
-> most common scopes, so approval is usually fast.
+1. Run `/worklog pull` when `Sources/` is empty, or tell the skill to register a channel.
+2. Give the channel name.
+3. Confirm the channel ID that the skill finds.
 
-## 4. Copy the user OAuth token
+The skill writes the source note with `first_scan_lookback_days: 14`. See [examples/source-note.md](../examples/source-note.md).
 
-After installation, scroll back up on the __OAuth & Permissions__ page. You'll
-see __OAuth Tokens__ at the top with __User OAuth Token__, a long string
-starting with `xoxp-`. Copy it.
+To register a context channel, tell the skill "register `#channel-name` as a context channel". You can give a list of channels. The skill writes one file per channel with `first_scan_lookback_days: 7`.
 
-## 5. Store the token
+To turn on the DM sweep, see [DM sweep](#dm-sweep).
 
-Open a terminal and run (replace `xoxp-...` with the token you copied):
+### How a meeting-notes pull works
+
+Slack's email-to-channel integration posts large forwarded emails as `.html` or `.eml` file attachments. The email body is in the file, not in the message text. Most Slack MCP tools return only the file metadata.
+
+For each new thread, the skill does these steps:
+
+1. It runs `~/.config/obsidian-worklog/bin/slack-fetch-file <file_id>`.
+2. If the helper exits with 0, the skill uses its output as the email body.
+3. If the helper exits with any other code, the skill shows a summary of the thread and asks you to paste the body. You can also say `skip` or `skip all remaining`.
+
+The skill always runs the helper first. It does not check the setup before it runs the helper. A missing helper gives a non-zero exit, and the skill asks you to paste.
+
+The skill then writes `Meetings/YYYY-MM-DD-<topic-slug>.md`. See [examples/meeting-note.md](../examples/meeting-note.md). Thread replies are normal Slack messages, so they never need the helper. On later pulls, the skill adds only new replies to `## Discussion`.
+
+### How a context-channel pull works
+
+The skill reads each thread or standalone message since `last_scan_ts`. It puts each one into one of three groups:
+
+- __High-confidence match:__ the skill adds it to the matching item or note immediately. The skill lists each of these in the pull summary, so you can undo a wrong one.
+- __Weak match, or new and worth tracking:__ the skill asks you about it at the end of the pull.
+- __Noise:__ the skill ignores it.
+
+The skill writes no `Meetings/` note for a context channel. A Slack permalink records where each fact came from. If a channel has more than about 100 threads and messages, the skill stops and asks you what to do.
+
+## 3. Create a personal Slack app (optional)
+
+Do this step only for email body auto-fetch or the DM helper. The channel pull and the MCP DM sweep do not need a token.
+
+1. Go to <https://api.slack.com/apps>.
+2. Click __Create New App__, then __From scratch__.
+3. Type an app name, for example `obsidian-worklog-fetcher`.
+4. Select the workspace that has your source channels.
+5. In the left sidebar, click __OAuth & Permissions__.
+6. Under __User Token Scopes__, add the scopes from the table below. Do not add Bot Token Scopes.
+7. Click __Install to Workspace__, then click __Allow__.
+8. Copy the __User OAuth Token__. It starts with `xoxp-`.
+
+| Scope | Needed for |
+|-------|------------|
+| `files:read` | `slack-fetch-file` (email body auto-fetch) |
+| `search:read.public` | `slack-search-dms`. This is the base scope for the Real-time Search API. |
+| `search:read.im` | `slack-search-dms`, to search your 1:1 DMs |
+| `search:read.mpim` | `slack-search-dms`, to search your group DMs |
+
+Use a user token, not a bot token (`xoxb-`). A user token can read every channel that you are a member of. A bot token can read a channel only after you invite the bot to it.
+
+If you add scopes later, install the app again. Then copy the new token. Store it again (step 4).
+
+If your workspace requires admin approval, Slack shows __Request to Install__. Submit the request. See [App approval](#app-approval).
+
+## 4. Store the token
+
+Run these commands. Replace `xoxp-...` with your token.
 
 ```bash
 mkdir -p ~/.config/obsidian-worklog
@@ -65,21 +116,15 @@ printf '%s' 'xoxp-...' > ~/.config/obsidian-worklog/slack-token
 chmod 600 ~/.config/obsidian-worklog/slack-token
 ```
 
-Or, on macOS, use Keychain instead:
+Both helpers read the token from `~/.config/obsidian-worklog/slack-token`. To use a different file, set `SLACK_TOKEN_FILE` in the environment that runs Claude Code or Codex. The helpers do not read the macOS Keychain.
 
-```bash
-security add-generic-password -s obsidian-worklog -a slack-token -w 'xoxp-...'
-```
+## 5. Install the helpers
 
-If you use Keychain, you'll need to adjust the helper script in step 6 to
-read from Keychain instead of the file.
+The skill runs the helpers from the fixed path `~/.config/obsidian-worklog/bin`. Each helper needs `curl` and `jq`.
 
-## 6. Install the helper script
+### `slack-fetch-file`
 
-The script reads the token, calls Slack's `files.info` to get a download URL,
-then fetches the file body with the Bearer auth header. It's ~30 lines of
-plain Bash; no dependencies beyond `curl` and `jq` (both standard on macOS,
-available via package manager on Linux).
+This helper calls Slack's `files.info` to get the download URL. Then it downloads the file body with the token.
 
 ```bash
 mkdir -p ~/.config/obsidian-worklog/bin
@@ -123,134 +168,18 @@ SCRIPT
 chmod 700 ~/.config/obsidian-worklog/bin/slack-fetch-file
 ```
 
-## 7. Smoke-test the setup
+### `slack-search-dms`
 
-Pick any file ID from the channel you registered as a worklog source. You can
-find one by running `/worklog pull` once and copying a `file_id` from the
-thread summary the skill prints. Then:
+The skill uses this helper only when the Slack MCP search tool is not available. See [DM sweep](#dm-sweep).
 
-```bash
-~/.config/obsidian-worklog/bin/slack-fetch-file F0XXXXXXX | head -c 500
-```
+The interface:
 
-If it prints HTML or text, the helper itself is working.
+- Argument: one Unix timestamp. The helper returns only messages newer than it.
+- Input: search queries on stdin, one per line. With no stdin, it uses a built-in topic list.
+- Output: one JSON object per message, then one summary line.
+- Exit code: 0 if one or more queries succeeded. Non-zero on a setup error or if every query failed.
 
-If it prints an error like `not_visible` or `access_denied`, the token is
-valid but the file isn't visible to you (maybe it's in a private channel
-you're not a member of). Check that you're a member of the source channel.
-
-If it prints `not_authed` or `invalid_auth`, the token is wrong or expired.
-Re-copy from the OAuth & Permissions page and rewrite step 5.
-
-## 8. Allow Claude Code to invoke the helper
-
-Even with the helper installed, Claude Code prompts for permission each time
-it tries to run a bash command from a path it hasn't seen before. If you
-operate in `/focus` mode or with `skipAutoPermissionPrompt`, those prompts
-get silently denied, and the skill falls back to manual paste even though
-auto-fetch is fully set up.
-
-Add the helper path to your Bash allowlist in `~/.claude/settings.json`:
-
-```json
-"permissions": {
-  "allow": [
-    "Bash(~/.config/obsidian-worklog/bin/slack-fetch-file:*)"
-  ]
-}
-```
-
-Or, easier: type `/permissions` in Claude Code and add
-`Bash(~/.config/obsidian-worklog/bin/slack-fetch-file:*)` via the UI.
-
-Restart Claude Code after editing settings.json: settings load on session
-start, not mid-session. The next `/worklog pull` will use auto-fetch
-automatically.
-
-### Codex permission setup
-
-Codex users do not edit `~/.claude/settings.json`. Keep the vault inside the
-session's writable workspace boundary and allow the helper command when Codex
-requests approval. Because `slack-fetch-file` makes a direct network request,
-the active Codex permission profile must also permit the Slack API destination.
-Use the narrowest command and network approval that works; full-machine access
-is not required.
-
-Restart Codex after changing its permission or MCP configuration. Invoke the
-same flow as `$worklog pull`. See [SETUP-CODEX.md](SETUP-CODEX.md) for the
-general Codex installation and workspace setup.
-
-## App Approval Process
-
-Some Slack workspaces require admin approval before new apps can be installed,
-including personal-use apps. Common scenarios:
-
-- __Personal/small workspaces__: usually no approval needed, install is instant.
-- __Larger orgs with security policies__: an "App Approval Bot" or admin review
-  process intercepts the install request. `files:read` is a read-only,
-  user-scoped, low-risk scope, so approval is typically fast (hours to days).
-- __Compliance-heavy workspaces__: may have a stricter review (security/IT
-  ticket). Follow your org's process.
-
-If approval at your org takes a long time, the skill's manual-paste fallback
-keeps `/worklog pull` working in the meantime, so you don't have to wait.
-
-## Token rotation and revocation
-
-User tokens don't expire by default but can be revoked at any time:
-
-- __You revoke__: go to your Slack workspace → __Profile__ → __Apps__ → find
-  `obsidian-worklog-fetcher` → __Remove app__. Token is invalidated immediately.
-- __Workspace admin revokes__: same effect; you'll see `not_authed` errors on
-  next pull and need to re-install + re-store the token.
-
-The skill detects auth errors and falls back to manual paste, so a revoked
-token doesn't block ingestion.
-
-## Removing auto-fetch
-
-If you want to go back to manual paste only:
-
-```bash
-rm ~/.config/obsidian-worklog/slack-token
-rm ~/.config/obsidian-worklog/bin/slack-fetch-file
-```
-
-The skill detects the missing helper and prompts for paste on every thread.
-
-## Optional: DM sweep setup
-
-To let `/worklog pull` also sweep your 1:1 and group DMs, do two one-time things. The
-sweep uses Slack's Real-time Search API (`assistant.search.context`) to retrieve only
-DM messages relevant to your work, so it makes one search call instead of reading every
-conversation.
-
-### 1. Add search scopes to your Slack user token
-
-In your Slack app at `api.slack.com/apps` → OAuth & Permissions → User Token Scopes, add:
-
-- `search:read.public` (required base scope for the Real-time Search API)
-- `search:read.im` (search your 1:1 DMs)
-- `search:read.mpim` (search your group DMs)
-
-Then reinstall the app to your workspace and update the `xoxp-` token at
-`~/.config/obsidian-worklog/slack-token` (chmod 600). Inside the Slack client, complete the
-one-time consent prompt that authorizes DM/MPIM search. Verify the workspace has Slack AI
-Search enabled:
-
-```bash
-TOKEN="$(tr -d '[:space:]' < ~/.config/obsidian-worklog/slack-token)"
-curl -sS -X POST https://slack.com/api/assistant.search.info \
-  -H "Authorization: Bearer $TOKEN" | jq .
-```
-
-If this returns `"ok": true`, you are set. If it returns `missing_scope` or a not-enabled
-error, finish the scope/consent steps above; until then `/worklog pull` skips the DM sweep
-with a one-line note and the rest of the pull is unaffected.
-
-### 2. Install the `slack-search-dms` helper
-
-Save this as `~/.config/obsidian-worklog/bin/slack-search-dms` and `chmod 700` it:
+Save this as `~/.config/obsidian-worklog/bin/slack-search-dms`. Then run `chmod 700` on it.
 
 ```bash
 #!/usr/bin/env bash
@@ -356,15 +285,72 @@ jq -s -c --argjson after "$AFTER" --argjson nq "${#queries[@]}" --argjson nf "$f
 ' "$RAW"
 ```
 
-Test it (3-day window): `~/.config/obsidian-worklog/bin/slack-search-dms "$(date -v-3d +%s)"   # macOS; Linux: date -d '3 days ago' +%s`
-prints JSON result lines then a summary line (`queries`, `failed_queries`, `candidates`, `in_window`). A non-zero exit (missing scope,
-bad token, network) makes `/worklog pull` skip the DM sweep gracefully.
+The skill sets `SLACK_DM_CHANNEL_TYPES` from `include_1on1` and `include_groups` in `Sources/_dms.md`.
 
-### 3. Opt in with `Sources/_dms.md`
+## 6. Allow the helpers in Claude Code
 
-The helper alone does nothing. The DM sweep only runs when this file exists in your vault
-and is `enabled: true`. Unlike channel sources there is one file for the whole sweep, since
-DMs are searched rather than enumerated, so there is no per-conversation state to keep:
+Claude Code asks for permission before it runs a command from a new path. In `/focus` mode, or with `skipAutoPermissionPrompt`, Claude Code denies these requests without a prompt. The skill then falls back to manual paste, and the DM helper does not run.
+
+To prevent this, add the helpers to the Bash allowlist in `~/.claude/settings.json`:
+
+```json
+"permissions": {
+  "allow": [
+    "Bash(~/.config/obsidian-worklog/bin/slack-fetch-file:*)",
+    "Bash(~/.config/obsidian-worklog/bin/slack-search-dms:*)"
+  ]
+}
+```
+
+You can also type `/permissions` in Claude Code and add the same two entries.
+
+Restart Claude Code after you edit `settings.json`. Claude Code reads its settings only when a session starts.
+
+### Codex permissions
+
+Codex does not use `~/.claude/settings.json`.
+
+1. Keep the vault in the writable workspace of the session.
+2. Approve the helper command when Codex asks.
+3. Let the active permission profile reach `slack.com`. Both helpers call the Slack API directly.
+4. Restart Codex after you change its permission or MCP configuration.
+
+Use the narrowest command and network approval that works. Full machine access is not necessary. See [SETUP-CODEX.md](SETUP-CODEX.md) for the general Codex setup.
+
+## 7. Test the setup
+
+Test `slack-fetch-file`. Get a file ID from the thread summary that `/worklog pull` shows. Then run:
+
+```bash
+~/.config/obsidian-worklog/bin/slack-fetch-file F0XXXXXXX | head -c 500
+```
+
+If the command prints HTML or text, the helper works.
+
+Test the Real-time Search API for `slack-search-dms`:
+
+```bash
+TOKEN="$(tr -d '[:space:]' < ~/.config/obsidian-worklog/slack-token)"
+curl -sS -X POST https://slack.com/api/assistant.search.info \
+  -H "Authorization: Bearer $TOKEN" | jq .
+```
+
+If the output has `"ok": true`, the API is available. The workspace must have Slack AI Search turned on. In the Slack client, accept the one-time prompt that allows DM and group DM search.
+
+Test `slack-search-dms` with a 3-day window:
+
+```bash
+# macOS
+~/.config/obsidian-worklog/bin/slack-search-dms "$(date -v-3d +%s)"
+# Linux
+~/.config/obsidian-worklog/bin/slack-search-dms "$(date -d '3 days ago' +%s)"
+```
+
+The helper prints JSON result lines, then a summary line with `queries`, `failed_queries`, `candidates`, `in_window`, and `newest_seen`.
+
+## DM sweep
+
+The DM sweep reads your 1:1 DMs and group DMs. It runs only when `Sources/_dms.md` exists and has `enabled: true`. There is one file for the whole sweep, because the skill searches DMs and does not keep state for each conversation.
 
 ```yaml
 ---
@@ -375,8 +361,8 @@ include_groups: true            # search mpim (group DM) conversations
 last_scan_ts: null              # global baseline; first run = now - first_scan_lookback_days
 first_scan_lookback_days: 3
 nudge_threshold_days: 5
-query: ""                       # optional salience override; empty uses the built-in
-max_results: 100                # volume-guardrail threshold
+query: ""                       # optional salience query override; empty = built-in default
+max_results: 100                # pagination cap and volume-guardrail threshold
 exclude_users: []               # user IDs whose 1:1 DMs are dropped from results
 exclude_conversations: []       # conversation IDs (im/mpim) dropped from results
 ---
@@ -386,18 +372,78 @@ exclude_conversations: []       # conversation IDs (im/mpim) dropped from result
 Notes to yourself about what this sweep is for.
 ```
 
-Delete the file, or set `enabled: false`, and `/worklog pull` stops reading DMs entirely.
-Use `exclude_users` and `exclude_conversations` to carve out specific people or threads
-while leaving the rest of the sweep on.
+To stop the sweep, delete the file or set `enabled: false`. To skip some people or conversations, add their IDs to `exclude_users` or `exclude_conversations`.
 
-Two behaviors worth knowing before you enable it. Nothing found in a DM is ever auto-folded
-the way a context-channel match is: every relevant unit goes through the end-of-pull
-approval batch, and what gets written on approval is a genericized, workstream-level
-summary with a permalink, not a verbatim quote. And if more than `max_results` results
-fall in the window, the pull stops and asks rather than silently truncating.
+The skill finds new DMs in one of two ways:
 
-### Deprecation: `slack-list-dms`
+1. __Slack MCP search tool (primary).__ In Claude Code this is `slack_search_public_and_private`. The skill searches with `is:dm` and no keywords, sorted by time, and reads every page. This gives a full list. It needs no token and no helper.
+2. __`slack-search-dms` helper (fallback).__ The skill uses the helper only when the search tool is not available. The skill sends many narrow queries on stdin: the `query` value, the names in the current week's `people:`, and active program names. A ranked search can miss messages, so the skill records the sweep as "fan-out" in the log.
 
-The earlier `slack-list-dms` enumeration helper and the `im:read` / `mpim:read` scopes are no
-longer used by the DM sweep (search replaces enumeration). You can leave them in place or
-remove `~/.config/obsidian-worklog/bin/slack-list-dms`; the sweep does not call it.
+The skill does not move `last_scan_ts` after a partial sweep. A sweep is partial if a search page fails or if `failed_queries` is more than 0. The next pull then reads the same window again.
+
+Two rules apply to all DM content:
+
+- The skill never adds DM content to the vault without your approval. It asks you about each relevant DM at the end of the pull.
+- When you approve a DM, the skill writes a general summary of the work with a permalink. It does not copy the message text.
+
+If the window has more than `max_results` results, the skill stops and asks you what to do. It does not cut the list.
+
+## One-thread ingest
+
+To ingest one Slack thread without registering a source, run:
+
+```
+/worklog ingest https://<workspace>.slack.com/archives/<channel_id>/p<digits>
+```
+
+The skill reads the thread with `slack_read_thread` and writes a `Meetings/` note with the same Slack fields as a pull. A later `/worklog pull` finds that note and does not ingest the thread again. If you give the link of a reply, the skill uses the `thread_ts` in the link. See `skills/worklog/references/integrations.md` for the full rules.
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| `This needs a Slack MCP plugin. Install one and re-run.` | No Slack MCP server is connected. | Install a Slack MCP plugin. Then restart the host. |
+| Codex stops and names a missing capability. | The Slack connector cannot do one of the four required operations. | Use a connector that has all four operations. For one thread, use `$worklog ingest <slack-permalink>`. |
+| The skill asks you to paste each email body. | `slack-fetch-file` is missing, the token is missing, or Claude Code blocked the command. | Do steps 3 to 6. Check the allowlist entry. Restart Claude Code. |
+| `not_visible` or `access_denied` | The token is correct, but you cannot see the file. | Join the source channel. |
+| `not_authed` or `invalid_auth` | The token is wrong, expired, or revoked. | Copy the token again from __OAuth & Permissions__. Do step 4 again. |
+| `DM sweep skipped: <reason>` | The search tool is not available, and the helper failed. Usually the cause is `missing_scope`, no DM search consent, or Slack AI Search is off. | Add the `search:read.*` scopes. Install the app again. Accept the consent prompt. Run the `assistant.search.info` test. |
+| `DM sweep skipped: no channel types selected` | `include_1on1` and `include_groups` are both `false`. | Set one of them to `true`. |
+| The DM sweep is reported as partial. | A search page or query failed. | Run `/worklog pull` again. The skill reads the same window again. |
+| The pull stops and asks about volume. | A context channel has more than about 100 threads and messages, or the DM window has more than `max_results`. | Continue, use a smaller window, or skip the source. |
+
+The rest of the pull continues when the DM sweep is skipped.
+
+## App approval
+
+Some workspaces require admin approval for new apps, including personal apps.
+
+- __Personal or small workspaces:__ usually no approval is necessary.
+- __Larger organizations:__ an admin or an approval bot reviews the request. `files:read` is a read-only user scope, so approval is usually fast.
+- __Strict workspaces:__ follow the process of your organization.
+
+While you wait, `/worklog pull` continues to work. The skill asks you to paste each email body.
+
+## Token rotation and revocation
+
+User tokens do not expire by default. You or an admin can revoke a token at any time.
+
+- __To revoke the token yourself:__ in Slack, go to __Profile__, then __Apps__. Find your app and click __Remove app__.
+- __If an admin revokes the token:__ the next pull shows `not_authed`. Install the app again and do step 4 again.
+
+After revocation, the skill falls back to manual paste. Ingestion does not stop.
+
+## Remove auto-fetch
+
+To use manual paste only, run:
+
+```bash
+rm ~/.config/obsidian-worklog/slack-token
+rm ~/.config/obsidian-worklog/bin/slack-fetch-file
+```
+
+The skill then asks you to paste each email body. Without the token, the DM helper also fails. The DM sweep still runs if the Slack MCP search tool is available.
+
+## Deprecated: `slack-list-dms`
+
+The DM sweep does not use the old `slack-list-dms` helper or the `im:read` and `mpim:read` scopes. You can remove `~/.config/obsidian-worklog/bin/slack-list-dms`.
