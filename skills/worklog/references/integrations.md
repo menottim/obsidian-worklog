@@ -66,9 +66,9 @@ Auto-routing applies only when the first word of `<arg>` is __not__ a subcommand
 |----------------------------------------------|---------------|
 | `<arg>` is a single token (no whitespace) matching one of the URL patterns in `/worklog ingest`'s routing table (Slack permalink, Google Docs, Confluence) | `/worklog ingest` behavior with `<arg>` as the URL |
 | Matches `^[A-Z][A-Z0-9_]+-[1-9][0-9]*( -p[012])?$` (Jira key like `PROJ-1234`, optional priority flag) AND `jira_projects` is recorded AND the project key is in it | `/worklog jira` behavior with `<arg>` |
-| Matches a Jira URL `^https://[A-Za-z0-9.-]+/browse/[A-Z][A-Z0-9_]+-[1-9][0-9]*([?#][^ ]*)?( -p[012])?$` | `/worklog jira` behavior with the extracted key and host |
+| Matches a Jira URL `^https://[A-Za-z0-9.-]+/browse/[A-Z][A-Z0-9_]+-[1-9][0-9]*/?([?#][^ ]*)?( -p[012])?$` | `/worklog jira` behavior with the extracted key and host |
 | Any other single URL (matches `^https?://[^ ]+$`) | STOP. Report: ``URL pattern not supported by /worklog. Either paste the body inline, or use a supported source (Slack permalink, Google Docs, Confluence).`` |
-| Anything else (bare names, ambiguous tokens, a bare key when `jira_projects` is not recorded, pasted notes, a URL followed by text) | Treat as raw worklog input - process via the standard "Processing raw input" flow (extract items, add to current week). A bare key on its own writes nothing: reply with ``you can pull <KEY> via `/worklog jira <KEY>`.`` |
+| Anything else (bare names, ambiguous tokens, a bare key when `jira_projects` is not recorded, pasted notes, a URL followed by text) | Treat as raw worklog input - process via the standard "Processing raw input" flow (extract items, add to current week). A bare key on its own (with or without `-pN`, including a key whose project is not in `jira_projects`) writes nothing: reply with ``you can pull <KEY> via `/worklog jira <KEY>`.`` |
 
 __Announcement requirement:__ before routing to `ingest` or `jira`, print a one-line announcement: ``Auto-routing /worklog <arg> -> /worklog <subcommand> (matched: <pattern>)``. No announcement is needed for the raw-input row.
 
@@ -114,7 +114,7 @@ __Execution sequence:__
 
 __Cloud ID and site host:__ the server accepts a site host as `cloudId`, so always pass a host.
 1. The site host is, in order: the host of a pasted Jira URL, else `jira_site`.
-2. If no host is known, or the server rejects it, announce and call `getAccessibleAtlassianResources`. If a host is known, select the site whose `url` host matches it exactly. If no host is known and exactly one site is returned, use it. If several are returned and no host is known, list their URLs and ask the user which site to use. Retry once with `cloudId` = the host of the selected site's `url`. After a single-site match, offer to record it as `jira_site` in `Preferences/Jira.md` so later pulls skip discovery.
+2. If no host is known, or the server rejects it, announce and call `getAccessibleAtlassianResources`. If a host is known, select the site whose `url` host matches it exactly. If no host is known and exactly one site is returned, use it. If several are returned and no host is known, list their URLs and ask the user which site to use. Retry once with `cloudId` = the host of the selected site's `url`. When exactly one site was returned, offer to record it as `jira_site` in `Preferences/Jira.md` so later pulls skip discovery.
 3. If there is no exact match or the retry fails, surface the error and stop. Never guess a site.
 4. The site host for links is the host used for the successful call.
 
@@ -141,13 +141,15 @@ __Item format__ (the vault's standard item format; the date is today's, in `(Mon
 ```
 
 __Already tracked:__ if the current week file or `Backlog.md` already mentions the key as a whole word (`\b<KEY>\b`), do not add a second item. Instead:
-- A `-pN` override changes the existing item's priority and re-sorts it within its subgroup.
-- Add the sub-item `  - Jira: status `<status>`, priority `<jira-priority>` (Mon D)` only when status or priority differs from the newest `Pulled from Jira:` or `Jira:` sub-item. If nothing changed, change nothing and log nothing.
+- If no `-pN` override was given, status and priority match the newest `Pulled from Jira:` or `Jira:` sub-item (in the week file, else in the item's Thread note), and the ticket is not closed or the item is already `✅ Done`, change nothing and log nothing. Stop here.
+- If the item is a `🔁 Parked` entry in `Backlog.md`, wake it first per "To wake an item" in `references/threads.md`, then apply the steps below to the week-file item.
+- A `-pN` override changes the item's priority and re-sorts it within its subgroup.
+- If status or priority differs, add the sub-item ``  - Jira: status `<status>`, priority `<jira-priority>` (Mon D)``.
 - If the item then has more sub-items than `WORKLOG_WEEK_KEEP_SUBS`, spill per `references/threads.md`.
 - Mark it `✅ Done` if the ticket is closed and the user confirms (see status quirks).
 
 __Linking:__
-- If `assignee.displayName` matches a People canonical name or alias (`cross-link-index.sh`), wiki-link that person in the "Pulled from Jira" sub-item. If `assignee.emailAddress` is present and matches a frontmatter `email:` in `People/*.md`, that match wins. Do not create a People stub for an unmatched Jira assignee.
+- If `assignee.displayName` matches a People canonical name or alias (`cross-link-index.sh`), wiki-link that person in the "Pulled from Jira" sub-item. If `assignee.emailAddress` is present and matches a frontmatter `email:` in `People/*.md`, that match wins. Do not create a People stub for an unmatched Jira assignee (an exception to the stub rule in `references/meetings.md`: a Jira display name alone is not enough to file a person).
 - If the parent's `summary` (leading emoji and punctuation stripped) matches an existing `Programs/*.md` name or alias, wiki-link it at the end of the "Pulled from Jira" sub-item. Otherwise do not mention the parent. Do not create a Program page from a Jira parent (see "What earns a page" in `references/meetings.md`).
 - Always link the ticket key as `[KEY](https://<host>/browse/KEY)`. Do not rely on auto-link detection.
 
@@ -156,7 +158,7 @@ __Status quirks:__
 - If `assignee` is null: use the mapped priority (the `-pN` override still wins) and write `unassigned` in the "Pulled from Jira" sub-item
 - If the tool returns 403 or 404: surface the error verbatim with the key and host
 
-__Frontmatter, verify, then log:__ regenerate the weekly frontmatter (Frontmatter Auto-generation in SKILL.md), then re-read the week file and confirm the item or sub-item is present before logging or reporting success. Log op `jira`, target the key (see the Operations Log section in SKILL.md).
+__Frontmatter, verify, then log:__ when an item was added, moved, re-prioritized or completed, regenerate the weekly frontmatter (Frontmatter Auto-generation in SKILL.md); then re-read the week file and confirm the item or sub-item is present before logging or reporting success. Log op `jira`, target the key (see the Operations Log section in SKILL.md).
 
 ### Cross-command: silent enrichment is OFF
 
