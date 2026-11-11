@@ -28,10 +28,10 @@ fat = ["- **P0** ⏳ In Progress - [[Platform Migration]] cutover plan with [[Th
 for days, text in [
     (11, "Data-tier step still unwritten after the [[Priya Patel|Priya]] review"),
     (2,  "Cutover window agreed with [[Sarah Chen]] for the end of the month"),
-    (19, "Rollback path drafted, [[Dev Sharma]] to sanity-check the restore timing"),
-    (6,  "⚠️ __Action:__ [[Theo Kask|Theo]] still owes the data-tier runbook"),
+    (19, "Rollback path drafted; [[Dev Sharma]] confirmed the restore timing"),
+    (12, "⚠️ __Action:__ [[Theo Kask|Theo]] still owes the data-tier runbook"),
     (16, "Dependency on the [[Cloud Security]] access review confirmed"),
-    (9,  "Dry run scheduled, [[Nadia Okafor|Nadia]] asked for a written go/no-go"),
+    (9,  "Dry run held; [[Nadia Okafor|Nadia]] signed off on the go/no-go"),
     (21, "Original scope split out of the [[Backend EM Hiring]] thread"),
     (13, "Comms plan circulated to the platform leads"),
 ]:

@@ -65,7 +65,7 @@ check "the pruned item links its Thread note" "$?"
 
 # --- 4. the open action survived regardless of age -------------------------
 # threads.md rule 3: an unmet commitment is why the item is still on the board.
-# It is 6 days old here, older than the two newest entries, so a naive
+# It is 12 days old here, older than the two newest entries (2 and 9 days), so a naive
 # "keep the newest N" drops it. That is the specific regression this catches.
 grep -q 'owes the data-tier runbook' "$NEW_WEEK" 2>/dev/null
 check "the open action stayed in the week file despite not being newest" "$?"

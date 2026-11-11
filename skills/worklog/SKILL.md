@@ -607,7 +607,10 @@ as the request. Do not wait for a separate ask.
    item beside its own parked copy.
 4. For a fact that genuinely has no home, create one top-level item and assign a
    priority from the urgency and importance cues in the raw content. Default to P1 if
-   unclear.
+   unclear. A new fact that arrives already deprioritized ("push to next quarter") still
+   gets a week-file item: P2, with the decision as its dated sub-item. Never write a new
+   item straight into `Backlog.md`; parking applies only to an existing item, through the
+   park procedure in `references/threads.md`.
 5. Add dated annotations using the date from the raw content (Slack timestamps,
    meeting date), not today's date
 6. Update `Worklogs/<the current week's file>.md` using the host's available

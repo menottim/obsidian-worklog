@@ -16,6 +16,8 @@ __Filename:__ `Meetings/YYYY-MM-DD-<topic-slug>.md`
   non-alphanumeric characters except hyphens. Cap at ~50 chars.
 - On collision (same date + same slug), append `-2`, `-3`, etc.
 
+`/worklog ingest` also writes Meetings notes, for a Slack thread or a meeting-shaped Confluence page or Google Doc that need not come from a registered source. Those notes follow `references/integrations.md` for their date, slug and the `source_type` / `source_url` fields; everything else below applies.
+
 __Meeting note structure:__
 
 ```markdown

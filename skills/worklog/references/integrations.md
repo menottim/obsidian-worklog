@@ -10,10 +10,10 @@ __MCP servers and tools these commands use:__
 
 | Capability | MCP server | Tool (bare name) | Call shape |
 |------------|------------|------------------|------------|
-| Read one Slack thread | Slack MCP (also used by `/worklog pull`) | `slack_read_thread` | `channel_id`, `message_ts` (the parent ts as a string with a decimal point, e.g. `"1712345678.123456"`); paginate with `cursor` until no cursor is returned |
+| Read one Slack thread | Slack MCP (also used by `/worklog pull`) | `slack_read_thread` | `channel_id`, `message_ts` (the parent ts as a string with a decimal point, e.g. `"1712345678.123456"`); returns the thread as plain text; paginate with `cursor` while `pagination_info` offers one; `oldest` = a ts returns only later replies |
 | Read a Confluence page | Atlassian Rovo MCP | `getConfluenceContent` (older servers: `getConfluencePage`) | `cloudId`, `content_url` (the full page URL) or `content_id`, `detail: "full"`, `content_format: "markdown"`. The older `getConfluencePage` takes the numeric id from `/pages/<id>/`; on that server, stop and ask for the full page URL when given a short `/wiki/x/` link. |
-| Read a Jira issue | Atlassian Rovo MCP | `getJiraIssue` | `cloudId`, `issueIdOrKey`; add `view: "evidence"` on a retry when priority, assignee or parent is missing from the default response |
-| Discover Atlassian sites | Atlassian Rovo MCP | `getAccessibleAtlassianResources` | no arguments; returns the sites the user can access, each with a `url` |
+| Read a Jira issue | Atlassian Rovo MCP | `getJiraIssue` | `cloudId`, `issueIdOrKey`, `view: "evidence"` (the default view omits the parent). Do not pass `fields`: it drops the parent. |
+| Discover Atlassian sites | Atlassian Rovo MCP | `getAccessibleAtlassianResources` | no arguments; returns `resources[]`, each with `cloudId` and `url` |
 | Read a Google Doc | Any connected Google Docs or Google Drive MCP | the tool that reads one document by URL or ID | the URL, or the document ID (the path segment after `/d/`), as that tool requires |
 
 The full tool ID depends on how the server was installed (for example
@@ -68,7 +68,7 @@ Auto-routing applies only when the first word of `<arg>` is __not__ a subcommand
 | Matches `^[A-Z][A-Z0-9_]+-[1-9][0-9]*( -p[012])?$` (Jira key like `PROJ-1234`, optional priority flag) AND `jira_projects` is recorded AND the project key is in it | `/worklog jira` behavior with `<arg>` |
 | Matches a Jira URL `^https://[A-Za-z0-9.-]+/browse/[A-Z][A-Z0-9_]+-[1-9][0-9]*([?#][^ ]*)?( -p[012])?$` | `/worklog jira` behavior with the extracted key and host |
 | Any other single URL (matches `^https?://[^ ]+$`) | STOP. Report: ``URL pattern not supported by /worklog. Either paste the body inline, or use a supported source (Slack permalink, Google Docs, Confluence).`` |
-| Anything else (bare names, ambiguous tokens, a bare key when `jira_projects` is not recorded, pasted notes, a URL followed by text) | Treat as raw worklog input - process via the standard "Processing raw input" flow (extract items, add to current week). For a bare key, mention in the summary: ``you can pull <KEY> via `/worklog jira <KEY>`.`` |
+| Anything else (bare names, ambiguous tokens, a bare key when `jira_projects` is not recorded, pasted notes, a URL followed by text) | Treat as raw worklog input - process via the standard "Processing raw input" flow (extract items, add to current week). A bare key on its own writes nothing: reply with ``you can pull <KEY> via `/worklog jira <KEY>`.`` |
 
 __Announcement requirement:__ before routing to `ingest` or `jira`, print a one-line announcement: ``Auto-routing /worklog <arg> -> /worklog <subcommand> (matched: <pattern>)``. No announcement is needed for the raw-input row.
 
@@ -83,7 +83,7 @@ __URL routing (exact, no fallbacks):__
 |-------------|--------------------|
 | starts with `https://`, host ends with `.slack.com`, path starts with `/archives/` | Slack `slack_read_thread`. Parse the permalink `/archives/<channel_id>/p<digits>`: the ts is `<digits>` with a `.` inserted before the last 6 digits. If the URL has a `thread_ts=` query parameter, use that value instead (the permalink points at a reply). Call with `channel_id` = `<channel_id>` and `message_ts` = that ts as a string. |
 | starts with `https://docs.google.com/document/` | Google Docs/Drive read tool, passing the URL or the document ID (the path segment after `/d/`) as the tool requires |
-| host ends with `.atlassian.net` and path starts with `/wiki/` | Atlassian Rovo Confluence read with `content_url` = the full URL (this also covers short `/wiki/x/...` links), `cloudId` = the URL's host, `detail: "full"`, `content_format: "markdown"`. Never ingest a summary-detail response: it holds only an excerpt. |
+| host ends with `.atlassian.net` and path matches `/wiki/spaces/<space>/pages/<number>` or starts with `/wiki/x/` | Atlassian Rovo Confluence read with `content_url` = the full URL (this also covers short `/wiki/x/...` links), `cloudId` = the URL's host, `detail: "full"`, `content_format: "markdown"`. Never ingest a summary-detail response: it holds only an excerpt. |
 | anything else | STOP. Print: ``URL pattern not supported by `/worklog ingest`. Either paste the body inline, or use a supported source (Slack permalink, Google Docs, Confluence)``. Do not attempt to fetch. |
 
 __Execution sequence:__
@@ -91,14 +91,14 @@ __Execution sequence:__
 2. Announce: ``Using `<tool-id>` to fetch <URL>``
 3. Invoke the matched tool.
 4. If the tool returns an error: surface the error verbatim including the tool name; do NOT attempt a different tool. An empty or absent result can mean missing access or a lookup failure; report that ambiguity and do not claim the document does not exist.
-5. If the tool paginates or truncates long content, keep reading until the whole document is in hand. Do not change the vault from a partial read; if a page returns nothing or does not advance, stop and report the incomplete read.
+5. If the tool paginates or truncates long content, keep reading until the whole document is in hand. Do not change the vault from a partial read; if a page returns nothing or does not advance, stop and report the incomplete read. If a Confluence response has `lossyConversion: true`, name each entry of `lostFeatures` in the summary as content not ingested (for example `ac:structured-macro` = tables, Jira lists, expand sections; `time` = date fields).
 6. Detect doc shape from the fetched body:
    - __Meeting-shaped__: a Slack thread, or a doc with an attendees section or an action-items section (a date in the title alone is not enough). Write a `Meetings/` note following the schema in `__SKILL_INSTALL_PATH__/skills/worklog/references/meetings.md`:
-     - __Slack thread:__ all the Slack fields in that schema (`source_channel`, `source_channel_id`, `slack_thread_ts`, `slack_last_reply_ts`, `slack_thread_url`), so a later `/worklog pull` recognizes the thread instead of ingesting it again. `source_channel` is `#<name>` from a `Sources/*.md` whose channel id matches, else the name from the thread response, else the channel id. Write both ts values as quoted strings. Omit the `[[Sources/...]]` link in the callout when no Sources note exists. The title and slug come from the parent message's first line. If a `Meetings/*.md` note already has the same `slack_thread_ts`, update that note (new replies under `## Discussion`, `slack_last_reply_ts`) instead of creating a second one.
-     - __Confluence or Google Doc:__ `type: meeting`, `date`, `source_type: confluence` or `google-doc`, `source_url`, `participants`, `programs`, `status: ingested`. If a `Meetings/*.md` note already has the same `source_url`, update it instead.
+     - __Slack thread:__ all the Slack fields in that schema (`source_channel`, `source_channel_id`, `slack_thread_ts`, `slack_last_reply_ts`, `slack_thread_url`), so a later `/worklog pull` recognizes the thread instead of ingesting it again. `source_channel` is `#<name>` from a `Sources/*.md` whose channel id matches, else the channel id (the thread response does not carry the channel name). Write both ts values as quoted strings. `slack_thread_url` is `https://<host>/archives/<channel_id>/p<thread ts without the dot>`, even when the user pasted a reply link. Omit the `[[Sources/...]]` link in the callout when no Sources note exists. The title and slug come from the parent message's first line, after dropping leading mention tokens and rendering the rest (`<@U123|Name>` becomes `Name`). Do not wiki-link bot or app authors in `## Discussion` headings. If a `Meetings/*.md` note already has the same `slack_thread_ts`, update that note instead of creating a second one: read the thread with `oldest` = `slack_last_reply_ts` (the response repeats the parent; ignore it and any reply whose ts is not greater than `slack_last_reply_ts`), append only the newer replies under `## Discussion`, and update `slack_last_reply_ts`.
+     - __Confluence or Google Doc:__ `type: meeting`, `date`, `source_type: confluence` or `google-doc`, `source_url`, `participants`, `programs`, `status: ingested`. `date` is the page's date field if present, else a date in the title, else the page's creation date (Confluence `metadata.version.createdAt`) in local time. The filename is `Meetings/<date>-<slug of the page title>.md`. If a `Meetings/*.md` note already has the same `source_url`, update it instead.
      - Body sections as in the schema: `## Notes`, `## Discussion` (only when the source has replies), `## Extracted Items`.
    - __Doc-shaped__ (status update, design doc, RFC): no Meetings/ note, just extract items.
-7. Run the full "Processing raw input" flow in SKILL.md on the fetched body, including fold-before-add, the Backlog check, wiki-linking, and the re-read before reporting success. Use dates from the source. Resolve people to canonical names already in the vault; if a mention cannot be resolved, use the literal name from the source. The log entry is op `ingest` with the URL as target.
+7. Run the full "Processing raw input" flow in SKILL.md on the fetched body, including fold-before-add, the Backlog check, wiki-linking, and the re-read before reporting success. Use dates from the source. Resolve people to canonical names already in the vault; if a mention cannot be resolved, use the literal name from the source. The log entry is op `ingest` with the URL as target. If the source yields no items, say so under `## Extracted Items` and in the summary. If nothing in the vault changed (for example a re-ingest with no new replies), do not log.
 8. Report a summary: what was fetched (with the tool ID used), what items were added, what people/programs were linked, what Meetings/ note (if any) was created or updated.
 
 ### `/worklog jira <ticket-key>` (also accepts a Jira URL)
@@ -109,49 +109,54 @@ __Execution sequence:__
 1. Extract the ticket key (regex: `[A-Z][A-Z0-9_]+-[1-9][0-9]*`). If input is a URL, extract the key from the `/browse/` path and remember the URL's host as the Jira site.
 2. Parse optional priority override: trailing `-p0` / `-p1` / `-p2`.
 3. Resolve the cloud ID (below), then announce the Atlassian Rovo `getJiraIssue` tool to pull `<KEY>`.
-4. Call `getJiraIssue` with `cloudId` and `issueIdOrKey` = the key. Use the default response; do not pass `fields`.
-5. Read fields: `summary` (title), `status.name`, `priority.name`, `assignee.displayName`, `assignee.emailAddress`, `labels`, parent/epic if linked.
+4. Call `getJiraIssue` once with `cloudId`, `issueIdOrKey` = the key, and `view: "evidence"`. Do not pass `fields`.
+5. Read only these fields (the evidence response also carries a long custom-field dump; ignore it): `summary` (title), `status.name`, `status.statusCategory`, `priority.name`, `assignee.displayName` (`assignee.emailAddress` is usually absent), `labels`, and the parent if linked.
 
 __Cloud ID and site host:__ the server accepts a site host as `cloudId`, so always pass a host.
 1. The site host is, in order: the host of a pasted Jira URL, else `jira_site`.
-2. If no host is known, or the server rejects it, announce and call `getAccessibleAtlassianResources`. If a host is known, select the site whose `url` host matches it exactly. If no host is known and exactly one site is returned, use it. If several are returned and no host is known, list their URLs and ask the user which site to use. Retry once with `cloudId` = the host of the selected site's `url`.
+2. If no host is known, or the server rejects it, announce and call `getAccessibleAtlassianResources`. If a host is known, select the site whose `url` host matches it exactly. If no host is known and exactly one site is returned, use it. If several are returned and no host is known, list their URLs and ask the user which site to use. Retry once with `cloudId` = the host of the selected site's `url`. After a single-site match, offer to record it as `jira_site` in `Preferences/Jira.md` so later pulls skip discovery.
 3. If there is no exact match or the retry fails, surface the error and stop. Never guess a site.
 4. The site host for links is the host used for the successful call.
 
 __Priority mapping (table lookup, no judgment calls):__
 - Command-line override `-p0` / `-p1` / `-p2` always wins
 - Otherwise:
+  - `priority.name` starts with `P<digit>` (regex `^P([0-4])\b`, for sites that name priorities P0-P4, with or without a suffix like `P1 - Critical`): `P0` -> **P0**, `P1` -> **P1**, anything else -> **P2**
   - `priority.name` is `Highest` or `Blocker` -> **P0**
   - `priority.name` is `High` or `Critical` -> **P1**
   - Everything else -> **P2**
 
 __Subgroup choice (deterministic):__ subgroups are bold label lines (`**Label**`), not headings (see Weekly File Structure in SKILL.md).
 1. If the user chose ✅ Done (see status quirks), add it under the **Done** subgroup.
-2. Else if the ticket has a parent/epic AND the epic's `summary` matches an existing bold subgroup label in the current week file (case-insensitive) -> add it there.
+2. Else if the ticket has a parent AND the parent's `summary` (leading emoji and punctuation stripped) matches an existing bold subgroup label in the current week file (case-insensitive) -> add it there.
 3. Else if the Jira project key (e.g., `PROJ`) matches an existing bold subgroup label -> add it there.
 4. Else add a new bold subgroup line `**<PROJECT-KEY>**`, with blank lines around it, above **Done**.
 
 Within the subgroup, keep P0, P1, P2 order.
 
-__Item format__ (the vault's standard item format; the date is today's, in `(Mon D)` form):
+__Item format__ (the vault's standard item format; the date is today's, in `(Mon D)` form; use `✅ Done` instead of `⏳ In Progress` when the user chose Add as Done):
 ```markdown
 - **P1** ⏳ In Progress - [PROJ-123](https://<host>/browse/PROJ-123): <ticket summary>
-  - Pulled from Jira: assignee `<email-local-part, else assignee.displayName, else unassigned>`, status `<status>`, priority `<jira-priority>` (Nov 11)
+  - Pulled from Jira: assignee <[[Person]] if matched, else `assignee.displayName`, else `unassigned`>, status `<status>`, priority `<jira-priority>` (Mon D)
 ```
 
-__Already tracked:__ if the current week file or `Backlog.md` already mentions the key as a whole word (`\b<KEY>\b`), do not add a second item. Add a dated sub-item with the current status and priority to the existing item instead, and mark it `✅ Done` if the ticket is closed and the user confirms (see status quirks).
+__Already tracked:__ if the current week file or `Backlog.md` already mentions the key as a whole word (`\b<KEY>\b`), do not add a second item. Instead:
+- A `-pN` override changes the existing item's priority and re-sorts it within its subgroup.
+- Add the sub-item `  - Jira: status `<status>`, priority `<jira-priority>` (Mon D)` only when status or priority differs from the newest `Pulled from Jira:` or `Jira:` sub-item. If nothing changed, change nothing and log nothing.
+- If the item then has more sub-items than `WORKLOG_WEEK_KEEP_SUBS`, spill per `references/threads.md`.
+- Mark it `✅ Done` if the ticket is closed and the user confirms (see status quirks).
 
 __Linking:__
-- If `assignee.emailAddress` matches a frontmatter `email:` in any `People/*.md`, wiki-link that person in the annotation bullet; else, if `assignee.displayName` matches a People canonical name or alias (`cross-link-index.sh`), link that person. The email is often hidden by Atlassian privacy settings.
-- If the epic's `summary` matches an existing `Programs/*.md` filename, wiki-link it; otherwise create a stub `Programs/<Epic Summary>.md` with frontmatter `jira_epic: <KEY>`
+- If `assignee.displayName` matches a People canonical name or alias (`cross-link-index.sh`), wiki-link that person in the "Pulled from Jira" sub-item. If `assignee.emailAddress` is present and matches a frontmatter `email:` in `People/*.md`, that match wins. Do not create a People stub for an unmatched Jira assignee.
+- If the parent's `summary` (leading emoji and punctuation stripped) matches an existing `Programs/*.md` name or alias, wiki-link it at the end of the "Pulled from Jira" sub-item. Otherwise do not mention the parent. Do not create a Program page from a Jira parent (see "What earns a page" in `references/meetings.md`).
 - Always link the ticket key as `[KEY](https://<host>/browse/KEY)`. Do not rely on auto-link detection.
 
 __Status quirks:__
-- If `status.statusCategory.key` is `done` (or, when that is absent, `status.name` matches `Closed | Done | Resolved | Complete | Cancelled | Won't Do`): ask ``This ticket is <status>. Add as ✅ Done (logging completed work) or skip?``
+- If `status.statusCategory.key` is `done` or `status.statusCategory.name` is `Done` (or, when both are absent, `status.name` matches `Closed | Done | Resolved | Complete | Cancelled | Won't Do`): ask ``This ticket is <status>. Add as ✅ Done (logging completed work) or skip?``
 - If `assignee` is null: use the mapped priority (the `-pN` override still wins) and write `unassigned` in the "Pulled from Jira" sub-item
 - If the tool returns 403 or 404: surface the error verbatim with the key and host
 
-__Verify, then log:__ re-read the week file and confirm the item or sub-item is present before logging or reporting success. Log op `jira`, target the key (see the Operations Log section in SKILL.md).
+__Frontmatter, verify, then log:__ regenerate the weekly frontmatter (Frontmatter Auto-generation in SKILL.md), then re-read the week file and confirm the item or sub-item is present before logging or reporting success. Log op `jira`, target the key (see the Operations Log section in SKILL.md).
 
 ### Cross-command: silent enrichment is OFF
 
