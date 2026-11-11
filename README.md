@@ -1,8 +1,8 @@
 # obsidian-worklog
 
-A skill for [Claude Code](https://claude.ai/claude-code) and [Codex](https://learn.chatgpt.com/docs) that turns your Obsidian vault into a structured worklog with weekly planning, a people and program knowledge graph, priority tracking, D3 visualizations, and AI-powered summaries.
+A skill for [Claude Code](https://claude.ai/claude-code) and [Codex](https://learn.chatgpt.com/docs). It turns your Obsidian vault into a structured worklog. You get weekly planning, priority tracking, a knowledge graph of people and programs, period summaries, and D3 visualizations.
 
-It's built for anyone juggling work across a lot of projects and people. You paste in the raw stuff (meeting notes, Slack threads, transcripts) and your coding agent pulls out the action items, links the people and programs involved, and files everything under the right week. Do that for a few months and the vault becomes a searchable record of what you worked on and who you worked with.
+The skill is for people who work across many projects and with many people. You paste raw input (meeting notes, Slack threads, transcripts). The agent finds the action items, links the people and programs, and files each item in the correct week. After some months, the vault is a searchable record of your work and the people you worked with.
 
 ## Table of Contents
 
@@ -18,29 +18,33 @@ It's built for anyone juggling work across a lot of projects and people. You pas
 - [Dataview Queries](#dataview-queries)
 - [Customization](#customization)
 - [File Format Examples](#file-format-examples)
+- [Development and Testing](#development-and-testing)
 - [FAQ](#faq)
 - [License](#license)
 
 ## What You Get
 
-- **Weekly planning** with Monday rollover workflow and mid-week updates
-- **Priority tracking** (P0/P1/P2) with status markers and dated progress notes
-- **Knowledge graph** that auto-links people, programs, and teams across every note
-- **Periodic summaries** (week/month/quarter) with priority drift analysis and trend detection
-- **D3.js visualizations** of time allocation, program activity, and completion rates
-- **Vault health checks** that find stale notes, stuck items, missing links, oversized notes, and drift in your team vocabulary and recurring topics
-- **Preferences as first-class citizens** -- the skill maintains a `Preferences/` directory as its general-purpose memory layer: voice, style, workflow, tooling, decision rules, vault conventions, anything durable about how you work, captured once and applied automatically across sessions
-- **Slack inbox** -- register Slack channels as sources and let `/worklog pull` sweep them into your current week. Three kinds of source are supported: forwarded-email meeting notes (one `Meetings/` note per thread), busy discussion channels (swept and folded in place, no per-thread files), and your own DMs (opt-in, never folded without your approval). Incremental pull requires a Slack connector that can enumerate channels and threads; auto-fetch for email bodies needs a one-time Slack token (see [`docs/SETUP-SLACK.md`](docs/SETUP-SLACK.md)); the [FAQ](#faq) covers the rest
-- **Operations log** -- an append-only `Logs/YYYY-MM.md` record of what the skill did and when (pulls, rollovers, tidies, syncs), so "was the last pull complete" is answered by grep, not memory
-- **Auto sync** -- optional. After each command that writes the vault, commits and pushes it to your git backup repo and prints one line saying so
-- **Entity summaries** -- People and Program notes carry a one-line `summary` (authored or derived), so the cross-link digest can tell you who or what something is without opening the note
-- **Filed answers** -- substantive analysis and weekly rollups can be filed to `References/` as durable, cross-linked vault artifacts instead of evaporating as a one-off chat reply or Slack paste
+- **Weekly planning**: a Monday rollover and updates during the week.
+- **Priority tracking**: P0, P1, and P2 items with status markers and dated progress notes.
+- **Knowledge graph**: the skill links people, programs, and teams in every note that it writes.
+- **Period summaries**: week, month, and quarter. Month and quarter summaries show priority drift and trends.
+- **D3.js visualizations**: time allocation, program activity, P0 trend, and completion rates.
+- **Vault health checks**: the audit finds stale notes, stuck items, missing links, oversized notes, and drift in team names and recurring tags.
+- **Threads**: each long-running item keeps its full dated history in a `Threads/` note. The week file shows only the newest updates, so it stays short.
+- **Cold storage**: `/worklog cold` moves old history from People, Programs, and Threads notes to `Cold/`. The move is verbatim, so no text is lost.
+- **Preferences**: the `Preferences/` directory is the memory of the skill. It holds durable facts about how you work (voice, style, workflow, tools, decision rules, vault conventions). The skill applies them in each session.
+- **Slack inbox**: register Slack channels as sources. `/worklog pull` then adds new messages to the current week. The [Slack source types](#slack-source-types) section describes the three types. Incremental pull needs a Slack connector that can list channels and read threads. The automatic fetch of email bodies needs a Slack token (see [`docs/SETUP-SLACK.md`](docs/SETUP-SLACK.md)).
+- **Optional integrations**: `/worklog ingest <url>` reads a Slack thread, a Confluence page, or a Google Doc. `/worklog jira <key>` adds a Jira ticket as an item. Both use MCP servers that you connect.
+- **Operations log**: `Logs/YYYY-MM.md` records each operation that writes the vault (pulls, rollovers, tidies, syncs). The log is append-only. To find the last complete pull, use grep.
+- **Auto sync** (optional): after each command that writes the vault, the skill commits and pushes the vault to your backup repo. It prints one line with the result.
+- **Entity summaries**: each People and Program note has a one-line `summary`. The link index uses it to identify an entity without opening the note.
+- **Filed answers**: you can file a substantive analysis or a weekly rollup to `References/`. The skill links the filed note into the graph.
 
 ![Obsidian graph view showing the knowledge graph of people, programs, and weekly files](docs/images/graph-view.png)
 
 ## The Workflow
 
-It works as a loop: you put raw input in, structured notes come out, and each new week builds on the last.
+The workflow is a loop. Raw input goes in, structured notes come out, and each week builds on the last week.
 
 ```mermaid
 graph LR
@@ -67,25 +71,26 @@ graph LR
     style E fill:#cba6f7,color:#1e1e2e
 ```
 
-**Monday:** `worklog rollover` starts a new week, carries forward unfinished items.
-**During the week:** Paste meeting notes, Slack messages, transcripts. The agent extracts items, links people and programs, dates everything.
-**Anytime:** `worklog summary` or `worklog viz` shows where your time went.
-**The graph grows:** Every person and program gets a note. Backlinks connect everything. Click any person to see every week they appeared in.
+- **Monday:** `/worklog rollover` starts a new week. It carries forward the items that are not done.
+- **During the week:** paste meeting notes, Slack messages, and transcripts. The agent extracts items, links people and programs, and adds dates.
+- **At any time:** `/worklog summary` or `/worklog viz` shows where your time went.
+- **Over time:** each person and program gets a note. Backlinks connect the notes. Open a person's note to see each week that mentions that person.
 
 ## Prerequisites
 
-- [Claude Code](https://claude.ai/claude-code) or [Codex](https://learn.chatgpt.com/docs)
-- [Obsidian](https://obsidian.md/) (any recent version)
-- An Obsidian vault (existing or new -- `setup.sh` can create the structure for you)
-- Recommended Obsidian plugins (install from Community Plugins):
-  - **Templater** -- auto-fills dates in weekly file templates
-  - **Periodic Notes** -- "Open weekly note" command + Calendar integration
-  - **Calendar** -- sidebar calendar, click a week number to open that week
-  - **Dataview** -- live query tables from your worklog frontmatter
+- [Claude Code](https://claude.ai/claude-code) or [Codex](https://learn.chatgpt.com/docs).
+- `git`, `bash`, and `jq`. The setup scripts and the bundled scripts run on the bash 3.2 that macOS supplies. The audit, link-index, and preferences scripts need `jq`.
+- [Obsidian](https://obsidian.md/) (a recent version).
+- An Obsidian vault. You can use an existing vault, or `setup.sh` can create a new one.
+- Recommended Obsidian community plugins:
+  - **Templater**: fills in the dates in new weekly files.
+  - **Periodic Notes**: adds the "Open weekly note" command and works with Calendar.
+  - **Calendar**: shows a calendar in the sidebar. Click a week number to open that week.
+  - **Dataview**: shows live query tables from the worklog frontmatter.
 
 ## Quick Start
 
-The workflow is shared across both hosts. Invocation syntax differs:
+The workflow is the same on both hosts. Only the invocation syntax is different:
 
 | Host | Explicit invocation | Example |
 |------|---------------------|---------|
@@ -99,28 +104,27 @@ The workflow is shared across both hosts. Invocation syntax differs:
 git clone https://github.com/menottim/obsidian-worklog.git
 cd obsidian-worklog
 
-# 2. Run the interactive setup (configures paths, name, git identity)
+# 2. Run the interactive setup. It configures the skill and installs the plugin.
 ./setup.sh
 
-# 3. Copy to your Claude Code plugins directory
-cp -r . ~/.claude/plugins/marketplaces/personal/plugins/obsidian-worklog
-
-# 4. Restart Claude Code, then try it
+# 3. Restart Claude Code, then try it
 ```
-
-> __Upgrading an existing install: bump the version first.__ Claude Code caches the plugin
-> under `~/.claude/plugins/cache/<marketplace>/obsidian-worklog/<version>/`, keyed by the
-> `version` in `.claude-plugin/plugin.json`. Copying new files over an unchanged version
-> number leaves the old build running, and nothing warns you. So on every upgrade: bump
-> `version`, copy, then restart Claude Code. To confirm what is actually running, read
-> `~/.claude/plugins/installed_plugins.json` and check the `version` and `installPath` for
-> `obsidian-worklog` rather than trusting the repo.
 
 ```
 /worklog status
 ```
 
-If no current week file exists, Claude will tell you. Run `/worklog rollover` to create your first week.
+If the current week has no file, the agent tells you. Run `/worklog rollover` to create your first week.
+
+`setup.sh` copies the plugin to the install path that you enter. You do not copy files yourself. The default path is `~/.claude/plugins/marketplaces/personal/plugins/obsidian-worklog`, a plugin folder in a local marketplace named `personal`. `setup.sh` does not register a marketplace. Make sure that Claude Code loads plugins from the marketplace path that you use.
+
+> __Bump the version when you change plugin files.__ Claude Code caches the plugin
+> under `~/.claude/plugins/cache/<marketplace>/obsidian-worklog/<version>/`. The cache key is
+> the `version` in `.claude-plugin/plugin.json`. If you install changed files with the same
+> version number, the old build continues to run, and you get no warning. When you change
+> files, do these steps. Bump `version`. Run `setup.sh`. Restart Claude Code. To see the build
+> that runs, read `~/.claude/plugins/installed_plugins.json`. Check the `version` and
+> `installPath` for `obsidian-worklog`.
 
 ### Codex
 
@@ -141,22 +145,48 @@ Then try:
 $worklog status
 ```
 
-If no current week file exists, run `$worklog rollover`. See
+If the current week has no file, run `$worklog rollover`. See
 [`docs/SETUP-CODEX.md`](docs/SETUP-CODEX.md) for installation, permissions,
 upgrades, and MCP notes.
 
 ### What setup.sh does
 
-The setup script walks you through configuration:
-- Asks for your Obsidian vault path (validates it exists, or offers to create the directory structure)
-- Asks for your display name and git identity
-- Optionally configures a git backup repo
-- Asks whether to sync the vault automatically after each change, or sets auto sync off without asking when there is no backup repo or the vault is not a git repo with an `origin` remote (see **Auto sync** below)
-- Copies the weekly template into your vault's `Templates/` directory
+`setup.sh` asks these questions in this order:
+
+1. **Obsidian vault path.** The default is `~/Documents/Obsidian Vault`. If the directory does not exist, the script offers to create it. Right after this answer, the script creates the vault directories that are missing: `Worklogs`, `People`, `Programs`, `Threads`, `Teams`, `Meetings`, `Sources`, `Preferences`, `Archive`, `Summaries`, `Reports`, `Templates`, `Logs`, and `References`. It does this before the preview.
+2. **Display name.** The default is your login name.
+3. **Git `user.name`** for vault commits. The default is your login name.
+4. **Git `user.email`** for vault commits. This value is necessary.
+5. **Backup repo URL.** The default is `NONE` (no backup).
+6. **Auto sync.** The script asks "Sync the vault automatically after each change?" only when all of these conditions are true:
+   - `Preferences/Auto Sync.md` does not exist. If it exists, the script keeps its value.
+   - The backup repo URL is not `NONE`.
+   - The vault is the top level of a git repo that has an `origin` remote.
+
+   If one of the last two conditions is false, the script sets auto sync to `off` and does not ask.
+7. **Skill install path.** The default is `~/.claude/plugins/marketplaces/personal/plugins/obsidian-worklog`. The path must be in `~/.claude/` and must not contain `..`.
+
+Then the script shows a preview and asks you to apply the settings. After you confirm, the script does these steps:
+
+1. It writes `Preferences/Auto Sync.md` if it made an auto sync decision.
+2. It writes your values into `SKILL.md` and into each file in `skills/worklog/references/`, in your clone.
+3. It copies `templates/Weekly.md` to `Templates/Weekly.md` in the vault. This replaces an existing file with that name.
+4. It copies the git-tracked files of the clone to the install path. If the install path exists, the script asks before it replaces it.
+5. It checks the result. The script prints "Setup complete!" only if all checks pass. A failed step stops the script.
+
+Step 2 changes the files in your clone. Thus, `setup.sh` refuses to run a second time on the same clone. To run it again (for example, to change a value or to upgrade), restore the skill files first:
+
+```bash
+git checkout -- skills/worklog
+git pull          # only to upgrade
+./setup.sh
+```
+
+`setup-codex.sh` asks the same questions (its Git name and email defaults come from your global git config), but it asks for a Codex bundle path (default `~/.codex/plugins/obsidian-worklog`) and a skill link path (default `~/.agents/skills/worklog`). It does not change the files in your clone. It keeps an existing `Templates/Weekly.md`. To get template fixes, delete `Templates/Weekly.md` in the vault before you run the installer again.
 
 ### Configure Obsidian plugins
 
-Install each plugin from Settings -> Community Plugins -> Browse. After installing, toggle each one __ON__, then click the gear icon to configure.
+Install each plugin from Settings -> Community Plugins -> Browse. Then set each plugin __ON__. Click the gear icon to configure it. [`docs/obsidian-setup.md`](docs/obsidian-setup.md) has the full guide.
 
 #### Templater
 
@@ -166,13 +196,13 @@ Install each plugin from Settings -> Community Plugins -> Browse. After installi
 | Trigger Templater on new file creation | ON |
 | Enable folder templates | ON |
 
-Then under __Folder Templates__, add one entry:
+Then, under __Folder Templates__, add one entry:
 
 | Folder | Template |
 |--------|----------|
 | `Worklogs` | `Templates/Weekly.md` |
 
-This auto-fills the `tp.date` and `tp.file.title` expressions whenever a new file is created in `Worklogs/`.
+Templater then fills in the `tp.date` and `tp.file.title` expressions in each new file in `Worklogs/`.
 
 #### Periodic Notes
 
@@ -180,11 +210,11 @@ This auto-fills the `tp.date` and `tp.file.title` expressions whenever a new fil
 |---------|-------|
 | __Weekly Notes__ | |
 | Enable weekly notes | ON |
-| Format | `YYYY-[W]WW` |
+| Format | `GGGG-[W]WW` |
 | Weekly note template | `Templates/Weekly.md` |
 | Weekly note folder | `Worklogs` |
 
-Leave daily, monthly, quarterly, yearly __disabled__ (the worklog skill handles those).
+Keep daily, monthly, quarterly, and yearly notes __disabled__. The worklog skill does those tasks.
 
 #### Calendar
 
@@ -194,7 +224,7 @@ Leave daily, monthly, quarterly, yearly __disabled__ (the worklog skill handles 
 | Start week on | Monday |
 | Confirm before creating new note | ON |
 
-Calendar picks up weekly note settings from Periodic Notes. Clicking a week number in the sidebar opens or creates that week's file.
+Calendar uses the weekly note settings from Periodic Notes. Click a week number in the sidebar to open that week's file. If the file does not exist, Calendar creates it.
 
 #### Dataview
 
@@ -203,7 +233,7 @@ Calendar picks up weekly note settings from Periodic Notes. Clicking a week numb
 | Enable JavaScript Queries | ON |
 | Enable Inline Queries | ON |
 
-Everything else default. See [docs/dataview-queries.md](docs/dataview-queries.md) for ready-to-paste queries.
+Keep the default for all other settings. See [docs/dataview-queries.md](docs/dataview-queries.md) for queries that you can paste.
 
 #### How the plugins work together
 
@@ -211,21 +241,16 @@ Calendar sidebar -> click week number -> Periodic Notes creates the file -> Temp
 
 ## How It Works
 
-This is an agent skill: a markdown file ([SKILL.md](skills/worklog/SKILL.md)) that Claude Code or Codex reads as instructions. There is no worklog runtime, server, or API. The agent reads your vault files directly, follows the instructions to structure and link content, and writes the results back. The skill defines the file formats, linking conventions, and command behaviors. To keep token cost low, worklog audit and preference application use bundled read-only scanner scripts in `skills/worklog/scripts/`, and less-common command detail (viz, the integration commands, the full pull flow) is loaded on demand from `skills/worklog/references/` rather than included in every invocation.
+This is an agent skill. [SKILL.md](skills/worklog/SKILL.md) is a markdown file that Claude Code or Codex reads as instructions. The worklog has no runtime, server, or API. The agent reads your vault files, follows the instructions, and writes the results back. The skill defines the file formats, the link rules, and the behavior of each command.
+
+To keep token cost low, the skill uses two methods:
+
+- Bundled scripts in `skills/worklog/scripts/` do the mechanical work. Examples are the audit scan, the link index, the preferences index, the operations log, and sync.
+- The detail for most commands is in `skills/worklog/references/`. The agent reads a reference file only when it runs that command.
 
 ### Which model to run this on
 
-The eval harness in `evals/` measured these numbers. We did not estimate them. The table shows pass rate and cost per run at 5.16.0, with 3-5 repeats per config:
-
-| command | Haiku (low) | Sonnet (medium) | Opus (high) |
-|---|---|---|---|
-| `audit` | 3/3 &middot; $0.06 | 3/3 &middot; $0.22 | 3/3 &middot; $0.47 |
-| `add` | 3/3 &middot; $0.10 | 3/3 &middot; $0.16 | 3/3 &middot; $0.30 |
-| `review` | 5/5 &middot; $0.05 | 5/5 &middot; $0.11 | 5/5 &middot; $0.27 |
-| `pull` | 3/3 &middot; $0.09-0.12 | 3/3 &middot; $0.16-0.29 | 3/3 &middot; $0.60-0.81 |
-| pasting meeting notes / transcripts | ~2/5 | 3/3 &middot; $0.24 | 3/3 &middot; $0.64 |
-
-The skill routes each command to a tier on its own (see [model-routing.md](skills/worklog/references/model-routing.md)):
+The skill sends each command to a model tier (see [model-routing.md](skills/worklog/references/model-routing.md)):
 
 | Command | Tier |
 |---|---|
@@ -235,25 +260,31 @@ The skill routes each command to a tier on its own (see [model-routing.md](skill
 | `rollover`, `tidy`, `cold`, `rollup`, week `summary`, preference capture | Sonnet |
 | Month or quarter `summary`, `viz`, `compact`, free-form analysis across the vault | Opus |
 
-Haiku matches Sonnet and Opus on the commands in its row, at a much lower cost. Its one measured weakness is composing multi-entity ingest: it skips People stubs and can report work it never did. So for `pull` and ingest, Sonnet decides what the raw material means and writes out the exact text, Haiku only applies that text, and the main session checks that every write landed. Opus did not win a single eval case across roughly 150 runs; it is kept for open-ended synthesis over many notes, which the evals do not cover.
+The rule is: Haiku fetches and writes, Sonnet decides what raw material means, and Opus does deep analysis across the vault. These results from the eval harness in `evals/` set the table:
 
-In Claude Code, when the session model differs from a phase's tier, that phase runs in a subagent on the right model. Interactive steps (`review`, approval batches, compaction approvals) stay in the main session. Routing never blocks a command and never asks you to switch models. Without subagents (headless runs, Codex), everything runs inline on the session model, with a one-line note when Opus is running a cheaper command. For an unusually large vault, choose a more capable model or a higher reasoning effort before you retry a truncated result.
+- Haiku passes `add`, `audit`, `review`, and `pull` at a fraction of the cost of Sonnet.
+- Haiku fails on multi-entity ingest. It drops dates, links, and People stubs, and it can report work that it did not do. Thus, for `pull` and ingest, Sonnet writes the exact text and Haiku applies it. Then the main session checks that each write is in the file.
+- Opus did not win an eval case in approximately 150 runs. The skill uses Opus for open-ended analysis across many notes, which the evals do not measure.
+
+In Claude Code, if a phase has a different tier than the session model, a subagent on the correct model runs that phase. Interactive steps stay in the main session: `review`, approval batches, spill approvals, and compaction approvals. Routing does not stop a command, and it does not ask you to change models.
+
+If no subagents are available (for example, in a headless run), all phases run in the session on the session model. If the session model is Opus and the command has a lower tier, the agent prints one note. In Codex, all phases run on the configured model and reasoning effort, with no model notes. For a very large vault, use a more capable model or a higher reasoning effort before you retry a result that stopped early.
 
 ## Vault Structure
 
-The skill organizes your vault into these directories:
+The skill uses these directories in your vault:
 
 ```
 Your Vault/
-  Worklogs/       One file per week (YYYY-[W]WW.md) + Backlog.md
+  Worklogs/       One file per week (YYYY-[W]WW.md, ISO week year) + Backlog.md
   People/         One note per person, wiki-linked
   Programs/       One note per program/initiative, wiki-linked
-  Threads/        One note per long-running worklog item: its full dated history, spilled out of the week file so the week stays a scannable live list
-  Cold/           Old People, Programs and Threads entries, moved verbatim by `/worklog cold`: one folder per note (created on first use)
+  Threads/        One note per long-running item: its full dated history, moved out of the week file
+  Cold/           Old People, Programs and Threads entries, moved verbatim by `/worklog cold` (created on first use)
   Teams/          One note per team, links members + parent org (optional)
   Preferences/    One note per durable preference (voice, style, workflow, etc.)
   Sources/        Registered Slack channels for `/worklog pull`. One file per channel; frontmatter holds `type` (which selects the sweep behavior), `channel_id`, `last_scan_ts`, and nudge threshold.
-  Meetings/       One file per ingested Slack thread (top-of-thread email + in-thread discussion). Linked into the knowledge graph via wiki-linked participants and programs.
+  Meetings/       One file per ingested Slack thread or meeting doc. Linked into the knowledge graph via wiki-linked participants and programs.
   Logs/           Append-only operations log (one file per month)
   Archive/        Completed weeks in compact summary format
   Summaries/      Weekly, monthly, quarterly summaries
@@ -262,26 +293,17 @@ Your Vault/
   Templates/      Templater weekly template
 ```
 
-`Teams/` adds a third dimension to the knowledge graph beyond People and Programs.
-Set `team:` in a person's frontmatter to associate them, and `parent:` in a team's
-frontmatter to link sub-teams under a larger org.
+`setup.sh` creates all of these directories except `Cold/`. `/worklog cold` and sync create `Cold/` when they need it.
 
-`team:` is a __controlled vocabulary__, not free text. A value must either match a
-`Teams/` note name exactly or be one of four reserved values: `External`,
-`Former Employee`, `Unknown`, or `Partner`. Free text defeats the point of the property,
-since the Teams dimension only works when `team:` resolves to a note. Write `Unknown`
-rather than inventing a label. `/worklog audit` reports the distribution of `team:`
-values against your `Teams/` notes so drift is visible.
+`Teams/` adds a third dimension to the graph, after People and Programs. To put a person in a team, set `team:` in the person's frontmatter. To put a team under a larger org, set `parent:` in the team's frontmatter.
 
-`Preferences/` is the skill's general-purpose memory layer. Anything durable the
-skill discovers about how you work goes here - voice and communication patterns,
-markdown style, workflow rules, tool choices, decision heuristics, vault
-conventions, defaults you want confirmed before action. The skill checks this
-directory before any task with a preference-shaped surface (drafting messages,
-writing markdown, picking tools, structuring notes), and offers to capture new
-preferences when you give feedback that sounds durable.
+`team:` has a __controlled vocabulary__ for the teams in your own org. A value must match the name of a `Teams/` note, or it must be one of four reserved values: `External`, `Former Employee`, `Unknown`, or `Partner`. If you do not know the team of a person, write `Unknown`. Do not make up a label. For a person outside your org, keep the real team name, even if no `Teams/` note has that name. Use `Partner` only when you know that the person is outside your org but you do not know the team. `/worklog audit` compares the `team:` values with your `Teams/` notes, so you can see drift.
 
-Each weekly file uses YAML frontmatter with enriched fields that are auto-generated from the body:
+`Preferences/` is the memory of the skill. It holds durable facts about how you work. Examples are voice, markdown style, workflow rules, tool choices, decision rules, and vault conventions. Some tasks depend on preferences, for example a draft message or a note structure. Before such a task, the skill reads the relevant preferences. When your feedback sounds durable, the skill offers to record it as a preference. It does not save a preference without your approval.
+
+`Threads/` keeps the week file short. Each item in the week file keeps its newest dated sub-items (2 by default), each sub-item with an open action, each undated sub-item, and a link to its Thread note. The skill spills the other sub-items to the Thread note verbatim. `/worklog rollover` does this spill. `/worklog tidy` offers it during the week. An item with no dated update in 14 days (by default) is dormant: rollover parks it in `Backlog.md` with the `🔁 Parked` marker. When new work arrives for a parked item, the skill moves the item back into the week.
+
+Each weekly file has YAML frontmatter. The skill makes these fields from the file body:
 
 ```yaml
 programs:    # wiki-linked programs mentioned in this week
@@ -291,46 +313,69 @@ item-count:  # total priority items
 done-count:  # completed items
 ```
 
-These fields enable [Dataview queries](docs/dataview-queries.md) for live dashboards inside Obsidian.
+These fields let you use [Dataview queries](docs/dataview-queries.md) for live dashboards in Obsidian.
 
 ![Active weekly file showing enriched frontmatter, subgroups, and priority items](docs/images/weekly-file.png)
 
 ## Commands
 
-The table uses Claude Code's `/worklog` spelling. In Codex, replace it with
-`$worklog`; the command names and arguments are otherwise the same.
+The table uses the Claude Code spelling, `/worklog`. In Codex, use `$worklog`. The command names and arguments are the same.
 
 | Command | What it does |
 |---------|-------------|
-| `/worklog` | Show active items grouped by priority |
-| `/worklog review` | Monday morning item-by-item review (updates current week in place) |
-| `/worklog rollover` | Create new week, archive previous, carry forward unfinished items |
-| `/worklog add P1 <title>` | Quick-add an item, checks for overlaps |
-| `/worklog pull` | Sweep registered Slack channels and fold new context into the current week. Email-notes channels become per-thread `Meetings/` notes; context channels fold in place. On first run with no `Sources/`, walks you through registering one. |
-| `/worklog tidy` | Cleanup suggestions: move done items, flag stuck items, dedup |
-| `/worklog audit` | Vault health check with fix-it checklist |
-| `/worklog compact [note]` | Fold an oversized note's old history into a summary, one note at a time |
-| `/worklog cold [note]` | Move old People, Program and Thread entries to `Cold/` verbatim, leaving an index in the note |
-| `/worklog search <term>` | Search across all vault files |
-| `/worklog share` | Slack-ready summary copied to clipboard |
-| `/worklog rollup` | IC-facing weekly context dump for a broad team channel; also filed to `References/` |
-| `/worklog file [title]` | File the answer you just produced into `References/` as a durable, cross-linked artifact |
-| `/worklog summary [period]` | Impact summary for reporting up (week/month/quarter) |
-| `/worklog viz [period]` | D3.js charts as standalone HTML |
-| `/worklog sync` | Git backup: commit and push. Works whether auto sync is on or off |
+| `/worklog` or `/worklog status` | Show active items grouped by priority |
+| `/worklog review` | Monday review, one item at a time (updates the current week in place) |
+| `/worklog pull` | Sweep registered Slack channels and add new context to the current week. With no `Sources/`, it helps you register a channel. |
+| `/worklog rollover` | Create a new week, archive the previous week, and carry forward open items |
+| `/worklog add <priority> <title>` | Add one item, for example `/worklog add P1 <title>`. Checks for overlaps first. |
+| `/worklog tidy` | Cleanup suggestions: move done items, flag stuck items, find duplicates, spill large items to `Threads/`, park dormant items |
+| `/worklog audit` | Vault health check with a list of fixes |
+| `/worklog cold [note]` | Move old People, Program, and Thread entries to `Cold/` verbatim, and keep an index in the note |
+| `/worklog compact [note]` | Fold the old history of an oversized note into a summary, one note at a time |
+| `/worklog search <term>` | Search `Worklogs/`, `Archive/`, `People/`, and `Programs/`, and count the matches in `Cold/` |
+| `/worklog share` | Short status summary for Slack, copied to the clipboard |
+| `/worklog rollup` | Weekly context summary for a broad team channel, copied to the clipboard and filed to `References/` |
+| `/worklog file [title]` | File the answer that the agent just gave into `References/` as a linked note |
+| `/worklog summary [period]` | Impact summary for reporting up (week, month, or quarter) |
+| `/worklog viz [period]` | D3.js charts as a standalone HTML file |
+| `/worklog sync` | Git backup: commit and push. Works when auto sync is on or off. |
+
+A bare `/worklog` with a long paste attached is not `status`. The skill processes the paste as raw input (see [Working with Raw Input](#working-with-raw-input)).
+
+`share`, `rollup`, and `summary` copy text to the clipboard with `pbcopy` (macOS).
 
 ### Integration commands (optional)
 
-These fetch content through MCP servers you connect to Claude Code or Codex. The rest of the worklog works without them. Full reference: [`skills/worklog/references/integrations.md`](skills/worklog/references/integrations.md).
+These commands get content through MCP servers that you connect to Claude Code or Codex. The rest of the worklog works without them. Full reference: [`skills/worklog/references/integrations.md`](skills/worklog/references/integrations.md).
 
 | Command | What it does | Needs |
 |---------|--------------|-------|
-| `/worklog ingest <url>` | Fetch a Slack thread, Confluence page, or Google Doc by URL, then process its body as raw worklog input | Slack MCP, Atlassian Rovo MCP, or a Google Docs/Drive MCP (whichever matches the URL) |
-| `/worklog jira <key>` | Pull a Jira ticket's current state and add it as a worklog item under the right subgroup | [Atlassian Rovo MCP](https://www.atlassian.com/platform/remote-mcp-server) |
+| `/worklog ingest <url>` | Read a Slack thread, Confluence page, or Google Doc by URL, then process its body as raw worklog input | Slack MCP, Atlassian Rovo MCP, or a Google Docs/Drive MCP (the one that matches the URL) |
+| `/worklog jira <key>` | Read a Jira ticket and add it as a worklog item in the correct subgroup | [Atlassian Rovo MCP](https://www.atlassian.com/platform/remote-mcp-server) |
 
-`/worklog <arg>` also auto-routes: a supported URL goes to `ingest`, a Jira key like `PROJ-123` or a Jira browse URL goes to `jira`. If the needed server is not connected, the command stops and names it instead of guessing another tool. Fetched content is treated as untrusted data, never as instructions.
+The Atlassian Rovo MCP covers Atlassian Cloud sites. For Google Docs, any connected Google Docs or Google Drive MCP server that can read one document works.
 
-Optional Jira settings go in `Preferences/Jira.md` frontmatter: `jira_site: yourcompany.atlassian.net` and `jira_projects: [PROJ, OPS]`. With both set, bare keys from those projects in pasted notes become links. A bare `/worklog PROJ-123` auto-routes to `jira` only for projects listed in `jira_projects`; otherwise type `/worklog jira PROJ-123`. The Atlassian Rovo MCP covers Atlassian Cloud sites.
+If the necessary server is not connected, the command stops before it changes the vault. It names the missing server. It does not try a different tool. The skill treats fetched content as untrusted data, never as instructions.
+
+**Auto-routing.** If the first word after `/worklog` is not a command name, the skill classifies the argument:
+
+| Argument | Result |
+|----------|--------|
+| A Slack permalink, Google Docs URL, or Confluence page URL | `ingest` |
+| A Jira browse URL (`https://<site>/browse/PROJ-123`) | `jira` |
+| A Jira key such as `PROJ-123`, when `PROJ` is in `jira_projects` | `jira` |
+| A Jira key for a project that is not in `jira_projects` | No change. The skill tells you to use `/worklog jira <key>`. |
+| A different URL | Stop, with a "not supported" message |
+| Other text | Raw worklog input |
+
+**Jira settings.** These settings are optional. Put them in the frontmatter of `Preferences/Jira.md`:
+
+```yaml
+jira_site: yourcompany.atlassian.net
+jira_projects: [PROJ, OPS]
+```
+
+When you set both values, a bare key from one of those projects in pasted notes becomes a link to the ticket. A bare `/worklog PROJ-123` goes to `jira` only for a project in `jira_projects`. For other projects, type `/worklog jira PROJ-123`.
 
 | Capability | Claude Code | Codex |
 |------------|-------------|-------|
@@ -338,43 +383,81 @@ Optional Jira settings go in `Preferences/Jira.md` frontmatter: `jira_site: your
 | One-off Slack, Confluence, Google Docs, and Jira ingestion | Connected MCP servers | Connected MCP servers |
 | Incremental Slack channel pull | Requires the existing Slack connector | Requires a connector that can list channel messages, read threads, resolve channels, and resolve users |
 
-Codex will not substitute Slack semantic/RAG search for incremental enumeration because
-RAG results are not exhaustive enough to advance a source cursor safely. It stops without
-changing pull state and offers one-off `$worklog ingest <slack-permalink>` instead. See
-[`docs/SETUP-CODEX.md`](docs/SETUP-CODEX.md) for details.
+Codex does not use Slack semantic (RAG) search for an incremental pull. RAG results are not complete, so they cannot safely move a source cursor forward. Codex stops without a change to the pull state. It offers a one-off `$worklog ingest <slack-permalink>` instead. See [`docs/SETUP-CODEX.md`](docs/SETUP-CODEX.md) for details.
 
 ### Key commands in detail
 
-**`/worklog review`** -- Walks through each active item for quick status updates ("done", "still on it", "pinged Sarah"). Collects new items. Updates the current week file in place. Does _not_ create a new week or archive anything. Use `/worklog rollover` for that.
+**`/worklog review`**: the agent shows one active item at a time and waits for your update ("done", "still on it", "pinged Sam"). Then it collects new items. It updates the current week file in place. It does _not_ create a new week or archive a week. Use `/worklog rollover` for that.
 
-**`/worklog summary [period]`** -- Generates an impact-oriented summary for reporting up. Accepts: `week`, `month`, `quarter`, or specific references like `W20`, `March`, `Q1`. Monthly and quarterly summaries include **Priority Drift** (how P0s shift over time) and **Trends** (time allocation, completion rates). Writes a wiki-linked vault file and copies a plain-text version to clipboard.
+**`/worklog rollover`**: the agent creates the file for the next week and archives the current week as a summary. For each open item, it keeps the newest sub-items and spills the older sub-items to the item's Thread note. It parks dormant items in `Backlog.md`. If the vault git state is clean, rollover also runs the cold move. It moves each note that has 8 KB or more of old content. Rollover makes a local commit for the cold moves (no push).
 
-**`/worklog rollup`** -- Generates an IC-appropriate context dump of the current week for posting to a broad team channel (e.g. `#eng-all`). Organized into two buckets: _Stuff you should probably know_ (program-level updates, structural decisions, paved-road changes, things ICs can act on) and _Context: everything else_ (FYI-grade one-liners). Filters out performance commentary, 1:1 specifics, hiring candidate details, and other leader-only context. Slack-mrkdwn formatted and copied to the clipboard with wiki-links stripped; also filed to `References/YYYY-WNN Rollup.md` with wiki-links kept so it lands in the graph.
+**`/worklog summary [period]`**: the agent writes an impact summary for reporting up. The period can be `week`, `month`, `quarter`, or a specific period such as `W20`, `March`, or `Q1`. Month and quarter summaries include **Priority Drift** (how the P0 items change over time) and **Trends** (time allocation and completion rates). The agent writes a linked vault file and copies a plain-text version to the clipboard.
+
+**`/worklog rollup`**: the agent writes a summary of the current week for a broad team channel. The summary has two sections:
+
+- _Stuff you should probably know_: program updates, structural decisions, changes to shared practices, and items that readers can act on.
+- _Context: everything else_: short one-line items.
+
+The rollup does not include performance comments, 1:1 details, hiring candidate details, or other content that is only for leaders. The agent copies a Slack-formatted version without wiki-links to the clipboard. It also files `References/YYYY-WNN Rollup.md` with wiki-links, so the rollup is in the graph.
 
 ![Monthly summary with enriched frontmatter, key outcomes, and priority drift](docs/images/monthly-summary.png)
 
-**`/worklog audit`** -- Scans the vault for stale people notes (not mentioned in 4+ weeks), orphan programs, stuck items (3+ weeks without progress), missing wiki-links, empty stubs, and frontmatter gaps, plus wider reports: notes that have grown past the compaction threshold, the distribution of `team:` values against your `Teams/` notes, and tags that recur across weeks without a page of their own. The scanner prints twelve keys. Seven keys are findings: the first six, and `cold_integrity` (broken or orphaned `Cold/` links and files). You pick fixes from the findings. Four keys are tables to read and judge, not to-do lists: three distribution tables, and `cold_candidates` (notes with old entries that `/worklog cold` can move). `week_volume` is a gauge on the current week file. It shows the body size and the per-item byte weight, so you see the growth of the week file before it becomes unusable.
+**`/worklog audit`**: the scanner prints twelve keys:
 
-**`/worklog cold [note]`** -- Moves old dated entries from People, Programs and Threads notes to `Cold/<Folder>/<Note>/<YYYY>-Q<n>.md`. The move is lossless. It is verbatim: the skill does not summarize anything. The note keeps a one-line index entry for each moved entry, in a `## Cold storage` section. The command is gated. `scripts/cold-gate.sh` compares the note and the cold files with `HEAD`, and it must print `PASS`. It checks that every line and every wiki-link target survived, and that every cold file is linked from the note. With no argument, the command moves every candidate from `cold_candidates`, one note at a time. With a note name, it moves that note only. The vault must be a clean git working tree, and the command ends with a local commit (no push). Entries with an open action or commitment (pinned entries) stay in the note. `/worklog rollover` also runs the cold move for each candidate with 8 KB or more of movable content.
+- Seven keys are __findings__. Each row is a problem to fix:
+  - `stale_people`: people with no mention in 4 or more weeks
+  - `orphan_programs`: programs that no recent weekly file links to
+  - `stuck_items`: items with no progress in 3 or more weeks
+  - `missing_links`: names that are not wiki-linked
+  - `empty_stubs`: People or Programs notes with no bullets
+  - `frontmatter_gaps`: missing frontmatter fields
+  - `cold_integrity`: broken or orphaned `Cold/` links and files
+- Four keys are __tables__ for you to read and judge. They are not lists of problems:
+  - `oversized_notes`: notes over the line limit (250 lines, or 400 lines for Threads)
+  - `team_vocabulary`: the `team:` values compared with your `Teams/` notes
+  - `recurring_tags`: tags that occur in many weeks but have no page
+  - `cold_candidates`: notes with old entries that `/worklog cold` can move
+- One key is a __gauge__. `week_volume` shows the body size of the current week file and the bytes for each item. Use it to see the growth of the week file before the file becomes too large.
+
+You select the fixes to apply.
+
+**`/worklog cold [note]`**: the agent moves old dated entries from People, Programs, and Threads notes to `Cold/<Folder>/<Note>/<YYYY>-Q<n>.md`. The move is verbatim. The skill does not summarize. The note keeps a one-line index entry for each moved entry, in a `## Cold storage` section. These rules apply:
+
+- The vault must be a clean git working tree.
+- `scripts/cold-gate.sh` compares the note and the cold files with `HEAD`. It must print `PASS`. It checks that each line and each wiki-link target is still present, and that the note links to each cold file.
+- With no argument, the command moves each note in `cold_candidates`, one note at a time. With a note name, it moves only that note.
+- Pinned entries stay in the note. A pinned entry has an open action or commitment.
+- The command ends with a local commit (no push).
 
 When you ask a question about the vault, the skill uses this lookup order:
 
 1. It reads the warm notes (the notes outside `Cold/`).
-2. It scans every line of the `## Cold storage` index, even if step 1 gave an answer.
-3. It reads a cold file without asking in two cases: the question names a date older than the window, or an index line matches the subject. The limit is 30 KB of text read per question.
-4. It runs a keyword search (grep) in the cold files that the note links to.
-5. If it still has no answer, it asks you before it sweeps all of `Cold/`. A subagent runs the sweep only after you say yes.
+2. It scans each line of the `## Cold storage` index, even if step 1 gave an answer.
+3. It reads a cold file without asking if the question names a date older than the window. It also does this if an index line matches the subject. The limit is 30 KB of text for each question.
+4. It searches (grep) the cold files that the note links to.
+5. If it still has no answer, it asks you before it searches all of `Cold/`. A subagent does the search only after you say yes.
 
 `/worklog search` counts the matches in `Cold/` and reports the count. It does not read the cold files.
 
-**`/worklog compact [note]`** -- Folds an oversized note's old history into a `## History` summary so it stops growing without bound. Refuses outright on a vault that isn't a clean git working tree -- there's no undo for a lossy fold otherwise. Shows you the proposed fold and waits for approval before writing anything. Three checks run against the proposal before it lands: a __link gate__ (no `[[wiki-link]]` target disappears without being named to you and explicitly confirmed), a __heading gate__ (every heading that vanishes must be one you can point at a named `## History` bullet for -- this catches a silently truncated rewrite that the link gate cannot see), and a __line-count reconciliation__ after the write (the note's total drop must not exceed what the folded sections account for). If a note is still over the threshold afterward, says so rather than marking it done.
+**`/worklog compact [note]`**: the agent folds the old history of an oversized note into a `## History` summary. This fold is lossy, so `/worklog cold` is the usual fix for size. Use compact when you want a summary. These rules apply:
 
-Two environment variables tune it:
+- The vault must be a clean git working tree. Git is the undo for a lossy fold.
+- The agent shows the proposed fold and waits for your approval before it writes.
+- Three checks run on the proposal:
+  - A __link gate__: if a `[[wiki-link]]` target disappears, the agent names it, and you must confirm it.
+  - A __heading gate__: each heading that disappears must match a named `## History` bullet. This check finds a truncated rewrite that the link gate cannot find.
+  - A __line-count check__ after the write: the line drop must not be more than the folded sections.
+- If the note is still over the limit after the fold, the agent tells you. It does not mark the note as done.
+
+These environment variables change compact and the size report:
 
 | Variable | Default | What it does |
 |----------|---------|--------------|
 | `WORKLOG_COMPACT_KEEP_DAYS` | `60` | Dated entries newer than this move to `## Recent` unchanged; older ones fold into `## History` bullets |
-| `WORKLOG_COMPACT_LINES` | `250` | The line count above which `/worklog audit` reports a note as oversized |
+| `WORKLOG_COMPACT_LINES` | `250` | The line count above which `/worklog audit` reports a People or Programs note as oversized |
+| `WORKLOG_THREAD_LINES` | `400` | The line count above which `/worklog audit` reports a Threads note as oversized |
+
+The 60-day default is intentional. If most of the content in a note is from the last three months, a 90-day window folds almost nothing. Then the pass reports "still oversized", and you must run it again. If your notes grow more evenly, increase the value.
 
 These variables control `/worklog cold` and the audit key `cold_candidates`:
 
@@ -386,36 +469,63 @@ These variables control `/worklog cold` and the audit key `cold_candidates`:
 | `WORKLOG_COLD_MIN_KB` | `4` | Minimum movable KB for a note to appear in `cold_candidates` |
 | `WORKLOG_TODAY` | today | Replaces today's date with a `YYYY-MM-DD` value, to test the scanner |
 
-`scripts/shrink-check.sh <vault>` is a read-only guard against accidental overwrites. It flags a tracked note when the note was emptied, deleted, or lost more than `WORKLOG_SHRINK_PCT` percent of its bytes (default `50`) against `HEAD`. It skips `Cold/`, `Logs/` and cold moves. Every sync, manual or auto, runs it before it commits. If it flags a note, the sync stops until you confirm or restore the note.
+These variables control the week file, `/worklog rollover`, `/worklog tidy`, and the `week_volume` gauge:
 
-The 60-day default is deliberate. On a vault whose mass sits in the last three months, a 90-day window folds almost nothing, so the pass reports "still oversized" and you run it twice. Raise it if your notes accumulate more evenly.
+| Variable | Default | What it does |
+|----------|---------|--------------|
+| `WORKLOG_WEEK_KEEP_SUBS` | `2` | Newest dated sub-items that each item keeps in the week file |
+| `WORKLOG_WEEK_DORMANT_DAYS` | `14` | Days with no dated sub-item after which an item parks in `Backlog.md` |
+| `WORKLOG_WEEK_BYTES` | `40000` | Week file body size above which `week_volume` reports `over_threshold` |
+| `WORKLOG_WEEK_ITEM_BYTES` | `6000` | Single item size above which `week_volume` reports `over_threshold` |
 
-**Auto sync** -- A vault that is not a git repo with an `origin` remote gets `auto_sync: off` without being asked. Setup does not create the repo, so a fresh vault starts `off`; after you add the remote, ask the skill to "turn on auto sync". Otherwise, setup asks "Sync the vault automatically after each change?", and the first `/worklog` command after an update asks the same question once. When on, each command that writes the vault commits and pushes when it finishes, without asking, and prints one line:
+`scripts/shrink-check.sh <vault>` is a read-only guard against accidental overwrites. It flags a tracked note that is empty, deleted, or smaller by more than `WORKLOG_SHRINK_PCT` percent (default `50`) than in `HEAD`. It skips `Cold/`, `Logs/`, and cold moves. Each sync (manual or auto) runs it before the commit. If it flags a note, the sync stops until you confirm or restore the note.
+
+**Auto sync**: the setting is in `Preferences/Auto Sync.md`. These rules set its first value:
+
+- If the vault is not a git repo with an `origin` remote, auto sync is `off`, and the skill does not ask. Setup does not create the repo, so a new vault starts with auto sync `off`. After you add the remote, ask the skill to "turn on auto sync".
+- Otherwise, setup asks "Sync the vault automatically after each change?".
+- If `Preferences/Auto Sync.md` does not exist (for example, after an upgrade without setup), the first `/worklog` command asks the same question one time.
+
+When auto sync is on, each command that writes the vault commits and pushes when it finishes. It does not ask. It prints one of these lines:
 
 - `Auto-synced vault: <hash> pushed (<n> files).`
 - `Auto-synced vault: <hash> committed locally; push failed: <reason>. The next sync retries.`
 - `Auto-sync: nothing to commit.`
-- `Auto-sync skipped: <reason>.` The reason is, for example, `no backup remote` or `detached HEAD`.
-- The shrink-check lines (`EMPTY <path>`, `SHRINK <path>: <before> -> <after> bytes` or `DELETED <path>`). Nothing is committed.
+- `Auto-sync skipped: <reason>.` Example reasons are `no backup remote` and `detached HEAD`.
+- The shrink-check lines (`EMPTY <path>`, `SHRINK <path>: <before> -> <after> bytes` or `DELETED <path>`). In this case, no commit occurs.
 
-If the shrink check flags a note, nothing is committed and the flagged lines print. Resolve them, or re-run the sync with `WORKLOG_SHRINK_CONFIRM` set to the confirmed paths, then run `/worklog sync` or make the next write.
+If the shrink check flags a note, resolve each flagged line. Restore the note, or confirm the change. To confirm, run the sync again with `WORKLOG_SHRINK_CONFIRM` set to the confirmed paths. Then run `/worklog sync`, or make the next write.
 
-In Claude Code, allow `Bash(<install>/skills/worklog/scripts/:*)` so sync runs without a permission prompt.
+In Claude Code, allow `Bash(<install>/skills/worklog/scripts/:*)`. Then sync runs without a permission prompt.
 
-To turn it off, set `auto_sync: off` in `Preferences/Auto Sync.md`, or ask the skill to turn off auto sync.
+To turn auto sync off, set `auto_sync: off` in `Preferences/Auto Sync.md`, or ask the skill to turn off auto sync.
 
-**`/worklog viz [period]`** -- Generates a standalone HTML file with four D3.js charts: time allocation pie, program activity heatmap, P0 trend line, and completion rate bars. Open in any browser. Dark theme, responsive layout.
+**`/worklog viz [period]`**: the agent writes a standalone HTML file with four D3.js charts. The charts are a time allocation pie, a program activity heatmap, a P0 trend line, and completion rate bars. Open the file in a browser. The page has a dark theme and a responsive layout.
+
+### Slack source types
+
+Each file in `Sources/` has a `type`. `/worklog pull` uses the type to select its behavior:
+
+- `meeting-notes-via-email`: one forwarded-email thread is one meeting. The pull writes one `Meetings/` note for each thread.
+- `context-channel`: the pull sweeps a busy discussion channel from the last pull. It adds high-confidence matches to the related items, with a Slack permalink. It asks before it adds new or uncertain items. It drops noise. It writes no files for each thread.
+- `dm-sweep`: one file, `Sources/_dms.md`, covers all your 1:1 and group DMs. The pull searches the DMs. It does not list each conversation, so it keeps no state for each conversation. The pull never adds DM content without your approval. It writes approved items as general summaries.
+
+All new or uncertain items from context channels and DMs go into one approval batch at the end of the pull. The batch shows one item at a time.
 
 ## Working with Raw Input
 
-The most common workflow: paste meeting notes, Slack threads, or transcripts directly into the conversation and ask the agent to add them to the worklog.
+This is the most frequent workflow. Paste meeting notes, Slack threads, or transcripts into the conversation. Then ask the agent to add them to the worklog.
 
-The agent will:
-- Extract action items and decisions
-- Match against existing items (adds sub-items, avoids duplicates)
-- Wiki-link people and programs (creating stubs for new ones)
-- Add dated annotations from the source content
-- Update the current week file
+The agent does these steps:
+
+- It extracts action items and decisions.
+- It compares them with existing items. It adds each fact as a sub-item of the related item, and it does not make duplicates.
+- It wiki-links people and programs. It creates stub notes for new people.
+- It adds dates from the source content.
+- It updates the current week file. Then it reads the file again to make sure that the change is there.
+- It writes an entry in the operations log.
+
+A fact that has no related item becomes a new item in the current week. A new item can arrive already deprioritized ("push to next quarter"). It still goes in the week file as a P2 item, with the decision as a dated sub-item. The agent never writes a new item directly into `Backlog.md`. Only an existing item can park in the Backlog.
 
 Example:
 
@@ -428,51 +538,53 @@ here are notes from my 1:1 with Sarah:
 add to worklog
 ```
 
-The agent adds these as sub-items under the existing migration item, wiki-links Sarah Chen and Marcus Williams, and dates the annotations.
+The agent adds these notes as sub-items under the existing migration item. It wiki-links Sarah Chen and Marcus Williams, and it adds dates to the sub-items.
 
 ## The Knowledge Graph
 
-Every time the skill writes to the vault, it wiki-links all people, programs, and teams. This builds a dense knowledge graph in Obsidian:
+Each time the skill writes to the vault, it wiki-links all people, programs, and teams. This makes a dense knowledge graph in Obsidian:
 
-- Click any person's note to see every week they appeared in (via backlinks)
-- Click any program to see its full history across weeks
-- Click any team to see its members and the work flowing through it
-- The graph view shows how people, programs, and teams cluster together
+- Open a person's note to see each week that mentions that person (through backlinks).
+- Open a program note to see its full history across weeks.
+- Open a team note to see its members and its work.
+- The graph view shows how people, programs, and teams are connected.
 
-**People notes** (`People/Sarah Chen.md`) accumulate context over time: role, relationship, what you're working on together. New bullet points are added as substantive updates happen. The optional `team:` frontmatter property links a person to a team note.
+**People notes** (`People/Sarah Chen.md`) collect context over time: role, relationship, and shared work. The skill adds new bullets when substantive updates occur. The optional `team:` frontmatter property links a person to a team note.
 
-**Program notes** (`Programs/Platform Migration.md`) track status evolution, key decisions, and who's involved.
+**Program notes** (`Programs/Platform Migration.md`) record status changes, key decisions, and the people involved.
 
-**Team notes** (`Teams/Platform.md`) capture team membership and the work the team owns. The optional `parent:` frontmatter property links sub-teams to their parent org, so the graph can model nested team structures.
+**Team notes** (`Teams/Platform.md`) record team members and the work that the team owns. The optional `parent:` frontmatter property links a sub-team to its parent org. Thus, the graph can show nested teams.
 
-**Preference notes** (`Preferences/Markdown Formatting.md`, `Preferences/Slack DM Voice.md`, `Preferences/Commit Discipline.md`, ...) are the skill's general-purpose memory for how you work. One note per preference: voice, style, workflow, tooling, decision rules, vault conventions, anything you want to remember and apply later. The active agent reads these before any task with a preference-shaped surface, so your working style stays consistent across sessions instead of drifting back to a generic LLM default.
+**Thread notes** (`Threads/<slug>.md`) record the full dated history of one long-running item. The week file links to the Thread note.
 
-The skill creates stub notes for new people, programs, and teams automatically. The graph grows organically as your worklog evolves.
+**Preference notes** (`Preferences/Markdown Formatting.md`, `Preferences/Slack DM Voice.md`, `Preferences/Commit Discipline.md`) are the memory of the skill. Each note holds one preference. The agent reads the relevant preferences before a task that they affect. Thus, your working style stays the same across sessions.
+
+The skill creates a stub note for each new person automatically. It creates a Program note only for a named, ongoing initiative, not for each topic.
 
 ![Person note showing context accumulation across multiple weeks](docs/images/person-note.png)
 
 ## Dataview Queries
 
-With the Dataview plugin enabled, you can create live dashboards inside Obsidian. See [docs/dataview-queries.md](docs/dataview-queries.md) for 8 ready-to-paste queries covering weekly overviews, people engagement, program frequency, completion rates, and more.
+With the Dataview plugin, you can make live dashboards in Obsidian. See [docs/dataview-queries.md](docs/dataview-queries.md) for queries that you can paste. They cover weekly overviews, people engagement, program frequency, completion rates, and more.
 
 ## Customization
 
 ### Subgroups
 
-Weekly files use bold labels for thematic subgroups that adapt to your work:
+Weekly files use bold labels for subgroups. The subgroups change to match your work:
 
 ```markdown
 **Platform & Infrastructure**
 
 - **P0** ⏳ In Progress - Platform migration cutover planning
-  - Confirmed rollback window with Sarah Chen (May 12)
+  - Confirmed rollback window with [[Sarah Chen]] (May 12)
 
 **Hiring & People**
 
 - **P1** ⏳ In Progress - Backend engineer pipeline
 ```
 
-Common patterns: by domain, by team, by initiative type. The skill reorganizes them during review if themes shift.
+Frequent patterns are by domain, by team, or by type of initiative. If the themes change, the skill reorganizes the subgroups during review.
 
 ### Priority levels
 
@@ -489,62 +601,104 @@ Common patterns: by domain, by team, by initiative type. The skill reorganizes t
 | ⏳ In Progress | Actively working on |
 | ✅ Done | Completed |
 | 🔁 Ongoing | Recurring, no end date |
+| 🔁 Parked | Dormant item parked in `Backlog.md` |
 
 ## File Format Examples
 
-All files are standard Obsidian-compatible markdown with YAML frontmatter. See the [examples/](examples/) directory:
+All files are standard Obsidian markdown with YAML frontmatter. See the [examples/](examples/) directory:
 
-- [Weekly file](examples/weekly-file.md) -- active week with items and subgroups
-- [Archive file](examples/archive-file.md) -- compact summary of a completed week
-- [Person note](examples/person-note.md) -- accumulated context about a person
-- [Program note](examples/program-note.md) -- program status over time
-- [Summary file](examples/summary-file.md) -- period summary with drift and trends
-- [Source note](examples/source-note.md) -- registered Slack channel config with frontmatter fields
-- [Meeting note](examples/meeting-note.md) -- ingested Slack thread with discussion and extracted action items
+- [Weekly file](examples/weekly-file.md): active week with items, subgroups, and a Thread link
+- [Archive file](examples/archive-file.md): summary of a completed week, with its Threads index line
+- [Thread note](examples/thread-note.md): full dated history of one long-running item
+- [Person note](examples/person-note.md): context about a person, with dated entries
+- [Program note](examples/program-note.md): a program note after `/worklog compact`
+- [Summary file](examples/summary-file.md): period summary with drift and trends
+- [Source note](examples/source-note.md): registered Slack channel configuration with frontmatter fields
+- [Meeting note](examples/meeting-note.md): ingested Slack thread with discussion and extracted action items
+- [Operations log](examples/ops-log.md): one month of `Logs/YYYY-MM.md`, as `log-append.sh` writes it
 
 ![Archived week with enriched frontmatter and compact summary](docs/images/archive-file.png)
+
+## Development and Testing
+
+The tests are bash scripts. Run them from the repo root.
+
+Unit tests for the bundled scripts use throwaway vaults:
+
+```bash
+for t in tests/*.test.sh; do bash "$t" || echo "FAILED: $t"; done
+```
+
+End-to-end tests run each setup script on a temporary clone and a temporary vault. They do not change your clone or create remote repos:
+
+```bash
+bash tests/e2e-setup.sh
+bash tests/e2e-setup-codex.sh
+```
+
+The eval harness runs cases from `evals/evals.json` with a headless `claude -p` for each run. It reports pass or fail and the cost of each run. Each run uses a throwaway plugin copy and a throwaway git vault:
+
+```bash
+evals/run.sh --cases 1,2,3,4 --configs haiku:low,sonnet:medium,opus:high
+```
+
+Run `evals/run.sh` from a normal terminal, not from a Claude Code session, because it starts `claude` in a nested process. The evals cost money: the default budget is $5 for each run (`WORKLOG_EVAL_BUDGET`). If your vault is not at `~/Documents/Obsidian Vault`, set `WORKLOG_REAL_VAULT`. Without it, the checks that protect your real vault do not work.
 
 ## FAQ
 
 **Do I need Obsidian to use this?**
-The skill reads and writes plain markdown files, so technically no. But Obsidian's graph view, backlinks, and Dataview plugin are what make the knowledge graph and dashboards useful.
+No. The skill reads and writes plain markdown files. But the graph view, backlinks, and Dataview in Obsidian make the knowledge graph and the dashboards useful.
 
 **Does this work with existing vaults?**
-Yes. The skill creates its own directories (Worklogs/, People/, Programs/, etc.) within your vault. It won't touch your existing notes.
+Yes. `setup.sh` adds only the directories that are missing. It replaces `Templates/Weekly.md` if that file exists. You can keep your other notes in the vault.
 
 **How do I handle multiple projects?**
-Use thematic subgroups within each week. The skill adapts subgroup labels to your current work, so you don't need separate vaults or files per project.
+Use subgroups in each week. The skill changes the subgroup labels to match your work, so you do not need separate vaults or files for each project.
 
 **Can I edit files directly in Obsidian?**
-Absolutely. The skill reads the current file state before every change. Edit freely in Obsidian between agent sessions.
+Yes. The skill reads the current file before each change. Edit in Obsidian between agent sessions.
 
 **What happens if I miss a weekly rollover?**
-Nothing breaks. Run `/worklog rollover` whenever you're ready. The old week stays in Worklogs/ until you roll it over.
+Nothing breaks. Run `/worklog rollover` when you are ready. The old week stays in `Worklogs/` until you roll it over.
 
-**How much does the vault grow?**
-Each week adds ~2-5 KB. After a year: 52 weekly files + 50-100 people + 20-30 programs = a few hundred KB total.
+**How large does the vault get?**
+The week file stays small because rollover spills old sub-items to `Threads/`. `/worklog audit` reports the week file size in `week_volume`. The default limit is 40,000 bytes. People, Programs, and Threads notes grow over time. `/worklog cold` moves their old history to `Cold/`.
 
 **How do I add a new Slack channel to monitor?**
-Run `/worklog pull` (or `$worklog pull` in Codex). If `Sources/` is empty, the skill walks you through registering the channel: it asks for the channel name, resolves the channel ID via Slack search, writes a `Sources/<channel>.md` config file, and runs the first pull. To add another channel later, just say "register `#another-channel` as a source" (a raw channel ID works too). The active host must expose channel-listing, thread-reading, channel-resolution, and user-resolution capabilities; Codex reports any missing capability without changing the source cursor.
+Run `/worklog pull` (or `$worklog pull` in Codex). If `Sources/` is empty, the skill helps you register the channel:
+
+1. It asks for the channel name.
+2. It finds the channel ID through Slack search.
+3. It writes a `Sources/<channel>.md` configuration file.
+4. It runs the first pull.
+
+To add another channel later, say "register `#another-channel` as a source". A raw channel ID also works. The host must be able to list channels, read threads, resolve channels, and resolve users. If Codex does not have one of these capabilities, it reports the missing capability and does not change the source cursor.
 
 **How do I set up auto-fetch for email bodies?**
-See [`docs/SETUP-SLACK.md`](docs/SETUP-SLACK.md) for a 5-minute walkthrough: register a personal Slack app at `api.slack.com/apps` with `files:read` scope, install it to your workspace, store the `xoxp-` user token at `~/.config/obsidian-worklog/slack-token` (chmod 600), and drop in a small `slack-fetch-file` helper script. After that, `/worklog pull` ingests email bodies automatically. If your workspace requires admin approval for new apps, the manual-paste fallback keeps the feature working while you wait.
+See [`docs/SETUP-SLACK.md`](docs/SETUP-SLACK.md) for a 5-minute procedure. In summary:
+
+1. Register a personal Slack app at `api.slack.com/apps` with the `files:read` scope.
+2. Install the app in your workspace.
+3. Store the `xoxp-` user token at `~/.config/obsidian-worklog/slack-token` (chmod 600).
+4. Install the small `slack-fetch-file` helper script.
+
+After that, `/worklog pull` ingests email bodies automatically. If your workspace requires admin approval for new apps, use the manual-paste fallback while you wait.
 
 **What if auto-fetch isn't set up?**
-The skill falls back to prompting you to paste each email body inline. Same outcome (`Meetings/` note + action items extracted), just one extra step per thread. You can also say `skip` to advance past a thread without ingesting it, or `skip all remaining` to bail out of the entire pull while preserving un-shown threads for the next run. No skeleton notes get created, so the vault stays clean.
+The skill asks you to paste each email body. The result is the same (a `Meetings/` note and extracted action items), with one more step for each thread. You can also say `skip` to go past a thread without ingesting it. Say `skip all remaining` to stop the pull. The threads that you did not see stay for the next run. The skill creates no empty notes.
 
 **What if I delete a meeting note by accident?**
-The next `/worklog pull` will re-ingest it (auto-fetch path) or re-prompt you to paste (manual path), since the `slack_thread_ts` no longer matches anything in `Meetings/*.md` and the thread is treated as new. To permanently skip a thread, use `skip` in the manual-paste prompt; that advances `last_scan_ts` past it.
+The next `/worklog pull` ingests it again (auto-fetch) or asks you to paste it again (manual paste). The `slack_thread_ts` no longer matches a note in `Meetings/*.md`, so the skill treats the thread as new. To skip a thread permanently, use `skip` in the manual-paste prompt. That moves `last_scan_ts` past the thread.
 
 **What if I edit a meeting note?**
-Your edits are preserved. Subsequent pulls only append new thread replies under `## Discussion` and update `slack_last_reply_ts` in the frontmatter. The `## Notes` section and anything else you add is never overwritten.
+The skill keeps your edits. Later pulls only add new thread replies under `## Discussion` and update `slack_last_reply_ts` in the frontmatter. The skill never overwrites the `## Notes` section or other content that you add.
 
 **What's the difference between the three Slack source types?**
-`meeting-notes-via-email` treats one forwarded-email thread as one meeting and saves a `Meetings/` note per thread. `context-channel` sweeps a busy discussion channel since the last pull, auto-folds high-confidence matches into the items they relate to (with a Slack permalink), asks before adding anything new or uncertain, and drops noise, with no per-thread files. `dm-sweep` is a single `Sources/_dms.md` covering all your 1:1 and group DMs at once (they are searched, not enumerated, so there is no per-conversation state); nothing it finds is ever auto-folded, and approved items are written as genericized summaries. Every uncertain or new candidate from context channels and DMs lands in one approval batch at the end of the pull, presented one item at a time.
+See [Slack source types](#slack-source-types).
 
 **Does the pull read my DMs?**
-Only if you opt in with `Sources/_dms.md` and install the `slack-search-dms` helper (plus the search scopes and DM-search consent). Even then, no DM content is ever written without your explicit approval, and approved items are genericized (no verbatim quotes) with a private Slack permalink.
+Only if you opt in. To opt in, create `Sources/_dms.md` with `enabled: true`. The pull uses the Slack MCP search tool. If that tool is not available, the pull uses the `slack-search-dms` helper, which needs the search scopes and DM-search consent (see [`docs/SETUP-SLACK.md`](docs/SETUP-SLACK.md#dm-sweep)). Even then, the skill never writes DM content without your explicit approval. It writes approved items as general summaries (no verbatim quotes) with a private Slack permalink.
 
 ## License
 
-MIT -- see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).

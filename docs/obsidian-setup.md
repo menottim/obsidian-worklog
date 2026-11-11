@@ -1,23 +1,32 @@
 # Obsidian Plugin Configuration Guide
 
-This guide covers the exact settings required for the four plugins that power the worklog system. Configure them in the order listed to avoid dependency issues.
+This guide gives the settings for the four community plugins that the worklog uses in Obsidian. Configure the plugins in the sequence that follows.
+
+The skill reads and writes the vault files directly. It does not need these plugins. The plugins let you create week files by hand and see the worklog data in Obsidian.
 
 ---
 
 ## Prerequisites
 
-Install the following community plugins from the Obsidian plugin browser:
+1. Run `setup.sh` (Claude Code) or `setup-codex.sh` (Codex). The setup script creates the vault folders and copies `Templates/Weekly.md` into the vault.
+2. Open the Obsidian plugin browser.
+3. Install these community plugins:
+   - Templater
+   - Periodic Notes
+   - Calendar
+   - Dataview
 
-- Templater
-- Periodic Notes
-- Calendar
-- Dataview
+### Vault folders
+
+The setup scripts create these folders: `Worklogs`, `People`, `Programs`, `Threads`, `Teams`, `Meetings`, `Sources`, `Preferences`, `Archive`, `Summaries`, `Reports`, `Templates`, `Logs`, and `References`. The skill creates `Cold/` when it first moves old history into cold storage.
+
+Only the `Worklogs` and `Templates` folders have plugin settings in this guide. `Worklogs` contains the current week file and `Backlog.md`. At rollover, the skill moves the previous week file to `Archive`.
 
 ---
 
 ## 1. Templater
 
-Templater processes template expressions (like `<% tp.date.now() %>`) when new files are created, so the weekly note is populated automatically on creation.
+Templater replaces the template expressions (for example `<% tp.file.title %>`) when you create a file. Thus a new week file gets its frontmatter immediately.
 
 __Settings > Community Plugins > Templater__
 
@@ -33,13 +42,13 @@ __Folder templates mapping:__
 |---|---|
 | `Worklogs` | `Templates/Weekly.md` |
 
-Click the `+` button under "Folder templates" to add the mapping above.
+To add the mapping, click the `+` button below "Folder templates".
 
 ---
 
 ## 2. Periodic Notes
 
-Periodic Notes handles the creation of weekly note files with the correct filename format. This is the plugin that Calendar delegates to when you click a week number.
+Periodic Notes creates the weekly note files with the correct file name format. Calendar uses this plugin when you click a week number.
 
 __Settings > Community Plugins > Periodic Notes__
 
@@ -48,9 +57,11 @@ __Settings > Community Plugins > Periodic Notes__
 | Setting | Value |
 |---|---|
 | Enable weekly notes | ON |
-| Format | `YYYY-[W]WW` |
+| Format | `GGGG-[W]WW` |
 | Weekly note template | `Templates/Weekly.md` |
 | Weekly note folder | `Worklogs` |
+
+The skill uses the same format for week files, for example `2026-W15.md`. The template also reads the week from the file name. If you use a different format, the template expressions fail.
 
 ### All other periods
 
@@ -61,13 +72,13 @@ __Settings > Community Plugins > Periodic Notes__
 | Quarterly notes | Disabled |
 | Yearly notes | Disabled |
 
-Turn off each period type individually using the toggle at the top of each section.
+Use the toggle at the top of each section to disable each period.
 
 ---
 
 ## 3. Calendar
 
-Calendar provides the sidebar widget where you can click a week number to open or create that week's note. It does __not__ control note format or template. Those come from Periodic Notes.
+Calendar shows a calendar in the sidebar. Click a week number to open or create the note for that week. Calendar does __not__ control the note format or the template. Periodic Notes controls them.
 
 __Settings > Community Plugins > Calendar__
 
@@ -77,13 +88,13 @@ __Settings > Community Plugins > Calendar__
 | Start week on | Monday |
 | Confirm before creating new note | ON |
 
-> __Note:__ If you see a "Weekly note template" field in Calendar settings, leave it blank. Calendar defers to Periodic Notes for all file creation settings. Entering a template here will cause conflicts.
+> __Note:__ Calendar settings can show a "Weekly note template" field. Keep this field empty. Calendar uses the Periodic Notes settings to create files. A template in this field can cause conflicts.
 
 ---
 
 ## 4. Dataview
 
-Dataview enables the query blocks embedded in your vault views. Both JavaScript queries and inline queries are used by the included dashboard templates.
+Dataview shows the results of query blocks in your notes. The queries in [Dataview Queries](dataview-queries.md) use JavaScript queries and inline queries.
 
 __Settings > Community Plugins > Dataview__
 
@@ -92,20 +103,20 @@ __Settings > Community Plugins > Dataview__
 | Enable JavaScript Queries | ON |
 | Enable Inline Queries | ON |
 
-Leave all other Dataview settings at their defaults.
+Keep the default value for all other Dataview settings.
 
 ---
 
-## How They Work Together
+## How the plugins work together
 
-The four plugins form a pipeline triggered by a single click:
+When you click a week number, the plugins do these steps:
 
-1. __Calendar sidebar__ - You see the week grid in the left panel. Click a week number (e.g., W15).
+1. __Calendar__ - The sidebar shows the week grid. You click a week number (for example W15).
 
-2. __Periodic Notes__ - Calendar delegates the "open or create weekly note" action to Periodic Notes. Periodic Notes uses the configured format (`YYYY-[W]WW`) to compute the filename (e.g., `2026-W15.md`) and creates the file in the `Worklogs` folder using `Templates/Weekly.md` as the source.
+2. __Periodic Notes__ - Calendar sends the "open or create weekly note" action to Periodic Notes. Periodic Notes uses the format `GGGG-[W]WW` to make the file name (for example `2026-W15.md`). It creates the file in the `Worklogs` folder from `Templates/Weekly.md`.
 
-3. __Templater__ - Because "Trigger Templater on new file creation" is ON and the folder template maps `Worklogs` to `Templates/Weekly.md`, Templater immediately processes the new file. It evaluates all template expressions in `Weekly.md` (date stamps, calculated fields, pre-filled frontmatter) and replaces them with their current values.
+3. __Templater__ - Templater processes the new file, because "Trigger Templater on new file creation" is ON. It replaces each template expression in `Weekly.md` with its value. The result is this frontmatter: `type`, `week`, `date-start`, `date-end`, `status`, and `prev`. The result also has the `# Week of` title.
 
-4. __Dataview__ - Any `dataview` code blocks in your notes are rendered live as tables or lists. Dataview reads the frontmatter fields (`programs`, `people`, `tags`, `item-count`, `done-count`) that Templater populated and aggregates them across all files in `Worklogs/`.
+4. __Dataview__ - Dataview shows each `dataview` code block in your notes as a live table or list. It reads the frontmatter of the week files in `Worklogs/` and `Archive/`.
 
-So one click in the Calendar sidebar produces a dated weekly note with frontmatter filled in and all template expressions resolved.
+The template does not write `programs`, `people`, `tags`, `item-count`, or `done-count`. The skill calculates these fields from the body of the week file each time it changes the structure of the file. Thus the Dataview queries that use these fields show data only after the skill writes to the week file. The source is the "Frontmatter Auto-generation" section of `skills/worklog/SKILL.md`.
