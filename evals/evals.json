@@ -52,8 +52,8 @@
     {
       "id": 9,
       "prompt": "/worklog pull (run a second time within seconds, no new Slack content)",
-      "expected_output": "Should be idempotent: no new Meetings/ files created, no existing files modified, no items added to current week file. Should advance Sources/<channel>.md last_scan_ts to current time. Summary should report 0 new threads, 0 updated, 0 items extracted.",
-      "issue_tested": "Idempotency - re-running pull with no new Slack content must not duplicate or rewrite anything"
+      "expected_output": "Should be idempotent apart from the log: no new Meetings/ files created, no existing Meetings/ files modified, no items added to the current week file. Should advance Sources/<channel>.md last_scan_ts to current time. Should append exactly one Logs/YYYY-MM.md entry with op `pull` recording 0 new threads and a complete sweep. Summary should report 0 new threads, 0 updated, 0 items extracted.",
+      "issue_tested": "Idempotency - re-running pull with no new Slack content must not duplicate or rewrite anything (log entry is the one permitted write on a zero-result pull)"
     },
     {
       "id": 10,
@@ -84,6 +84,216 @@
       "prompt": "/worklog pull (with 1 new thread; helper script not installed OR token file missing OR token expired/revoked)",
       "expected_output": "Should attempt auto-fetch first; helper exits non-zero (or doesn't exist). Should fall back to manual-paste prompt: present thread summary including a one-line note about the auto-fetch error, ask user to paste body or say 'skip' / 'skip all remaining'. On paste: same downstream pipeline as auto-fetch path. Should NOT silently fail; should NOT skip the thread without user confirmation; should NOT block the entire pull (other threads are processed normally).",
       "issue_tested": "v5.4.0 auto-fetch fallback - manual paste path remains fully functional when helper is missing or fails"
+    },
+    {
+      "id": 15,
+      "prompt": "/worklog pull (one meeting-notes-via-email source and one context-channel source registered)",
+      "expected_output": "Should branch on type: run the existing per-thread Meetings flow for the email source, and the sweep-and-classify flow for the context-channel source. The two must not interfere. Context-channel must NOT create Meetings/ notes. Email source behavior is unchanged.",
+      "issue_tested": "Source-type branch - both pull modes coexist in one /worklog pull"
+    },
+    {
+      "id": 16,
+      "prompt": "/worklog pull (context-channel with a thread that clearly names a program already tracked as a worklog item)",
+      "expected_output": "Should classify the thread as a high-confidence match and auto-fold it as a dated sub-item under the matching worklog item, wiki-linked, with a Slack permalink for provenance and the Slack timestamp as the date. Should NOT prompt for this item. Should list the auto-fold in the end-of-pull summary (summary -> target item + permalink).",
+      "issue_tested": "High-confidence match auto-folds with provenance and is itemized in the summary"
+    },
+    {
+      "id": 17,
+      "prompt": "/worklog pull (context-channel with one weakly-related thread and one clearly-new decision thread)",
+      "expected_output": "Should stage BOTH into a single end-of-pull approval batch (a numbered chat checklist) - the weak one as an uncertain match proposing attachment to a candidate item, the new one as a proposed new item with priority and subgroup. Nothing is written until the user responds. Should never force-fit the weak match. A bulk reply (e.g. 'add 1; 2 as P2 under X; skip') applies edits correctly and regenerates frontmatter only if a top-level item was added.",
+      "issue_tested": "Weak + new candidates batch for approval; no force-fit; bulk edit applies"
+    },
+    {
+      "id": 18,
+      "prompt": "/worklog pull (context-channel containing only unrelated banter and logistics)",
+      "expected_output": "Should classify all units as noise and drop them silently - zero writes to any worklog item or note, no approval-batch entries. The summary reports them as dropped (count only).",
+      "issue_tested": "Noise is dropped silently with no writes"
+    },
+    {
+      "id": 19,
+      "prompt": "/worklog pull (run a second time within seconds against the same context-channel, no new Slack content)",
+      "expected_output": "Should be idempotent: ts > last_scan_ts yields no new units, so no auto-folds, no approval batch, no writes. last_scan_ts advances to current time. Summary reports 0 scanned/0 folded/0 surfaced/0 dropped for that channel.",
+      "issue_tested": "Context-channel idempotency via last_scan_ts"
+    },
+    {
+      "id": 20,
+      "prompt": "/worklog pull (context-channel whose window contains more than ~100 conversation units)",
+      "expected_output": "Should hit the volume guardrail: stop and tell the user the unit count and the window, and ask whether to proceed, narrow the window, or skip the channel. Should NOT silently truncate or silently analyze only a subset.",
+      "issue_tested": "Volume guardrail - no silent truncation on large windows"
+    },
+    {
+      "id": 21,
+      "prompt": "/worklog pull (Sources/_dms.md enabled, slack-search-dms helper present and scope/consent granted, plus context-channel sources)",
+      "expected_output": "Should process channel sources, then run the DM sweep after them: call slack-search-dms with after=last_scan_ts and channel_types from include_1on1/include_groups, pass many narrow queries on stdin (no cursor), classify each result against the vault. DM candidates join the SAME end-of-pull approval batch as context-channel uncertain/new items. NOTHING from a DM is auto-folded.",
+      "issue_tested": "DM-sweep branch runs after channels via search; DM items batch, never auto-fold"
+    },
+    {
+      "id": 22,
+      "prompt": "/worklog pull (a DM search result clearly matches a tracked worklog item)",
+      "expected_output": "Should present the DM match in the approval batch with a recommended 'attach as sub-item under [[item]]' option - NOT write it silently. Unlike a context-channel high-confidence match, a DM high-confidence match is never auto-folded.",
+      "issue_tested": "DM high-confidence match goes to approval batch, not auto-fold"
+    },
+    {
+      "id": 23,
+      "prompt": "/worklog pull then approve a DM-derived item from the batch",
+      "expected_output": "On approval, the folded sub-item is a genericized, workstream-level summary (no verbatim 1:1 quote, no personal detail beyond the item's need), dated with the result's message_ts, wiki-linked, with the result's permalink for provenance.",
+      "issue_tested": "Approved DM items fold as genericized summaries with provenance"
+    },
+    {
+      "id": 24,
+      "prompt": "/worklog pull (Sources/_dms.md enabled but slack-search-dms missing, scope absent, or consent not granted so the helper returns non-zero)",
+      "expected_output": "Should run the helper, get a non-zero exit (e.g. missing_scope), print a one-line 'DM sweep skipped: <reason>' note, and continue/complete the rest of the pull normally. Must NOT block or fail the whole pull.",
+      "issue_tested": "Helper missing/unauthorized/not-consented -> DM sweep skipped gracefully"
+    },
+    {
+      "id": 25,
+      "prompt": "/worklog pull (_dms.md has exclude_users and exclude_conversations populated)",
+      "expected_output": "Search results whose channel_id is in exclude_conversations, and whose author_user_id is in exclude_users, are dropped before classification - their content never enters the approval batch. include_1on1/include_groups are honored by selecting channel_types.",
+      "issue_tested": "DM exclusions filter search results before classification"
+    },
+    {
+      "id": 26,
+      "prompt": "/worklog pull (run twice with no new DM activity)",
+      "expected_output": "Second run: search with after=last_scan_ts returns no results, no batch entries, no writes; last_scan_ts advances to now. Idempotent.",
+      "issue_tested": "DM-sweep idempotency via global last_scan_ts as the search after filter"
+    },
+    {
+      "id": 27,
+      "prompt": "/worklog pull (DM search yields more than max_results results in the window)",
+      "expected_output": "Should hit the volume guardrail up front: stop and tell the user the count and window, ask whether to proceed / narrow / skip. No silent truncation.",
+      "issue_tested": "DM-sweep volume guardrail at max_results - no silent truncation"
+    },
+    {
+      "id": 28,
+      "prompt": "i'm adding a worklog note: 'Met with Theo and Nadia about the Cloud Security migration; Chris is reviewing.' Wrap the people and programs as wiki-links.",
+      "expected_output": "Should run cross-link-index.sh (NOT glob People/Programs, NOT read bodies) to get the entity/alias digest. Should link [[Theo Kask|Theo]] (the dominant referent), [[Nadia Okafor|Nadia]], and [[Cloud Security]]. For the ambiguous 'Chris' (multiple people, no dominant referent), should ask which Chris or leave it unlinked rather than guessing.",
+      "issue_tested": "cross-link-index helper: writes consult the digest instead of globbing; dominant alias auto-links, ambiguous alias is not guessed (dominant alias is fixture-data-driven)"
+    },
+    {
+      "id": 29,
+      "prompt": "/worklog viz quarter",
+      "expected_output": "Model routing: viz is an Opus command. On Opus, run it inline. On a lower tier with the Agent tool, dispatch it to an Opus subagent and relay the result; with no Agent tool (headless eval), run it inline. Never pause to ask about the model and never wait for an answer. Light commands (add/review/audit) never route to Opus.",
+      "issue_tested": "Model routing sends heavy analysis to Opus without ever blocking"
+    },
+    {
+      "id": 30,
+      "prompt": "/worklog rollup",
+      "expected_output": "Should copy a Slack-mrkdwn version to the clipboard via pbcopy with no [[wiki-link]] syntax, AND write References/YYYY-WNN Rollup.md with type: reference, subtype: rollup, period, and source frontmatter. The filed copy must KEEP wiki-links so the rollup lands in the graph. The same include/filter content rules apply to both renderings: no performance commentary, no 1:1 specifics, no candidate names in either. Should append one Logs/ entry with op `rollup`.",
+      "issue_tested": "Filed answers compound - a rollup must survive as a vault artifact, and filing must not relax the audience filter"
+    },
+    {
+      "id": 31,
+      "prompt": "/worklog share",
+      "expected_output": "Should copy a brief priority-grouped status blurb to the clipboard and write NO vault file. Filing a share is explicitly out of scope; 52 of these a year would be noise in References/. Should append no Logs/ entry.",
+      "issue_tested": "Not every output is worth filing - share and search stay ephemeral"
+    },
+    {
+      "id": 32,
+      "prompt": "/worklog compact \"People/Nadia Okafor.md\" (vault git state clean; note has ## Role (HR system, confirmed <today>), ## 1:1 Doc, dozens of dated ## entries, and one of those dated entries contains a nested ### Current Status subsection)",
+      "expected_output": "## Role (HR system, confirmed <today>) and ## 1:1 Doc must come out byte-identical, at their original heading level and order, because they state what is true now, not because their headings lack a date - the same pattern as any dated-provenance heading such as ## Role (HR system, confirmed ...), which is current state precisely because it carries a confirmed-date stamp. A protection test keyed to 'heading has no date' would wrongly treat ## Role as foldable. The nested ### Current Status subsection must NOT get that same protection: because it sits beneath a dated entry, it is part of that entry and travels with it into ## Recent or ## History whole, rather than being promoted out as an independent current-state section.",
+      "issue_tested": "Current-state protection turns on what a section is for, not on whether its heading carries a date, and only applies to top-level sections - a current-state section nested inside a dated entry is not independently protected"
+    },
+    {
+      "id": 33,
+      "prompt": "/worklog compact \"People/Ines Duarte.md\" (1536 lines, never compacted; roughly 60 unique [[wiki-link]] targets across its dated entries; most of its dated entries currently sit inside the WORKLOG_COMPACT_KEEP_DAYS window)",
+      "expected_output": "Should capture canonical link targets before and after by materializing the proposal to a temp file and running the identical stripped-alias grep pipeline on both, not comparing by eye; any target present before and absent after must be named and explicitly confirmed before writing, never written-then-warned. Because most of this note's bulk currently falls inside the keep window and moves to ## Recent unchanged rather than folding, the pass is likely to leave the note still over WORKLOG_COMPACT_LINES; if so, the summary and log entry must state that explicitly with before/after line counts and the threshold and recommend a shorter WORKLOG_COMPACT_KEEP_DAYS - compacted: still updates to today, recording that a pass happened, not that the note is now small. The same materialized proposal must also be checked with the heading comparison: every heading that would vanish must be named as the bullet it folded into, since unlike a dropped link there is no confirmation path for an unexplained missing heading. The line-count drop must also reconcile against what was folded - if the note shrank by more than the sum of the folded sections' pre-fold line counts, that is a failed compaction regardless of whether the result lands under WORKLOG_COMPACT_LINES, and compacted: must not be reported as done.",
+      "issue_tested": "Link preservation is a hard gate on a materialized proposal, not a warning; and a partial fold on an oversized note must report its shortfall rather than claim success"
+    },
+    {
+      "id": 34,
+      "prompt": "/worklog compact \"People/Nadia Okafor.md\" (frontmatter says team: Northwind Platform and summary: \"Director, Platform Ops\"; the ## Role section records that Platform Ops was merged into Core Infrastructure and Northwind Platform renamed Core Infrastructure)",
+      "expected_output": "Should report both contradictions - team: versus the rename, and the existing summary: versus the merger - and NOT auto-fix either, even though the body is clearly newer and more complete. The user decides. A correct run still produces its own outputs (compacted: today, the History fold) but leaves team: and the stale summary: untouched pending the user's call; silently rewriting either field, or silently replacing the stale summary with a corrected one, is a failure - the deliverable is the report, not the fix.",
+      "issue_tested": "Contradiction detection reports and never auto-fixes, and that rule extends to a self-contradicting existing summary:, not just a frontmatter/body mismatch"
+    },
+    {
+      "id": 35,
+      "prompt": "/worklog compact (no argument; the scanner's oversized_notes returns five candidates: People/Nadia Okafor.md (347 lines), People/Theo Kask.md (346), People/Ines Duarte.md (344), People/Sofia Brandt.md (334), People/Kenji Watanabe.md (325))",
+      "expected_output": "Should run the scanner, read oversized_notes, and offer the five candidates one at a time with explicit options, largest first - Nadia Okafor.md first, Kenji Watanabe.md last. Must not present all five as a single free-text checklist and must not move to a second note without a per-note decision on the one before it. A reply that tries to cover multiple notes at once is not a valid response to a one-at-a-time offer.",
+      "issue_tested": "No-argument compact offers oversized candidates one at a time in size order, not as a batch checklist"
+    },
+    {
+      "id": 36,
+      "prompt": "/worklog compact \"People/Theo Kask.md\" - run once when the vault has uncommitted changes, and once when the vault directory is not a git repository at all",
+      "expected_output": "Both cases must end in a refusal to write the fold, but they are not the same refusal. Dirty case: git status --porcelain prints output, so offer to run /worklog sync; afterward, re-run the check rather than assuming the sync cleaned everything, since sync's git add list is an explicit allowlist that can leave files unstaged; if the user declines or the re-check still reports dirty, name the outstanding files and stop without compacting. Not-a-repo case: git rev-parse --is-inside-work-tree fails, there is no undo available at all, and the correct response is an unconditional refusal - not a dirty-state warning, not an offer to sync, and not a proceed-anyway option.",
+      "issue_tested": "The git-clean precondition is a refusal, not a warning, and 'not a repo at all' is a distinct refusal path from 'dirty' - neither is satisfied by an unverified sync"
+    },
+    {
+      "id": 37,
+      "prompt": "/worklog compact \"People/Sofia Brandt.md\" (already has compacted: 2026-06-01 and a populated ## History whose newest bullet covers an Apr 2026 theme; several ## Recent entries from around that same June compaction have since aged past WORKLOG_COMPACT_KEEP_DAYS)",
+      "expected_output": "Existing ## History bullets must come out byte-identical - they are immutable once written, never re-folded or re-summarized even when a newly-aged entry continues the same theme. Entries that have aged past the keep window since June must move from ## Recent into ## History now, added as new bullets of their own rather than merged into or used to rewrite an existing bullet on that theme, since re-summarizing already-summarized text is exactly what immutability forbids. The retention window is measured from today, not from the 2026-06-01 compaction date. Frontmatter compacted: updates to today's date.",
+      "issue_tested": "Repeat compaction treats existing History as immutable and measures the retention window from today, not from the last compaction date - a themed continuation must still land as its own bullet, never merged into the old one"
+    },
+    {
+      "id": 38,
+      "prompt": "/worklog compact \"People/Ines Duarte.md\" with WORKLOG_COMPACT_KEEP_DAYS=1 (so the two Planning conversation entries from 80 days ago are past the window and become fold candidates). The first, \"## <date> - 🔒 Planning conversation 10:00-10:05 AM (vault-only)\", has a nested child \"### 🔒 10:02 AM (ULTRA-CONFIDENTIAL)\". The entry right after it, \"## <date> - 🔒 Planning conversation 10:20-10:25 AM (vault-only)\", carries the same two markers on its own heading but no ULTRA-CONFIDENTIAL child anywhere beneath it, and both entries cover the same planning theme.",
+      "expected_output": "The 10:00 entry has a handling-marker set of {🔒, vault-only, ULTRA-CONFIDENTIAL} - the union of its own heading's two markers and its nested child's one. The 10:20 entry has the same two markers on its own heading, and none of its nested children add a new token, so its union stays {🔒, vault-only}. Even though both cover the same planning theme and grouping same-theme entries into one bullet is normally preferred, these two entries must land in separate History bullets, because their marker sets are not identical: {🔒, vault-only} is a subset of {🔒, vault-only, ULTRA-CONFIDENTIAL}, and a subset relationship does not qualify for sharing. A wrong implementation that groups by theme first and checks markers second would merge them under the parent heading's own markers, {🔒, vault-only}, silently dropping the ULTRA-CONFIDENTIAL restriction and laundering the child's restricted content into a less-restricted bullet - the exact disclosure risk the union rule exists to prevent.",
+      "issue_tested": "A handling-marker set is the union of an entry's own heading markers and every nested child's markers, and only identical sets may share a History bullet - a same-theme, subset-marker entry must still split into its own bullet rather than let the child's tighter restriction get silently lost"
+    },
+    {
+      "id": 39,
+      "prompt": "/worklog compact \"People/Kenji Watanabe.md\" ([[Chris Moreau|Chris]] appears exactly once in the whole note, as a 360-feedback backup reviewer inside the old \"## <date> - Active Workstreams\" section, which is old enough today to be a fold candidate). The model proposes History bullet set A, compressing that 360-feedback line without keeping the Chris Moreau mention, and the user approves set A. Materializing set A and running the link-gate pipeline then reports [[Chris Moreau]] as a target that would be lost. The model revises to bullet set B, keeping a Chris Moreau reference, and B compares clean.",
+      "expected_output": "The approval given for set A does not carry over to set B. Because the link gate forced a revision, the model must show B's History bullets themselves - the actual bullet text, not a paraphrase or a change-note like 'kept the Chris Moreau mention' - and wait for a fresh approval before writing, even though B compares clean and the user already approved once. Writing B on the strength of the approval given for A is exactly the failure the revise-and-reapprove loop exists to prevent. What is shown for approval, both times, must also exclude the entries moving to ## Recent: those move unchanged, so pasting them adds nothing for the user to approve and is not part of what this gate requires.",
+      "issue_tested": "Approval does not carry across a link-gate revision - a revised proposal needs its own approval even when it compares clean - and what is shown for approval must be the actual History bullets, never a summary of them, and never padded with unchanged ## Recent content"
+    },
+    {
+      "id": 40,
+      "prompt": "/worklog compact \"People/Theo Kask.md\" - the vault has never been initialized as a git repository",
+      "expected_output": "git rev-parse --is-inside-work-tree fails, so there is no undo available at all for a lossy fold. The correct response is an unconditional refusal: no dirty-vault language (no 'uncommitted', no 'git status', no mention of syncing), no offer to run /worklog sync, and no proceed-anyway option. The model should tell the user the vault is not under git version control, that there is no undo, and stop without writing anything.",
+      "issue_tested": "The not-a-repo refusal path is distinct from the dirty-vault refusal path and must not degrade into it - this covers the not-a-repo half of the git-clean precondition that case 36 leaves untested"
+    },
+    {
+      "id": 41,
+      "prompt": "quick note from today's migration sync:\n- Theo confirmed the rollback rehearsal is scheduled for Friday\n\nadd to worklog",
+      "expected_output": "Should fold this as a dated sub-item under the existing Platform Migration cutover item (do not create a new top-level item). What this case actually grades: the rehearsal detail must be genuinely present in the current week file when the model reports success. A run that claims the note was added, updated, or logged without that text landing in Worklogs/<week>.md is the false-success failure from issue #19 - the fix is a mandatory re-read-and-confirm step before reporting success, not more self-reporting language. If the write genuinely fails, the model must say so explicitly (retry once, then report failure) rather than claim success.",
+      "issue_tested": "Issue #19 - model (measured on Haiku) reports confident success on natural-language ingest without writing the extracted fact to the week file; tests that success is only reported after a verified re-read confirms the item actually landed, not asserted from the write attempt alone."
+    },
+    {
+      "id": 42,
+      "prompt": "/worklog\n\nnotes from the Q3 planning review:\n- Priya signed off on the new onboarding flow for the Checkout Redesign program; targeting a beta rollout the week of the 14th\n- Diego flagged that the fraud-scoring model needs a retrain before beta - he's picking that up, no date yet\n- Sam is blocked on the payments team for a sandbox API key; opened a ticket, waiting\n- decided to push the loyalty-points migration to next quarter, deprioritized for now\n- new hire Alex Kim starts Monday and will shadow Diego for the first two weeks",
+      "expected_output": "Bare /worklog with a substantial multi-entity paste attached: must route to raw-input processing, not to status. Should NOT print a status table of existing items and drop the paste. On re-read of Worklogs/<week>.md, the five extracted items/sub-items must be genuinely present (Priya's sign-off and beta date, Diego's retrain follow-up, Sam's blocker, the loyalty-points deprioritization, Alex Kim's start). People stubs created for any new names (Priya, Diego, Sam, Alex Kim) without an existing People/ note. An ops-log entry is appended recording the ingest.",
+      "issue_tested": "Blob-routing gap - a bare /worklog plus a substantial paste has no explicit ask, so it must still route to raw input instead of matching the /worklog status heading literally and discarding the paste"
+    },
+    {
+      "id": 43,
+      "prompt": "/worklog add P1 finish the vendor security questionnaire under Platform Migration",
+      "expected_output": "Item lands under Platform Migration exactly as a normal /worklog add would. add routes to Haiku. In the headless eval there is no Agent tool, so under opus:high the run prints the one-line inline-fallback note (On Opus; routed to Haiku) BEFORE the add work starts, then proceeds without waiting. The run must never halt or ask the user to switch models. Under sonnet:medium or haiku:low the Opus note must NOT appear.",
+      "issue_tested": "Model routing inline fallback - Opus running a Haiku command gets one line before the work, never a gate"
+    },
+    {
+      "id": 44,
+      "prompt": "/worklog rollover",
+      "expected_output": "Should apply the retention rule from references/threads.md: carry each not-Done item forward with only its newest WORKLOG_WEEK_KEEP_SUBS dated sub-items plus any open action regardless of age, write the displaced sub-items verbatim into a Threads/<slug>.md note BEFORE pruning the week file, append a 'Full history: [[Threads/<slug>]]' pointer, and park the item whose newest dated sub-item is outside WORKLOG_WEEK_DORMANT_DAYS. Nothing may be lost: every pre-rollover sub-item line must still exist in the week file, Backlog.md or a Thread note.",
+      "issue_tested": "Week-file unbounded growth - rollover carried every not-Done item forward with its entire accumulated sub-item history, and archiving rewrote the departing week as a body-less stub, making the week file the only surviving copy of every open item's history."
+    },
+    {
+      "id": 45,
+      "prompt": "/worklog pull (Sources/_dms.md enabled; the only DM worth surfacing is a group DM that a single generic query would not return)",
+      "expected_output": "The DM sweep must fan out: pass several narrow queries on stdin to slack-search-dms (names from the current week file and vault), not run it once with no queries. The group DM candidate reaches the end-of-pull approval batch and is not auto-folded.",
+      "issue_tested": "DM sweep missed a same-day group DM because it ran one relevance-ranked query; fan-out or a chronological listing is required"
+    },
+    {
+      "id": 46,
+      "prompt": "/worklog pull (Sources/_dms.md enabled; the DM candidate is about a topic that already has a parked Backlog entry and a Thread; the reply approves the recommended option)",
+      "expected_output": "The approval batch checks Backlog.md and Threads/ before offering a new item, recommends waking the parked entry 'On-call rotation restructure: tiering proposal', and on approval wakes it: the item returns to the week file once, its Thread goes live, the Backlog entry is removed, and no second Thread is created.",
+      "issue_tested": "Pull created new live items duplicating parked Backlog entries (a vendor program and a design memo) and a second Thread for the same item"
+    },
+    {
+      "id": 47,
+      "prompt": "/worklog cold \"People/Dana Whitfield.md\" (vault git state clean; People/Dana Whitfield.md has a Role section, two dated entries 100 and 120 days old with no open actions, one 90-day-old entry carrying an open Eval User action, and one 10-day-old entry)",
+      "expected_output": "Moves the two old unpinned entries verbatim to Cold/People/Dana Whitfield/, keeps the 90-day-old entry warm because of its open Eval User action, keeps the 10-day-old entry and the Role section warm, adds a Cold storage index linking the cold file, passes cold-gate.sh, logs op cold, and ends with a local worklog cold commit.",
+      "issue_tested": "No eval covered /worklog cold, so the model choice for it was recalled rather than measured"
+    },
+    {
+      "id": 48,
+      "prompt": "/worklog add P2 review the onsite notes",
+      "expected_output": "Asks the auto sync question once, writes Preferences/Auto Sync.md from the answer, then adds the item to the current week file.",
+      "issue_tested": "Auto sync first-run prompt: the note is missing, so the skill asks once, records the answer, and continues the command"
+    },
+    {
+      "id": 49,
+      "prompt": "/worklog add P2 review the onsite notes",
+      "expected_output": "Adds the item to the current week file, then prints one Auto-synced vault line and never asks to sync.",
+      "issue_tested": "Auto sync on: each writing command syncs once with sync.sh --auto and reports one line, with no approval prompt"
     }
   ]
 }

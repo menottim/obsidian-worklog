@@ -1,0 +1,101 @@
+{
+  "entities": [
+    {
+      "canonical": "Chris Ito",
+      "type": "person",
+      "aliases": []
+    },
+    {
+      "canonical": "Chris Park",
+      "type": "person",
+      "aliases": []
+    },
+    {
+      "canonical": "Dana Wu",
+      "type": "person",
+      "aliases": [
+        "Dana"
+      ]
+    },
+    {
+      "canonical": "Declared Person",
+      "type": "person",
+      "aliases": [
+        "DP",
+        "Declared"
+      ]
+    },
+    {
+      "canonical": "Madonna",
+      "type": "person",
+      "aliases": []
+    },
+    {
+      "canonical": "Nadia Okafor",
+      "type": "person",
+      "aliases": [
+        "Nadia"
+      ]
+    },
+    {
+      "canonical": "Omar Haddad",
+      "type": "person",
+      "aliases": [
+        "OHD",
+        "Omar"
+      ]
+    },
+    {
+      "canonical": "Pat Quinn",
+      "type": "person",
+      "aliases": [
+        "Pat"
+      ]
+    },
+    {
+      "canonical": "Pat Rogers",
+      "type": "person",
+      "aliases": []
+    },
+    {
+      "canonical": "Theo Kask",
+      "type": "person",
+      "aliases": [
+        "Theo"
+      ],
+      "alias_notes": [
+        {
+          "alias": "Theo",
+          "alts": [
+            "Theo Lin"
+          ]
+        }
+      ]
+    },
+    {
+      "canonical": "Theo Lin",
+      "type": "person",
+      "aliases": []
+    },
+    {
+      "canonical": "Auth (v2)",
+      "type": "program",
+      "aliases": []
+    },
+    {
+      "canonical": "Cloud Security",
+      "type": "program",
+      "aliases": []
+    }
+  ],
+  "ambiguous": {
+    "Chris": [
+      "Chris Ito",
+      "Chris Park"
+    ]
+  },
+  "meta": {
+    "people": 11,
+    "programs": 2
+  }
+}

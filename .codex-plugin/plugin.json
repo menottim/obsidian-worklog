@@ -1,0 +1,42 @@
+{
+  "name": "obsidian-worklog",
+  "version": "5.25.1",
+  "description": "Obsidian worklog manager for Claude Code and Codex: weekly planning, knowledge graph, priorities, summaries, visualizations, preferences, cold storage for old history, and Slack, Confluence, Google Docs, and Jira ingestion.",
+  "author": {
+    "name": "Menotti Minutillo",
+    "email": "menottim@users.noreply.github.com"
+  },
+  "homepage": "https://github.com/menottim/obsidian-worklog",
+  "repository": "https://github.com/menottim/obsidian-worklog",
+  "license": "MIT",
+  "keywords": [
+    "worklog",
+    "obsidian",
+    "tasks",
+    "priorities",
+    "weekly-planning",
+    "knowledge-graph",
+    "visualization",
+    "preferences",
+    "slack-ingest"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Obsidian Worklog",
+    "shortDescription": "Manage a structured Obsidian worklog",
+    "longDescription": "Plan weekly work, maintain linked people and program notes, create summaries and visualizations, and ingest supported work context into an Obsidian vault.",
+    "developerName": "Menotti Minutillo",
+    "category": "Productivity",
+    "capabilities": [
+      "Read",
+      "Write",
+      "Interactive"
+    ],
+    "websiteURL": "https://github.com/menottim/obsidian-worklog",
+    "defaultPrompt": [
+      "Show my active worklog priorities.",
+      "Add an item to my worklog.",
+      "Summarize my current work week."
+    ]
+  }
+}

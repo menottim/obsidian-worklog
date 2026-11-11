@@ -1,0 +1,30 @@
+{
+  "pages": [
+    [
+      {
+        "channel_id": "D0EVAL_NOISE",
+        "channel_type": "im",
+        "author_user_id": "U_X",
+        "author_name": "Sam Ortiz",
+        "user_name": "Sam Ortiz",
+        "content": "lunch tomorrow?",
+        "text": "lunch tomorrow?",
+        "hours_ago": 2
+      },
+      {
+        "channel_id": "G0EVAL_GROUP",
+        "channel_type": "mpim",
+        "author_user_id": "U_PPATEL",
+        "author_name": "Priya Patel",
+        "user_name": "Priya Patel",
+        "content": "Group DM with Priya Patel and Theo Kask: I'm going to propose we split the on-call rotation into two tiers next quarter. Nothing decided yet but wanted your read before I bring it to the group.",
+        "text": "Group DM with Priya Patel and Theo Kask: I'm going to propose we split the on-call rotation into two tiers next quarter. Nothing decided yet but wanted your read before I bring it to the group.",
+        "hours_ago": 5,
+        "requires_query": [
+          "Priya",
+          "Theo"
+        ]
+      }
+    ]
+  ]
+}
